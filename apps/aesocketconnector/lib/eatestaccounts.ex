@@ -37,7 +37,7 @@ defmodule AeTestAccounts do
         37,59,79>>
   end
 
-  def talkto_ae() do
+  def start_channel() do
 
     # TODO introduce a job list sequence for the instances.
     state_channel_configuration = %AeSocketConnector.WsConnection{initiator: initiatorPubkey(), initiator_amount: 7000000000000, responder: responderPubkey(), responder_amount: 4000000000000}

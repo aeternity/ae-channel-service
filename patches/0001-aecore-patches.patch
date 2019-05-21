@@ -1,0 +1,54 @@
+From 2812d26f042f425d88bbd6815dd72fbae0689310 Mon Sep 17 00:00:00 2001
+From: Aleksandar Filipov <aleksandar.filipov@jayway.com>
+Date: Wed, 22 May 2019 17:24:27 +0200
+Subject: [PATCH] aecore patches
+
+---
+ apps/aecore/src/aec_governance.erl | 10 +++++-----
+ apps/aecore/src/aec_vm_chain.erl   |  2 +-
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/apps/aecore/src/aec_governance.erl b/apps/aecore/src/aec_governance.erl
+index 08109a6..496cc32 100644
+--- a/apps/aecore/src/aec_governance.erl
++++ b/apps/aecore/src/aec_governance.erl
+@@ -169,8 +169,8 @@ primop_base_gas(?PRIM_CALL_ORACLE_EXTEND             ) -> 12000;
+ primop_base_gas(?PRIM_CALL_ORACLE_GET_ANSWER         ) -> 12000;
+ primop_base_gas(?PRIM_CALL_ORACLE_GET_QUESTION       ) -> 12000;
+ primop_base_gas(?PRIM_CALL_ORACLE_QUERY_FEE          ) -> 12000;
+-primop_base_gas(?PRIM_CALL_ORACLE_CHECK              ) -> 5000;
+-primop_base_gas(?PRIM_CALL_ORACLE_CHECK_QUERY        ) -> 5000;
++% primop_base_gas(?PRIM_CALL_ORACLE_CHECK              ) -> 5000;
++% primop_base_gas(?PRIM_CALL_ORACLE_CHECK_QUERY        ) -> 5000;
+ primop_base_gas(?PRIM_CALL_AENS_RESOLVE              ) -> 12000;
+ primop_base_gas(?PRIM_CALL_AENS_PRECLAIM             ) -> 12000;
+ primop_base_gas(?PRIM_CALL_AENS_CLAIM                ) -> 12000;
+@@ -190,9 +190,9 @@ primop_base_gas(?PRIM_CALL_CRYPTO_SHA256             ) -> 30;
+ primop_base_gas(?PRIM_CALL_CRYPTO_BLAKE2B            ) -> 30;
+ primop_base_gas(?PRIM_CALL_CRYPTO_SHA256_STRING      ) -> 30;
+ primop_base_gas(?PRIM_CALL_CRYPTO_BLAKE2B_STRING     ) -> 30;
+-primop_base_gas(?PRIM_CALL_AUTH_TX_HASH              ) -> 0;
+-primop_base_gas(?PRIM_CALL_ADDR_IS_CONTRACT          ) -> 5000;
+-primop_base_gas(?PRIM_CALL_ADDR_IS_ORACLE            ) -> 5000.
++primop_base_gas(?PRIM_CALL_AUTH_TX_HASH              ) -> 0.
++% primop_base_gas(?PRIM_CALL_ADDR_IS_CONTRACT          ) -> 5000;
++% primop_base_gas(?PRIM_CALL_ADDR_IS_ORACLE            ) -> 5000.
+ 
+ 
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+diff --git a/apps/aecore/src/aec_vm_chain.erl b/apps/aecore/src/aec_vm_chain.erl
+index 49779f5..485c1e0 100644
+--- a/apps/aecore/src/aec_vm_chain.erl
++++ b/apps/aecore/src/aec_vm_chain.erl
+@@ -52,7 +52,7 @@
+         ]).
+ 
+ -include("../include/blocks.hrl").
+--include("../../aecontract/include/aecontract.hrl").
++-include("aecontract/include/aecontract.hrl").
+ 
+ -define(NO_INNER_TREES, no_inner_trees).
+ 
+-- 
+2.19.2
+
