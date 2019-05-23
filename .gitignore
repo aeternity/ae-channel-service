@@ -22,6 +22,10 @@
 
 /log/
 
+# fate puts code here
+/src/
+/test/
+
 #
 .elixir_ls/
 
