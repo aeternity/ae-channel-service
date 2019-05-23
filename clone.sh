@@ -20,11 +20,10 @@ cd apps
 yes | mix new aecore
 yes | mix new aetx
 yes | mix new aechannel
+yes | mix new aecontract
 cd ..
 
-
 cp -r sparse/apps .
-mv apps/aecontract apps/aecore/
 
 # prepare aecore
 # TODO, check out sane verions.
