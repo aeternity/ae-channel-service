@@ -19,6 +19,8 @@
 /apps/aetx/
 /sparse/
 
+/log/
+
 #
 .elixir_ls/
 
