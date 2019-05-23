@@ -26,7 +26,7 @@ defmodule AeSocketConnector do
 
   @network_id "my_test"
 
-  def start_link(name, %__MODULE__{pub_key: pub_key, priv_key: priv_key, session: %WsConnection{initiator: initiator, responder: responder, initiator_amount: initiator_amount, responder_amount: responder_amount}, role: role} = state_channel_context, ws_base, color, ws_manager_pid) do
+  def start_link(_name, %__MODULE__{pub_key: _pub_key, priv_key: _priv_key, session: %WsConnection{initiator: initiator, responder: responder, initiator_amount: initiator_amount, responder_amount: responder_amount}, role: role} = state_channel_context, ws_base, color, ws_manager_pid) do
     initiator_id = :aeser_api_encoder.encode(:account_pubkey, initiator)
     responder_id = :aeser_api_encoder.encode(:account_pubkey, responder)
     session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role)
@@ -36,16 +36,14 @@ defmodule AeSocketConnector do
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
-  def start_link(name, %__MODULE__{pub_key: pub_key, priv_key: priv_key, session: %WsConnection{initiator: initiator, responder: responder, initiator_amount: initiator_amount, responder_amount: responder_amount}, role: role, channel_id: channel_id, state_tx: nil} = state_channel_context, ws_base, :reestablish, color, ws_manager_pid) do
+  def start_link(_name, %__MODULE__{state_tx: nil}, _ws_base, :reestablish, color, _ws_manager_pid) do
     Logger.error "cannot reconnect", [ansi_color: color]
     {:ok, nil}
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
 
-  def start_link(name, %__MODULE__{pub_key: pub_key, priv_key: priv_key, session: %WsConnection{initiator: initiator, responder: responder, initiator_amount: initiator_amount, responder_amount: responder_amount}, role: role, channel_id: channel_id, state_tx: state_tx} = state_channel_context, ws_base, :reestablish, color, ws_manager_pid) do
-    initiator_id = :aeser_api_encoder.encode(:account_pubkey, initiator)
-    responder_id = :aeser_api_encoder.encode(:account_pubkey, responder)
+  def start_link(_name, %__MODULE__{pub_key: _pub_key, role: role, channel_id: channel_id, state_tx: state_tx} = state_channel_context, ws_base, :reestablish, color, ws_manager_pid) do
     session_map = init_reestablish_map(channel_id, state_tx, role)
     ws_url = create_link(ws_base, session_map)
     Logger.debug "start_link reestablish #{inspect ws_url}", [ansi_color: color]
@@ -90,7 +88,7 @@ defmodule AeSocketConnector do
 
 # server side
 
-  def handle_connect(conn, state) do
+  def handle_connect(_conn, state) do
     # Logger.info("Connected! #{inspect conn}")
     {:ok, state}
   end
@@ -143,14 +141,13 @@ defmodule AeSocketConnector do
     %WsConnection{initiator: initiator, responder: responder} = state.session
     account_initiator = :aeser_api_encoder.encode(:account_pubkey, initiator)
     account_responder = :aeser_api_encoder.encode(:account_pubkey, responder)
-    request = %{jsonrpc: "2.0", id: :erlang.unique_integer([:monotonic]), method: "channels.get.balances", params: %{accounts: [account_initiator, account_responder]}}
+    %{jsonrpc: "2.0", id: :erlang.unique_integer([:monotonic]), method: "channels.get.balances", params: %{accounts: [account_initiator, account_responder]}}
   end
 
   # TODO only possible on one direction!
   def transfer_amount(from, to, amount) do
     account_from = :aeser_api_encoder.encode(:account_pubkey, from)
     account_to = :aeser_api_encoder.encode(:account_pubkey, to)
-    id = :erlang.unique_integer([:monotonic])
     %{
       jsonrpc: "2.0",
       id: :erlang.unique_integer([:monotonic]),
@@ -387,7 +384,7 @@ defmodule AeSocketConnector do
     {:ok, state}
   end
 
-  def process_message(%{"method" => "channels.update", "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}} = message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
+  def process_message(%{"method" => "channels.update", "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}} = _message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
     log_string =
       case (state_tx == state.state_tx) do
         true -> "unchanged, state is #{inspect state_tx}"
@@ -402,12 +399,12 @@ defmodule AeSocketConnector do
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
-  def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
+  def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
     {:ok, state}
   end
 
 
-  def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id, "data" => %{"event" => "open"}}} = message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
+  def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id, "data" => %{"event" => "open"}}} = _message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
     Logger.debug "= CHANNEL OPEN/READY", state.color
     {:ok, state}
   end
