@@ -23,8 +23,8 @@ index 08109a6..496cc32 100644
 +primop_base_gas(?PRIM_CALL_AUTH_TX_HASH              ) -> 0.
 +% primop_base_gas(?PRIM_CALL_ADDR_IS_CONTRACT          ) -> 5000;
 +% primop_base_gas(?PRIM_CALL_ADDR_IS_ORACLE            ) -> 5000.
- 
- 
+
+
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 diff --git a/apps/aecore/src/aec_vm_chain.erl b/apps/aecore/src/aec_vm_chain.erl
 index 49779f5..485c1e0 100644
@@ -32,10 +32,9 @@ index 49779f5..485c1e0 100644
 +++ b/apps/aecore/src/aec_vm_chain.erl
 @@ -52,7 +52,7 @@
          ]).
- 
+
  -include("../include/blocks.hrl").
 --include("../../aecontract/include/aecontract.hrl").
-+-include("aecontract/include/aecontract.hrl").
- 
++-include("../aecontract/include/aecontract.hrl").
+
  -define(NO_INNER_TREES, no_inner_trees).
- 
