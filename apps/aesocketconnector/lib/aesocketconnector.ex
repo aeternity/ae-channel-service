@@ -314,6 +314,16 @@ defmodule AeSocketConnector do
     response
   end
 
+  # shot this curl to check wheater onchain is alright....
+  defp verify_on_chain(tx) do
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
+    deserialized_tx = :aetx_sign.deserialize_from_binary(signed_tx)
+    tx_hash = :aetx_sign.hash(deserialized_tx)
+    serialized_hash = :aeser_api_encoder.encode(:tx_hash, tx_hash)
+    url_to_check = "http://localhost:3013/v2/transactions/" <> URI.encode(serialized_hash)
+    Logger.debug "url to check: curl #{inspect url_to_check}"
+  end
+
   def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id, "data" => %{"event" => "funding_locked"}}} = _message, state) do
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
@@ -403,6 +413,10 @@ defmodule AeSocketConnector do
     {:ok, state}
   end
 
+  def process_message(%{"method" => "channels.on_chain_tx", "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}} = _message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
+    verify_on_chain(signed_tx)
+    {:ok, state}
+  end
 
   def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id, "data" => %{"event" => "open"}}} = _message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
     Logger.debug "= CHANNEL OPEN/READY", state.color
