@@ -9,6 +9,11 @@ defmodule AeChannelRunner do
     start_channel(AeTestAccounts.initiatorPubkey(), AeTestAccounts.initiatorPrivkey(), AeTestAccounts.responderPubkey(), AeTestAccounts.responderPrivkey(), @ae_url, @network_id)
   end
 
+  def compile_contract() do
+    # :aeso_compiler.file("apps/aesocketconnector/res/contract")
+    # :aeso_compiler.from_string(con, [:pp_assembler])
+  end
+
   def start_channel(initiator_pub, initiator_priv, responder_pub, responder_priv, ae_url, network_id) do
 
     # TODO introduce a job list sequence for the instances.
