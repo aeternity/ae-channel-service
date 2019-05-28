@@ -29,7 +29,7 @@ defmodule AeSessionHolder do
 
   def handle_call({:connection_dropped, configuration}, _from, state) do
     # TODO, remove delay
-    # give to other end to disconnect
+    # give to other fair chanse to disconnect
     Process.sleep(1000)
     reestablish(self())
     {:reply, :ok, %__MODULE__{state | configuration: configuration}}
@@ -47,30 +47,3 @@ defmodule AeSessionHolder do
   end
 
 end
-
-
-
-# {:ok, pid} = AeSocketConnector.start_link()
-
-# AeSocketConnector.echo(pid, "Yo Homies!")
-# AeSocketConnector.echo(pid, "This and That!")
-# AeSocketConnector.echo(pid, "Can you please reply yourself?")
-#
-# Process.sleep(1000)
-#
-# AeSocketConnector.echo(pid, "Close the things!")
-# Process.sleep(1500)
-
-#
-# {
-#   "jsonrpc": "2.0",
-#   "method": "channels.initiator_sign",
-#   "params": {
-#     "tx": "tx_+MsLAfhCuEA8qOUSomEv4vYDrI78VvYo5/hgXIXzHFftvIWVKP1P6N823VPgptGj6+8JgctKZNIHrRp/3dApg/3LEVleoOQOuIP4gTIBoQGxtXe80yfLOeVebAJr1qdKGzXebAZQxK5R76t1nkFbZoY/qiUiYAChAWccVUZGSUV1srSU9lFoIXEGY9hIk83S0jYDelTDPu6EhiRhOcqAAAIKAIYSMJzlQADAoKM+TsJdaNIdM7xXZj1ZNp3oP/mwHzIJHxa6ZaHRbFa/Ac8BpMU="
-#   }
-# }
-#
-# %{jsonrpc: "2.0",
-#    method: "channels.initiator_sign",
-#    params:
-#    %{tx: "tx_yh0xNxVk6lkE+pajmjWYEqAqN0o9FKrwP/SwIT68ep7DdCbQhi1OB1YxCuj7diYqdmmLvEfwdoAyl485MOscCQ=="}}

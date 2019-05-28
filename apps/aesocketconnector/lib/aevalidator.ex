@@ -80,4 +80,14 @@ defmodule AeValidator do
     :aetx.serialize_for_client(tx)
     :ok
   end
+
+  # shot this curl to check wheater onchain is alright....
+  def verify_on_chain(tx) do
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
+    deserialized_tx = :aetx_sign.deserialize_from_binary(signed_tx)
+    tx_hash = :aetx_sign.hash(deserialized_tx)
+    serialized_hash = :aeser_api_encoder.encode(:tx_hash, tx_hash)
+    url_to_check = "http://localhost:3013/v2/transactions/" <> URI.encode(serialized_hash)
+    Logger.debug "url to check: curl #{inspect url_to_check}"
+  end
 end
