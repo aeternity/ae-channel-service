@@ -2,7 +2,7 @@
   "aebytecode": {:git, "https://github.com/aeternity/aebytecode.git", "241a96ebaa3e041781003cd20532a59ace87eb87", [ref: "241a96e"]},
   "aecuckoo": {:git, "https://github.com/aeternity/aecuckoo.git", "fa3d13e8c7003589153223f634c851d389b61b93", [ref: "fa3d13e"]},
   "aeserialization": {:git, "https://github.com/aeternity/aeserialization.git", "816bf994ffb5cee218c3f22dc5fea296c9e0882e", [ref: "816bf99"]},
-  "aesophia": {:git, "https://github.com/aeternity/aesophia.git", "c045e5d65338237cbe7f88721abee7fe5d5b12a8", []},
+  "aesophia": {:git, "https://github.com/aeternity/aesophia.git", "c045e5d65338237cbe7f88721abee7fe5d5b12a8", [ref: "c045e5d6"]},
   "aeternity": {:git, "https://github.com/aeternity/aeternity", "a2fdf3bfcc1a0610e9bf02a4abe7a42b28dfb4e0", []},
   "base58": {:git, "https://github.com/aeternity/erl-base58.git", "60a335668a60328a29f9731b67c4a0e9e3d50ab6", [ref: "60a3356"]},
   "eblake2": {:hex, :eblake2, "1.0.0", "ec8ad20e438aab3f2e8d5d118c366a0754219195f8a0f536587440f8f9bcf2ef", [:rebar3], [], "hexpm"},

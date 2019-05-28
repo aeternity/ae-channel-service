@@ -29,7 +29,7 @@ defmodule AeSocketConnector.MixProject do
       # {:aebytecode, path: "../aebytecode", manager: :rebar3},
       # {:aebytecode, path: "../../aebytecode", manager: :rebar3, compile: false, override: true, app: false},
       # {:aebytecode, ">= 0.0.0", [env: :prod, override: true, git: "https://github.com/aeternity/aebytecode.git", ref: "241a96e"]},
-      {:aesophia, git: "https://github.com/aeternity/aesophia.git", manager: :rebar},
+      {:aesophia, git: "https://github.com/aeternity/aesophia.git", ref: "c045e5d6", manager: :rebar},
       # {:aeserialization, ">= 0.0.0", [env: :prod, override: true, git: "https://github.com/aeternity/aeserialization.git", ref: "816bf99", manager: :rebar3]},
       {:websockex, "~> 0.4.0"},
       {:poison, "~> 3.1"},
