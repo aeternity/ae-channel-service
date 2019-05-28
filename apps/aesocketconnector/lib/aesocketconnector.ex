@@ -2,8 +2,6 @@ defmodule AeSocketConnector do
   use WebSockex
   require Logger
 
-# inspiration https://github.com/aeternity/protocol/blob/057815233d72af035c13a13e8fb4d0e26515c2fc/node/api/examples/channels/json-rpc/sc_ws_basic_open_close.md
-
   defstruct [
     pub_key: nil,
     priv_key: nil,
@@ -14,6 +12,8 @@ defmodule AeSocketConnector do
     pending_id: nil,
     ws_manager_pid: nil,
     state_tx: nil,
+    network_id: nil,
+    ws_base: nil,
   ]
 
 
@@ -24,15 +24,13 @@ defmodule AeSocketConnector do
     responder_amount: nil
   ]
 
-  @network_id "my_test"
-
-  def start_link(_name, %__MODULE__{pub_key: _pub_key, priv_key: _priv_key, session: %WsConnection{initiator: initiator, responder: responder, initiator_amount: initiator_amount, responder_amount: responder_amount}, role: role} = state_channel_context, ws_base, color, ws_manager_pid) do
+  def start_link(_name, %__MODULE__{pub_key: _pub_key, priv_key: _priv_key, session: %WsConnection{initiator: initiator, responder: responder, initiator_amount: initiator_amount, responder_amount: responder_amount}, role: role} = state_channel_context, ws_base, network_id, color, ws_manager_pid) do
     initiator_id = :aeser_api_encoder.encode(:account_pubkey, initiator)
     responder_id = :aeser_api_encoder.encode(:account_pubkey, responder)
     session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role)
     ws_url = create_link(ws_base, session_map)
     Logger.debug "start_link #{inspect ws_url}", [ansi_color: color]
-    WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{state_channel_context | ws_manager_pid: ws_manager_pid, color: [ansi_color: color]})
+    WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{state_channel_context | ws_manager_pid: ws_manager_pid, ws_base: ws_base, network_id: network_id, color: [ansi_color: color]})
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
@@ -43,9 +41,9 @@ defmodule AeSocketConnector do
   end
 
 
-  def start_link(_name, %__MODULE__{pub_key: _pub_key, role: role, channel_id: channel_id, state_tx: state_tx} = state_channel_context, ws_base, :reestablish, color, ws_manager_pid) do
+  def start_link(_name, %__MODULE__{pub_key: _pub_key, role: role, channel_id: channel_id, state_tx: state_tx} = state_channel_context, :reestablish, color, ws_manager_pid) do
     session_map = init_reestablish_map(channel_id, state_tx, role)
-    ws_url = create_link(ws_base, session_map)
+    ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug "start_link reestablish #{inspect ws_url}", [ansi_color: color]
     WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{state_channel_context | ws_manager_pid: ws_manager_pid, color: [ansi_color: color]})
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
@@ -300,7 +298,7 @@ defmodule AeSocketConnector do
       :ok ->
       # bin = :aetx.serialize_to_binary(tx)
         bin = create_bin_tx
-        bin_for_network = <<@network_id::binary, bin::binary>>
+        bin_for_network = <<state.network_id::binary, bin::binary>>
         result_signed = :enacl.sign_detached(bin_for_network, state.priv_key)
         signed_create_tx = :aetx_sign.new(tx, [result_signed])
         :aeser_api_encoder.encode(:transaction, :aetx_sign.serialize_to_binary(signed_create_tx))

@@ -37,21 +37,24 @@ defmodule AeTestAccounts do
     173,39,2,126,254,111,28,73,150,6,150,66,20,47,81,213,153>>
   end
 
+
   @ae_url "ws://localhost:3014/channel"
+  @network_id "my_test"
+
 
   def start_channel_helper() do
-    start_channel(initiatorPubkey(), initiatorPrivkey(), responderPubkey(), responderPrivkey(), @ae_url)
+    start_channel(initiatorPubkey(), initiatorPrivkey(), responderPubkey(), responderPrivkey(), @ae_url, @network_id)
   end
 
-  def start_channel(initiator_pub, initiator_priv, responder_pub, responder_priv, ae_url) do
+  def start_channel(initiator_pub, initiator_priv, responder_pub, responder_priv, ae_url, network_id) do
 
     # TODO introduce a job list sequence for the instances.
     state_channel_configuration = %AeSocketConnector.WsConnection{initiator: initiator_pub, initiator_amount: 7000000000000, responder: responder_pub, responder_amount: 4000000000000}
 
-    {:ok, pid_initiator} = AeSessionHolder.start_link(%AeSocketConnector{pub_key: initiator_pub, priv_key: initiator_priv, session: state_channel_configuration, role: :initiator}, ae_url, :yellow)
+    {:ok, pid_initiator} = AeSessionHolder.start_link(%AeSocketConnector{pub_key: initiator_pub, priv_key: initiator_priv, session: state_channel_configuration, role: :initiator}, ae_url, network_id, :yellow)
     Logger.debug "pid_initiator #{inspect pid_initiator}", ansi_color: :yellow
 
-    {:ok, pid_responder} = AeSessionHolder.start_link(%AeSocketConnector{pub_key: responder_pub, priv_key: responder_priv, session: state_channel_configuration, role: :responder}, ae_url, :blue)
+    {:ok, pid_responder} = AeSessionHolder.start_link(%AeSocketConnector{pub_key: responder_pub, priv_key: responder_priv, session: state_channel_configuration, role: :responder}, ae_url, network_id, :blue)
     Logger.debug "pid_responder #{inspect pid_responder}", ansi_color: :blue
 
     # Process.sleep(4000)
