@@ -12,3 +12,4 @@ Then, start the code (in iex shell)
 ```
 iex(1)> AeChannelRunner.start_channel_helper()
 ```
+requires OTP 20.3 

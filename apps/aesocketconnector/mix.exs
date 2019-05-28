@@ -34,6 +34,7 @@ defmodule AeSocketConnector.MixProject do
       {:websockex, "~> 0.4.0"},
       {:poison, "~> 3.1"},
       {:enacl, git: "https://github.com/aeternity/enacl.git", ref: "26180f4"},
+      {:exometer_core, git: "https://github.com/aeternity/exometer_core.git", ref: "588da23", manager: :rebar3},
       # {:aebytecode, path: "../../aebytecode", manager: :rebar3, override: true, manager: :make},
       # {:aeserialization, git: "https://github.com/aeternity/aeserialization.git"},
     ]
