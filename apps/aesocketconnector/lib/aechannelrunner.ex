@@ -32,6 +32,11 @@ defmodule AeChannelRunner do
     # AeSessionHolder.run_action(pid_responder, fn(pid) -> AeSocketConnector.initiate_transfer(pid, 2) end)
     # AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.initiate_transfer(pid, 2) end)
     Process.sleep(4000)
+
+    # Logger.debug "file content is: #{inspect File.read!("contracts/sample")}"
+    AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.upload_contract(pid, "contracts/sample") end)
+
+    Process.sleep(4000)
     AeSessionHolder.run_action(pid_responder, fn(pid) -> AeSocketConnector.withdraw(pid, 1000000) end)
     #
     Process.sleep(4000)
