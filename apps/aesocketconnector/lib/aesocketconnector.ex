@@ -160,13 +160,11 @@ defmodule AeSocketConnector do
   end
 
   def handle_cast({:call_contract, contract_file}, state) do
-    # {:ok, map} = :aeso_compiler.file(contract_file)
-    # encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
     {:ok, call_data, _, _} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    # transfer = new_contract(encoded_bytecode, encoded_calldata, 3)
-    # transfer = new_contract(encoded_bytecode, "", 3)
-    address = 0
+    # TODO get the pub key of creator from the updates section in the update message!
+    address_inter = :aect_contracts.compute_contract_pubkey(state.pub_key, state.nonce_map[:round])
+    address = :aeser_api_encoder.encode(:contract_pubkey, address_inter)
     transfer = call_contract_req(address, encoded_calldata)
     Logger.info("=> call contract #{inspect transfer}", state.color)
     {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
@@ -393,22 +391,22 @@ defmodule AeSocketConnector do
   end
 
   def process_message(%{"method" => "channels.sign.deposit_tx", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.deposit_tx", logstring: "initiator_sign"])
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> {:ok, %{}} end), state, [method: "channels.deposit_tx", logstring: "initiator_sign"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.deposit_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.deposit_ack", logstring: "responder_sign"])
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> {:ok, %{}} end), state, [method: "channels.deposit_ack", logstring: "responder_sign"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.withdraw_tx", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.withdraw_tx", logstring: "initiator_sign"])
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> {:ok, %{}} end), state, [method: "channels.withdraw_tx", logstring: "initiator_sign"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.withdraw_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.withdraw_ack", logstring: "responder_sign"])
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> {:ok, %{}} end), state, [method: "channels.withdraw_ack", logstring: "responder_sign"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
@@ -418,12 +416,12 @@ defmodule AeSocketConnector do
   # end
 
   def process_message(%{"method" => "channels.sign.shutdown_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.shutdown_sign", logstring: "initiator_sign"])
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> {:ok, %{}} end), state, [method: "channels.shutdown_sign", logstring: "initiator_sign"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.shutdown_sign_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.shutdown_sign_ack", logstring: "initiator_sign"])
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> {:ok, %{}} end), state, [method: "channels.shutdown_sign_ack", logstring: "initiator_sign"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
