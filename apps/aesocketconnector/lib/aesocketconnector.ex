@@ -14,6 +14,7 @@ defmodule AeSocketConnector do
     state_tx: nil,
     network_id: nil,
     ws_base: nil,
+    nonce_map: %{}
   ]
 
 
@@ -84,9 +85,14 @@ defmodule AeSocketConnector do
     WebSockex.cast(pid, {:leave, {}})
   end
 
-  @spec upload_contract(pid, String.t) :: :ok
-  def upload_contract(pid, contract_file) do
-    WebSockex.cast(pid, {:upload_contract, contract_file})
+  @spec new_contract(pid, String.t) :: :ok
+  def new_contract(pid, contract_file) do
+    WebSockex.cast(pid, {:new_contract, contract_file})
+  end
+
+  @spec call_contract(pid, String.t) :: :ok
+  def call_contract(pid, contract_file) do
+    WebSockex.cast(pid, {:call_contract, contract_file})
   end
 
 # server side
@@ -137,22 +143,35 @@ defmodule AeSocketConnector do
     Logger.info("=> leave #{inspect transfer}", state.color)
     {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
+  #
+  # @call_data "cb_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACC5yVbyizFJqfWYeqUF89obIgnMVzkjQAYrtsG9n5+Z6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAnHQYrA=="
+  # @code "cb_+QP1RgKg/ukoFMi2RBUIDNHZ3pMMzHSrPs/uKkwO/vEf7cRnitr5Avv5ASqgaPJnYzj/UIg5q6R3Se/6i+h+8oTyB/s9mZhwHNU4h8WEbWFpbrjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKD//////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAuEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+QHLoLnJVvKLMUmp9Zh6pQXz2hsiCcxXOSNABiu2wb2fn5nqhGluaXS4YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////////////////////7kBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA//////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////////////////////////////////uMxiAABkYgAAhJGAgIBRf7nJVvKLMUmp9Zh6pQXz2hsiCcxXOSNABiu2wb2fn5nqFGIAAMBXUIBRf2jyZ2M4/1CIOaukd0nv+ovofvKE8gf7PZmYcBzVOIfFFGIAAK9XUGABGVEAW2AAGVlgIAGQgVJgIJADYAOBUpBZYABRWVJgAFJgAPNbYACAUmAA81tZWWAgAZCBUmAgkANgABlZYCABkIFSYCCQA2ADgVKBUpBWW2AgAVFRWVCAkVBQgJBQkFZbUFCCkVBQYgAAjFaFMi4xLjAhVoVW"
 
-  @call_data "cb_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACC5yVbyizFJqfWYeqUF89obIgnMVzkjQAYrtsG9n5+Z6gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAnHQYrA=="
-  @code "cb_+QP1RgKg/ukoFMi2RBUIDNHZ3pMMzHSrPs/uKkwO/vEf7cRnitr5Avv5ASqgaPJnYzj/UIg5q6R3Se/6i+h+8oTyB/s9mZhwHNU4h8WEbWFpbrjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKD//////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAuEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+QHLoLnJVvKLMUmp9Zh6pQXz2hsiCcxXOSNABiu2wb2fn5nqhGluaXS4YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////////////////////////////////7kBQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA//////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////////////////////////////////uMxiAABkYgAAhJGAgIBRf7nJVvKLMUmp9Zh6pQXz2hsiCcxXOSNABiu2wb2fn5nqFGIAAMBXUIBRf2jyZ2M4/1CIOaukd0nv+ovofvKE8gf7PZmYcBzVOIfFFGIAAK9XUGABGVEAW2AAGVlgIAGQgVJgIJADYAOBUpBZYABRWVJgAFJgAPNbYACAUmAA81tZWWAgAZCBUmAgkANgABlZYCABkIFSYCCQA2ADgVKBUpBWW2AgAVFRWVCAkVBQgJBQkFZbUFCCkVBQYgAAjFaFMi4xLjAhVoVW"
-
-
-  def handle_cast({:upload_contract, contract_file}, state) do
+  def handle_cast({:new_contract, contract_file}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
     {:ok, call_data, _, _} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    transfer = create_contract(encoded_bytecode, encoded_calldata, 3)
-    # transfer = create_contract(encoded_bytecode, "", 3)
-    # transfer = create_contract(@code, @call_data, to_string(version))
-    Logger.info("=> create contract #{inspect transfer}", state.color)
+    transfer = new_contract(encoded_bytecode, encoded_calldata, 3)
+    # transfer = new_contract(encoded_bytecode, "", 3)
+    # transfer = new_contract(@code, @call_data, 3)
+    Logger.info("=> new contract #{inspect transfer}", state.color)
     {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
+
+  def handle_cast({:call_contract, contract_file}, state) do
+    # {:ok, map} = :aeso_compiler.file(contract_file)
+    # encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
+    {:ok, call_data, _, _} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
+    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+    # transfer = new_contract(encoded_bytecode, encoded_calldata, 3)
+    # transfer = new_contract(encoded_bytecode, "", 3)
+    address = 0
+    transfer = call_contract(address, encoded_calldata)
+    Logger.info("=> call contract #{inspect transfer}", state.color)
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+  end
+
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state) do
@@ -222,7 +241,7 @@ defmodule AeSocketConnector do
     }
   end
 
-  def create_contract(code, call_data, version) do
+  def new_contract(code, call_data, version) do
     %{
       jsonrpc: "2.0",
       method: "channels.update.new_contract",
@@ -235,6 +254,20 @@ defmodule AeSocketConnector do
       }
     }
   end
+
+  def call_contract(address, call_data) do
+    %{
+      jsonrpc: "2.0",
+      method: "channels.update.call_contract",
+      params: %{
+        abi_version: 1,
+        amount: 0,
+        call_data: call_data,
+        contract: address
+      }
+    }
+  end
+
 
 
   # def handle_frame({:text, "Can you please reply yourself?" = msg}, state) do
@@ -322,27 +355,27 @@ defmodule AeSocketConnector do
     |> URI.to_string()
   end
 
-  defp sign_transaction_perform(to_sign, state, verify_hook \\ fn(_tx, _state) -> :unsecure end) do
+  defp sign_transaction_perform(to_sign, state, verify_hook \\ fn(_tx, _state) -> {:unsecure, nil} end) do
     {:ok, create_bin_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
     tx = :aetx.deserialize_from_binary(create_bin_tx) # returns #aetx
     case verify_hook.(tx, state) do
-      :unsecure ->
-        ""
-      :ok ->
+      {:unsecure, nonce_map} ->
+        {"", nonce_map}
+      {:ok, nonce_map} ->
       # bin = :aetx.serialize_to_binary(tx)
         bin = create_bin_tx
         bin_for_network = <<state.network_id::binary, bin::binary>>
         result_signed = :enacl.sign_detached(bin_for_network, state.priv_key)
         signed_create_tx = :aetx_sign.new(tx, [result_signed])
-        :aeser_api_encoder.encode(:transaction, :aetx_sign.serialize_to_binary(signed_create_tx))
+        {:aeser_api_encoder.encode(:transaction, :aetx_sign.serialize_to_binary(signed_create_tx)), nonce_map}
     end
   end
 
   defp sign_transaction(to_sign, authenticator, state, [method: method, logstring: logstring]) do
-    enc_signed_create_tx = sign_transaction_perform(to_sign, state, authenticator)
+    {enc_signed_create_tx, nonce_map} = sign_transaction_perform(to_sign, state, authenticator)
     response = %{jsonrpc: "2.0", method: method, params: %{tx: enc_signed_create_tx}}
     Logger.debug "=>#{inspect logstring} : #{inspect response} #{inspect self()}", state.color
-    response
+    {response, nonce_map}
   end
 
   def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id, "data" => %{"event" => "funding_locked"}}} = _message, state) do
@@ -350,53 +383,53 @@ defmodule AeSocketConnector do
   end
 
   def process_message(%{"method" => "channels.sign.initiator_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.initiator_sign", logstring: "initiator_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.initiator_sign", logstring: "initiator_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.deposit_tx", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.deposit_tx", logstring: "initiator_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.deposit_tx", logstring: "initiator_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.deposit_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.deposit_ack", logstring: "responder_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.deposit_ack", logstring: "responder_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.withdraw_tx", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.withdraw_tx", logstring: "initiator_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.withdraw_tx", logstring: "initiator_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.withdraw_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.withdraw_ack", logstring: "responder_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.withdraw_ack", logstring: "responder_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-  #   response = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
-  #   {:reply, {:text, Poison.encode!(response)}, state}
+  #   {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
+  #   {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   # end
 
   def process_message(%{"method" => "channels.sign.shutdown_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.shutdown_sign", logstring: "initiator_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.shutdown_sign", logstring: "initiator_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.shutdown_sign_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.shutdown_sign_ack", logstring: "initiator_sign"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, (fn(_a, _b) -> :ok end), state, [method: "channels.shutdown_sign_ack", logstring: "initiator_sign"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.sign.update", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update", logstring: "initiator_sign_update"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update", logstring: "initiator_sign_update"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
@@ -426,8 +459,8 @@ defmodule AeSocketConnector do
   end
 
   def process_message(%{"method" => "channels.sign.update_ack", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-    response = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update_ack", logstring: "responder_sign_update"])
-    {:reply, {:text, Poison.encode!(response)}, state}
+    {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update_ack", logstring: "responder_sign_update"])
+    {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
   def process_message(%{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message, %__MODULE__{channel_id: current_channel_id} = state) when (channel_id == current_channel_id) do
