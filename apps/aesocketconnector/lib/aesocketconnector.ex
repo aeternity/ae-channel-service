@@ -152,7 +152,7 @@ defmodule AeSocketConnector do
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
     {:ok, call_data, _, _} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    transfer = new_contract(encoded_bytecode, encoded_calldata, 3)
+    transfer = new_contract_req(encoded_bytecode, encoded_calldata, 3)
     # transfer = new_contract(encoded_bytecode, "", 3)
     # transfer = new_contract(@code, @call_data, 3)
     Logger.info("=> new contract #{inspect transfer}", state.color)
@@ -167,7 +167,7 @@ defmodule AeSocketConnector do
     # transfer = new_contract(encoded_bytecode, encoded_calldata, 3)
     # transfer = new_contract(encoded_bytecode, "", 3)
     address = 0
-    transfer = call_contract(address, encoded_calldata)
+    transfer = call_contract_req(address, encoded_calldata)
     Logger.info("=> call contract #{inspect transfer}", state.color)
     {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
@@ -241,7 +241,7 @@ defmodule AeSocketConnector do
     }
   end
 
-  def new_contract(code, call_data, version) do
+  def new_contract_req(code, call_data, version) do
     %{
       jsonrpc: "2.0",
       method: "channels.update.new_contract",
@@ -255,7 +255,7 @@ defmodule AeSocketConnector do
     }
   end
 
-  def call_contract(address, call_data) do
+  def call_contract_req(address, call_data) do
     %{
       jsonrpc: "2.0",
       method: "channels.update.call_contract",
