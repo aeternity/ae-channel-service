@@ -1,5 +1,4 @@
 defmodule AeValidator do
-
   # erlang inspiration
   # erlang test code reference
   # channel_sign_tx(ConnPid, Privkey, Tag, Config) ->
@@ -37,6 +36,7 @@ defmodule AeValidator do
     case tx["round"] do
       nil ->
         {status, %{nonce: tx["nonce"]}}
+
       _value ->
         {status, %{round: tx["round"]}}
     end
@@ -62,24 +62,28 @@ defmodule AeValidator do
     # TODO, redo above without specialized callback
 
     tx_client = :aesc_create_tx.for_client(tx_instance)
-    Logger.info "sign request, human readable: #{inspect tx_client}"
+    Logger.info("sign request, human readable: #{inspect(tx_client)}")
 
     # Logger.info "pubkey: #{inspect responder_pub_key} #{inspect responder_amount}", state.color
 
     # initiator_id = :aeser_api_encoder.encode(:account_pubkey, initiator_pub_key)
     # responder_id = :aeser_api_encoder.encode(:account_pubkey, responder_pub_key)
 
-
-
-    case (_sign_map = %WsConnection{initiator: initiator_pub_key, responder: responder_pub_key, initiator_amount: initiator_amount, responder_amount: responder_amount}) == state.session do
+    case (_sign_map = %WsConnection{
+            initiator: initiator_pub_key,
+            responder: responder_pub_key,
+            initiator_amount: initiator_amount,
+            responder_amount: responder_amount
+          }) == state.session do
       true ->
         response = pack_response(:ok, tx_client)
-        Logger.info "OK to sign! #{inspect response}", state.color
+        Logger.info("OK to sign! #{inspect(response)}", state.color)
         response
-        # :ok
+
+      # :ok
       false ->
         response = pack_response(:unsecure, tx_client)
-        Logger.error "NOK to sign #{inspect response}", state.color
+        Logger.error("NOK to sign #{inspect(response)}", state.color)
         response
     end
   end
@@ -102,9 +106,9 @@ defmodule AeValidator do
     # Logger.info "for client 1 #{inspect map_for_client}"
     # Logger.info "for client 2 #{inspect :aetx.serialize_for_client(tx)}"
     tx_client = :aetx.serialize_for_client(tx)
-    Logger.info "sign request (transfer), human readable: #{inspect tx_client}"
+    Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}")
     response = pack_response(:ok, tx_client)
-    Logger.info "sign result: #{inspect response}", state.color
+    Logger.info("sign result: #{inspect(response)}", state.color)
     response
   end
 
@@ -115,6 +119,6 @@ defmodule AeValidator do
     tx_hash = :aetx_sign.hash(deserialized_tx)
     serialized_hash = :aeser_api_encoder.encode(:tx_hash, tx_hash)
     url_to_check = "http://localhost:3013/v2/transactions/" <> URI.encode(serialized_hash)
-    Logger.debug "url to check: curl #{inspect url_to_check}"
+    Logger.debug("url to check: curl #{inspect(url_to_check)}")
   end
 end
