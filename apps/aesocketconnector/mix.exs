@@ -29,7 +29,7 @@ defmodule AeSocketConnector.MixProject do
       {:websockex, "~> 0.4.0"},
       {:poison, "~> 3.1"},
       {:enacl, git: "https://github.com/aeternity/enacl.git", ref: "26180f4"},
-      {:aeserialization, git: "https://github.com/aeternity/aeserialization.git"},
+      {:aeserialization, git: "https://github.com/aeternity/aeserialization.git"}
     ]
   end
 end

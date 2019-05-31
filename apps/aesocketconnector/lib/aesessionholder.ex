@@ -2,12 +2,10 @@ defmodule AeSessionHolder do
   use GenServer
   require Logger
 
-  defstruct [
-    pid: nil,
-    color: nil,
-    configuration: %AeSocketConnector{},
-    ae_url: "",
-  ]
+  defstruct pid: nil,
+            color: nil,
+            configuration: %AeSocketConnector{},
+            ae_url: ""
 
   def start_link(%AeSocketConnector{} = configuration, ae_url, network_id, color) do
     GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color})
@@ -21,9 +19,11 @@ defmodule AeSessionHolder do
     GenServer.cast(pid, {:action, action})
   end
 
-  #Server
+  # Server
   def init({%AeSocketConnector{} = configuration, ae_url, network_id, color}) do
-    {:ok, pid} = AeSocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
+    {:ok, pid} =
+      AeSocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
+
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
 
@@ -36,8 +36,11 @@ defmodule AeSessionHolder do
   end
 
   def handle_cast({:reestablish}, state) do
-    Logger.debug "about to reestablish connection", [ansi_color: state.color]
-    {:ok, pid} = AeSocketConnector.start_link(:alice, state.configuration, :reestablish, state.color, self())
+    Logger.debug("about to reestablish connection", ansi_color: state.color)
+
+    {:ok, pid} =
+      AeSocketConnector.start_link(:alice, state.configuration, :reestablish, state.color, self())
+
     {:noreply, %__MODULE__{state | pid: pid}}
   end
 
@@ -45,5 +48,4 @@ defmodule AeSessionHolder do
     action.(state.pid)
     {:noreply, state}
   end
-
 end

@@ -1,5 +1,4 @@
 defmodule AeValidator do
-
   # erlang inspiration
   # erlang test code reference
   # channel_sign_tx(ConnPid, Privkey, Tag, Config) ->
@@ -50,12 +49,21 @@ defmodule AeValidator do
     # initiator_id = :aeser_api_encoder.encode(:account_pubkey, initiator_pub_key)
     # responder_id = :aeser_api_encoder.encode(:account_pubkey, responder_pub_key)
 
-    case (sign_map = %WsConnection{initiator: initiator_pub_key, responder: responder_pub_key, initiator_amount: initiator_amount, responder_amount: responder_amount}) == state.session do
+    case (sign_map = %WsConnection{
+            initiator: initiator_pub_key,
+            responder: responder_pub_key,
+            initiator_amount: initiator_amount,
+            responder_amount: responder_amount
+          }) == state.session do
       true ->
-        Logger.info "OK to sign!", state.color
+        Logger.info("OK to sign!", state.color)
         :ok
+
       false ->
-        Logger.error "NOK to sign #{inspect state.role} #{inspect sign_map} #{inspect state.session}"
+        Logger.error(
+          "NOK to sign #{inspect(state.role)} #{inspect(sign_map)} #{inspect(state.session)}"
+        )
+
         :unsecure
     end
   end
@@ -90,6 +98,6 @@ defmodule AeValidator do
     tx_hash = :aetx_sign.hash(deserialized_tx)
     serialized_hash = :aeser_api_encoder.encode(:tx_hash, tx_hash)
     url_to_check = URI.merge(@ae_http_url, "v2/transactions/" <> serialized_hash) |> to_string
-    Logger.debug "url to check: curl #{inspect url_to_check}"
+    Logger.debug("url to check: curl #{inspect(url_to_check)}")
   end
 end
