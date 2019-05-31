@@ -31,10 +31,16 @@ defmodule AeChannelRunner do
     # Process.sleep(4000)
     # AeSessionHolder.run_action(pid_responder, fn(pid) -> AeSocketConnector.initiate_transfer(pid, 2) end)
     # AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.initiate_transfer(pid, 2) end)
-    Process.sleep(8000)
-    AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.upload_contract(pid, "contracts/simple.aes") end)
+    Process.sleep(5000)
+    AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.new_contract(pid, "contracts/TicTacToe.aes") end)
 
-    Process.sleep(4000)
+    Process.sleep(5000)
+    AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.call_contract(pid, "contracts/TicTacToe.aes") end)
+
+    Process.sleep(5000)
+    AeSessionHolder.run_action(pid_initiator, fn(pid) -> AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes") end)
+
+    Process.sleep(5000)
     AeSessionHolder.run_action(pid_responder, fn(pid) -> AeSocketConnector.withdraw(pid, 1000000) end)
     #
     Process.sleep(4000)

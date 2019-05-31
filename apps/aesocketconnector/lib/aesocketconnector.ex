@@ -95,6 +95,11 @@ defmodule AeSocketConnector do
     WebSockex.cast(pid, {:call_contract, contract_file})
   end
 
+  @spec get_contract(pid, String.t) :: :ok
+  def get_contract(pid, contract_file) do
+    WebSockex.cast(pid, {:get_contract, contract_file})
+  end
+
 # server side
 
   def handle_connect(_conn, state) do
@@ -160,12 +165,21 @@ defmodule AeSocketConnector do
   end
 
   def handle_cast({:call_contract, contract_file}, state) do
-    {:ok, call_data, _, _} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
+    {:ok, call_data, _, _} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'make_move', ['11', '1'])
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     # TODO get the pub key of creator from the updates section in the update message!
     address_inter = :aect_contracts.compute_contract_pubkey(state.pub_key, state.nonce_map[:round])
     address = :aeser_api_encoder.encode(:contract_pubkey, address_inter)
     transfer = call_contract_req(address, encoded_calldata)
+    Logger.info("=> call contract #{inspect transfer}", state.color)
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+  end
+
+  def handle_cast({:get_contract, _contract_file}, state) do
+    # TODO why is it that we the round is one to many?
+    address_inter = :aect_contracts.compute_contract_pubkey(state.pub_key, state.nonce_map[:round]-1)
+    address = :aeser_api_encoder.encode(:contract_pubkey, address_inter)
+    transfer = get_contract_req(address, :aeser_api_encoder.encode(:account_pubkey, state.pub_key), state.nonce_map[:round])
     Logger.info("=> call contract #{inspect transfer}", state.color)
     {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
@@ -266,27 +280,17 @@ defmodule AeSocketConnector do
     }
   end
 
-
-
-  # def handle_frame({:text, "Can you please reply yourself?" = msg}, state) do
-  #   Logger.info("Received Message: #{msg}")
-  #   msg = "Sure can!"
-  #   Logger.info("Sending message: #{msg}")
-  #   {:reply, {:text, msg}, state}
-  # end
-  #
-  #
-  # def handle_frame({:text, "Can you please reply yourself?" = msg}, state) do
-  #   Logger.info("Received Message: #{msg}")
-  #   msg = "Sure can!"
-  #   Logger.info("Sending message: #{msg}")
-  #   {:reply, {:text, msg}, state}
-  # end
-  #
-  # def handle_frame({:text, "Close the things!" = msg}, state) do
-  #   Logger.info("Received Message: #{msg}")
-  #   {:close, state}
-  # end
+  def get_contract_req(address, caller, round) do
+    %{
+      jsonrpc: "2.0",
+      method: "channels.get.contract_call",
+      params: %{
+        caller: caller,
+        contract: address,
+        round: round
+      }
+    }
+  end
 
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
@@ -428,6 +432,18 @@ defmodule AeSocketConnector do
   def process_message(%{"method" => "channels.sign.update", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
     {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update", logstring: "initiator_sign_update"])
     {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
+  end
+
+  def process_message(%{"method" => "channels.get.contract_call.reply", "params" => %{"data" => %{"return_value" => return_value, "return_type" => return_type}}} = _message, state) do
+    # {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update", logstring: "initiator_sign_update"])
+    Logger.debug "#{inspect _message}"
+    {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
+    # TODO we need to know the type, here. Probably we can get the return type using the :aeso module.
+    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
+    {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
+    result = :aect_sophia.prepare_for_json(:string, term)
+    Logger.debug "contract call reply: #{inspect deserialized_return} type is #{return_type}, human: #{inspect result}"
+    {:ok, state}
   end
 
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
