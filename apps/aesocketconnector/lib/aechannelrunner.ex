@@ -80,15 +80,42 @@ defmodule AeChannelRunner do
 
     Process.sleep(5000)
 
+    # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
+    # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
     AeSessionHolder.run_action(pid_initiator, fn pid ->
-      AeSocketConnector.call_contract(pid, "contracts/TicTacToe.aes")
+      AeSocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['11', '1'])
     end)
 
     Process.sleep(5000)
 
     AeSessionHolder.run_action(pid_initiator, fn pid ->
-      AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes")
+      AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
     end)
+
+    Process.sleep(5000)
+
+    AeSessionHolder.run_action(pid_initiator, fn pid ->
+      AeSocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '1'])
+    end)
+
+    Process.sleep(5000)
+
+    AeSessionHolder.run_action(pid_initiator, fn pid ->
+      AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
+    end)
+
+    # TODO make sure to get contract pubkey from update section.
+    # Process.sleep(5000)
+    #
+    # AeSessionHolder.run_action(pid_responder, fn pid ->
+    #   AeSocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '2'])
+    # end)
+    #
+    # Process.sleep(5000)
+    #
+    # AeSessionHolder.run_action(pid_responder, fn pid ->
+    #   AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
+    # end)
 
     Process.sleep(5000)
 

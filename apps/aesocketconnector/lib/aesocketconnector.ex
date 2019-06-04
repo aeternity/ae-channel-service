@@ -16,7 +16,8 @@ defmodule AeSocketConnector do
             ws_base: nil,
             nonce_map: %{},
             contract_file: nil,
-            contract_pubkey: nil
+            contract_pubkey: nil,
+            contract_fun: nil
 
   defmodule(WsConnection,
     do:
@@ -138,14 +139,14 @@ defmodule AeSocketConnector do
     WebSockex.cast(pid, {:new_contract, contract_file})
   end
 
-  @spec call_contract(pid, String.t()) :: :ok
-  def call_contract(pid, contract_file) do
-    WebSockex.cast(pid, {:call_contract, contract_file})
+  @spec call_contract(pid, String.t(), binary(), binary()) :: :ok
+  def call_contract(pid, contract_file, fun, args) do
+    WebSockex.cast(pid, {:call_contract, contract_file, fun, args})
   end
 
-  @spec get_contract(pid, String.t()) :: :ok
-  def get_contract(pid, contract_file, round \\ nil) do
-    WebSockex.cast(pid, {:get_contract, contract_file, round})
+  @spec get_contract(pid, String.t(), binary()) :: :ok
+  def get_contract(pid, contract_file, fun, round \\ nil) do
+    WebSockex.cast(pid, {:get_contract, contract_file, fun, round})
   end
 
   # server side
@@ -234,12 +235,9 @@ defmodule AeSocketConnector do
 
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, contract_file}, state) do
+  def handle_cast({:call_contract, contract_file, fun, args}, state) do
     {:ok, call_data, _, _} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'make_move', [
-        '11',
-        '1'
-      ])
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     # TODO get the pub key of creator from the updates section in the update message!
@@ -254,7 +252,7 @@ defmodule AeSocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_pubkey: address}}
   end
 
-  def handle_cast({:get_contract, contract_file, round}, state) do
+  def handle_cast({:get_contract, contract_file, fun, round}, state) do
     address = state.contract_pubkey
 
     transfer =
@@ -267,7 +265,7 @@ defmodule AeSocketConnector do
     Logger.info("=> get contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_file: contract_file}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_file: contract_file, contract_fun: fun}}
   end
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
@@ -650,16 +648,14 @@ defmodule AeSocketConnector do
         state
       ) do
     # {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update", logstring: "initiator_sign_update"])
-    Logger.debug("#{inspect(_message)}")
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    # TODO we need to know the type, here. Probably we can get the return type using the :aeso module.
     # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
     {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
     result = :aect_sophia.prepare_for_json(:string, term)
 
-    hejsan = :aeso_compiler.to_sophia_value(to_charlist(File.read!(state.contract_file)), 'make_move', :ok, deserialized_return)
-    Logger.debug "#{inspect hejsan}"
+    sophia_value = :aeso_compiler.to_sophia_value(to_charlist(File.read!(state.contract_file)), state.contract_fun, :ok, deserialized_return)
+    Logger.debug "contract call reply (as result of calling: #{inspect state.contract_fun}): #{inspect sophia_value}"
 
     Logger.debug(
       "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{
