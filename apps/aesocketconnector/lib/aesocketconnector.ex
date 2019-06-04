@@ -14,7 +14,9 @@ defmodule AeSocketConnector do
             state_tx: nil,
             network_id: nil,
             ws_base: nil,
-            nonce_map: %{}
+            nonce_map: %{},
+            contract_file: nil,
+            contract_pubkey: nil
 
   defmodule(WsConnection,
     do:
@@ -142,8 +144,8 @@ defmodule AeSocketConnector do
   end
 
   @spec get_contract(pid, String.t()) :: :ok
-  def get_contract(pid, contract_file) do
-    WebSockex.cast(pid, {:get_contract, contract_file})
+  def get_contract(pid, contract_file, round \\ nil) do
+    WebSockex.cast(pid, {:get_contract, contract_file, round})
   end
 
   # server side
@@ -230,6 +232,8 @@ defmodule AeSocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
+  # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
+  # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, contract_file}, state) do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'make_move', [
@@ -247,27 +251,23 @@ defmodule AeSocketConnector do
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_pubkey: address}}
   end
 
-  def handle_cast({:get_contract, _contract_file}, state) do
-    # TODO why is it that we the round is one to many?
-    address_inter =
-      :aect_contracts.compute_contract_pubkey(state.pub_key, state.nonce_map[:round] - 1)
-
-    address = :aeser_api_encoder.encode(:contract_pubkey, address_inter)
+  def handle_cast({:get_contract, contract_file, round}, state) do
+    address = state.contract_pubkey
 
     transfer =
       get_contract_req(
         address,
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-        state.nonce_map[:round]
+        (if round == nil, do: state.nonce_map[:round], else: round)
       )
 
-    Logger.info("=> call contract #{inspect(transfer)}", state.color)
+    Logger.info("=> get contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_file: contract_file}}
   end
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
@@ -657,6 +657,9 @@ defmodule AeSocketConnector do
     # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
     {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
     result = :aect_sophia.prepare_for_json(:string, term)
+
+    hejsan = :aeso_compiler.to_sophia_value(to_charlist(File.read!(state.contract_file)), 'make_move', :ok, deserialized_return)
+    Logger.debug "#{inspect hejsan}"
 
     Logger.debug(
       "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{

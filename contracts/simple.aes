@@ -1,3 +1,3 @@
 contract ExampleContract =
-    type state = ()
-    function main() = 2
+  type state = ()
+  function main(x : int, y : string) = y
