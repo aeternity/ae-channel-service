@@ -240,7 +240,7 @@ defmodule AeSocketConnector do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-    Logger.debug "call_contract, contract pubkey #{inspect state.contract_pubkey}"
+    Logger.debug("call_contract, contract pubkey #{inspect(state.contract_pubkey)}")
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     address = state.contract_pubkey
@@ -259,13 +259,18 @@ defmodule AeSocketConnector do
       get_contract_req(
         address,
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-        (if round == nil, do: state.nonce_map[:round], else: round)
+        if(round == nil, do: state.nonce_map[:round], else: round)
       )
 
     Logger.info("=> get contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_file: contract_file, contract_fun: fun}}
+     %__MODULE__{
+       state
+       | pending_id: Map.get(transfer, :id, nil),
+         contract_file: contract_file,
+         contract_fun: fun
+     }}
   end
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
@@ -373,6 +378,8 @@ defmodule AeSocketConnector do
   def get_contract_req(address, caller, round) do
     %{
       jsonrpc: "2.0",
+      # Adding id will yeild anoter response.
+      # id: :erlang.unique_integer([:monotonic]),
       method: "channels.get.contract_call",
       params: %{
         caller: caller,
@@ -626,12 +633,12 @@ defmodule AeSocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.update", "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}} =
-          _message,
+        %{
+          "method" => "channels.sign.update",
+          "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}
+        } = _message,
         state
       ) do
-
-
     {response, nonce_map} =
       sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
         method: "channels.update",
@@ -642,7 +649,12 @@ defmodule AeSocketConnector do
     {contract_owner, contract_pubkey} = extract_contract_info(update, updated_nonce_map, state)
 
     {:reply, {:text, Poison.encode!(response)},
-     %__MODULE__{state | nonce_map: updated_nonce_map, contract_owner: contract_owner, contract_pubkey: contract_pubkey}}
+     %__MODULE__{
+       state
+       | nonce_map: updated_nonce_map,
+         contract_owner: contract_owner,
+         contract_pubkey: contract_pubkey
+     }}
   end
 
   def process_message(
@@ -660,6 +672,7 @@ defmodule AeSocketConnector do
      %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
+  # this can be executed "sync" using id
   def process_message(
         %{
           "method" => "channels.get.contract_call.reply",
@@ -667,21 +680,31 @@ defmodule AeSocketConnector do
         } = _message,
         state
       ) do
-    # {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state, [method: "channels.update", logstring: "initiator_sign_update"])
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
-    {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
-    result = :aect_sophia.prepare_for_json(:string, term)
-
-    sophia_value = :aeso_compiler.to_sophia_value(to_charlist(File.read!(state.contract_file)), state.contract_fun, :ok, deserialized_return)
-    Logger.debug "contract call reply (as result of calling: #{inspect state.contract_fun}): #{inspect sophia_value}", state.color
+    sophia_value =
+      :aeso_compiler.to_sophia_value(
+        to_charlist(File.read!(state.contract_file)),
+        state.contract_fun,
+        :ok,
+        deserialized_return
+      )
 
     Logger.debug(
-      "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{
-        inspect(result)
-      }", state.color
+      "contract call reply (as result of calling: #{inspect(state.contract_fun)}): #{
+        inspect(sophia_value)
+      }",
+      state.color
     )
+
+    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
+    # {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
+    # result = :aect_sophia.prepare_for_json(:string, term)
+    # Logger.debug(
+    # "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{
+    #   inspect(result)
+    #   }", state.color
+    # )
 
     {:ok, state}
   end
@@ -723,8 +746,7 @@ defmodule AeSocketConnector do
   end
 
   defp compute_contract_address(contract_owner, nonce_map) do
-    address_inter =
-      :aect_contracts.compute_contract_pubkey(contract_owner, nonce_map[:round])
+    address_inter = :aect_contracts.compute_contract_pubkey(contract_owner, nonce_map[:round])
     :aeser_api_encoder.encode(:contract_pubkey, address_inter)
   end
 
@@ -733,27 +755,35 @@ defmodule AeSocketConnector do
       case update do
         [] ->
           # TODO needs to be reworked, need to be able to remove contracts
-          {state.contract_owner. state.contract_pubkey}
+          {state.contract_owner.state.contract_pubkey}
+
         [entry] ->
           case Map.get(entry, "owner", nil) do
             # TODO needs to be reworked, need to be able to remove contracts
             nil ->
               {state.contract_owner, state.contract_pubkey}
+
             owner ->
               {:account_pubkey, decoded_pubkey} = :aeser_api_encoder.decode(owner)
               {owner, compute_contract_address(decoded_pubkey, nonce_map)}
           end
       end
-    Logger.debug "contract info: #{inspect contract_owner} #{inspect contract_pubkey}", state.color
+
+    Logger.debug(
+      "contract info: #{inspect(contract_owner)} #{inspect(contract_pubkey)}",
+      state.color
+    )
+
     {contract_owner, contract_pubkey}
   end
 
   def process_message(
-        %{"method" => "channels.sign.update_ack", "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}} =
-          _message,
+        %{
+          "method" => "channels.sign.update_ack",
+          "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}
+        } = _message,
         state
       ) do
-
     {response, nonce_map} =
       sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
@@ -764,7 +794,12 @@ defmodule AeSocketConnector do
     {contract_owner, contract_pubkey} = extract_contract_info(update, updated_nonce_map, state)
 
     {:reply, {:text, Poison.encode!(response)},
-     %__MODULE__{state | nonce_map: updated_nonce_map, contract_owner: contract_owner, contract_pubkey: contract_pubkey}}
+     %__MODULE__{
+       state
+       | nonce_map: updated_nonce_map,
+         contract_owner: contract_owner,
+         contract_pubkey: contract_pubkey
+     }}
   end
 
   def process_message(
@@ -772,7 +807,8 @@ defmodule AeSocketConnector do
           _message,
         state
       ) do
-    Logger.info "no update"
+    Logger.info("no update")
+
     {response, nonce_map} =
       sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
