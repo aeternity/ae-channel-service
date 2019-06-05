@@ -16,6 +16,7 @@ defmodule AeSocketConnector do
             ws_base: nil,
             nonce_map: %{},
             contract_file: nil,
+            contract_owner: nil,
             contract_pubkey: nil,
             contract_fun: nil
 
@@ -239,17 +240,16 @@ defmodule AeSocketConnector do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    # TODO get the pub key of creator from the updates section in the update message!
-    address_inter =
-      :aect_contracts.compute_contract_pubkey(state.pub_key, state.nonce_map[:round])
+    Logger.debug "call_contract, contract pubkey #{inspect state.contract_pubkey}"
 
-    address = :aeser_api_encoder.encode(:contract_pubkey, address_inter)
+    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+    address = state.contract_pubkey
+
     transfer = call_contract_req(address, encoded_calldata)
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contract_pubkey: address}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
   def handle_cast({:get_contract, contract_file, fun, round}, state) do
@@ -343,7 +343,7 @@ defmodule AeSocketConnector do
     }
   end
 
-  def new_contract_req(code, call_data, version) do
+  def new_contract_req(code, call_data, _version) do
     %{
       jsonrpc: "2.0",
       method: "channels.update.new_contract",
@@ -626,6 +626,26 @@ defmodule AeSocketConnector do
   end
 
   def process_message(
+        %{"method" => "channels.sign.update", "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}} =
+          _message,
+        state
+      ) do
+
+
+    {response, nonce_map} =
+      sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
+        method: "channels.update",
+        logstring: "channels.sign.update"
+      )
+
+    updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
+    {contract_owner, contract_pubkey} = extract_contract_info(update, updated_nonce_map, state)
+
+    {:reply, {:text, Poison.encode!(response)},
+     %__MODULE__{state | nonce_map: updated_nonce_map, contract_owner: contract_owner, contract_pubkey: contract_pubkey}}
+  end
+
+  def process_message(
         %{"method" => "channels.sign.update", "params" => %{"data" => %{"tx" => to_sign}}} =
           _message,
         state
@@ -702,11 +722,57 @@ defmodule AeSocketConnector do
     {:ok, %__MODULE__{state | state_tx: state_tx}}
   end
 
+  defp compute_contract_address(contract_owner, nonce_map) do
+    address_inter =
+      :aect_contracts.compute_contract_pubkey(contract_owner, nonce_map[:round])
+    :aeser_api_encoder.encode(:contract_pubkey, address_inter)
+  end
+
+  def extract_contract_info(update, nonce_map, state) do
+    {contract_owner, contract_pubkey} =
+      case update do
+        [] ->
+          # TODO needs to be reworked, need to be able to remove contracts
+          {state.contract_owner. state.contract_pubkey}
+        [entry] ->
+          case Map.get(entry, "owner", nil) do
+            # TODO needs to be reworked, need to be able to remove contracts
+            nil ->
+              {state.contract_owner, state.contract_pubkey}
+            owner ->
+              {:account_pubkey, decoded_pubkey} = :aeser_api_encoder.decode(owner)
+              {owner, compute_contract_address(decoded_pubkey, nonce_map)}
+          end
+      end
+    Logger.debug "contract info: #{inspect contract_owner} #{inspect contract_pubkey}", state.color
+    {contract_owner, contract_pubkey}
+  end
+
+  def process_message(
+        %{"method" => "channels.sign.update_ack", "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}} =
+          _message,
+        state
+      ) do
+
+    {response, nonce_map} =
+      sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
+        method: "channels.update_ack",
+        logstring: "responder_sign_update"
+      )
+
+    updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
+    {contract_owner, contract_pubkey} = extract_contract_info(update, updated_nonce_map, state)
+
+    {:reply, {:text, Poison.encode!(response)},
+     %__MODULE__{state | nonce_map: updated_nonce_map, contract_owner: contract_owner, contract_pubkey: contract_pubkey}}
+  end
+
   def process_message(
         %{"method" => "channels.sign.update_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
           _message,
         state
       ) do
+    Logger.info "no update"
     {response, nonce_map} =
       sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
