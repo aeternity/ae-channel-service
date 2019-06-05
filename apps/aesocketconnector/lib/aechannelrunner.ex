@@ -104,6 +104,18 @@ defmodule AeChannelRunner do
       AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
     end)
 
+    Process.sleep(5000)
+
+    AeSessionHolder.run_action(pid_responder, fn pid ->
+      AeSocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '2'])
+    end)
+
+    Process.sleep(5000)
+
+    AeSessionHolder.run_action(pid_responder, fn pid ->
+      AeSocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
+    end)
+
     # TODO make sure to get contract pubkey from update section.
     # Process.sleep(5000)
     #

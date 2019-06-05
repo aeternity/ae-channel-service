@@ -675,12 +675,12 @@ defmodule AeSocketConnector do
     result = :aect_sophia.prepare_for_json(:string, term)
 
     sophia_value = :aeso_compiler.to_sophia_value(to_charlist(File.read!(state.contract_file)), state.contract_fun, :ok, deserialized_return)
-    Logger.debug "contract call reply (as result of calling: #{inspect state.contract_fun}): #{inspect sophia_value}"
+    Logger.debug "contract call reply (as result of calling: #{inspect state.contract_fun}): #{inspect sophia_value}", state.color
 
     Logger.debug(
       "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{
         inspect(result)
-      }"
+      }", state.color
     )
 
     {:ok, state}
