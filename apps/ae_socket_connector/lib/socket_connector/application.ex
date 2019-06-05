@@ -1,4 +1,4 @@
-defmodule AeSocketConnector.Application do
+defmodule SocketConnector.Application do
   # See https://hexdocs.pm/elixir/Application.html
   # for more information on OTP Applications
   @moduledoc false
@@ -8,13 +8,13 @@ defmodule AeSocketConnector.Application do
   def start(_type, _args) do
     # List all child processes to be supervised
     children = [
-      # Starts a worker by calling: AeSocketConnector.Worker.start_link(arg)
-      # {AeSocketConnector.Worker, arg},
+      # Starts a worker by calling: SocketConnector.Worker.start_link(arg)
+      # {SocketConnector.Worker, arg},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: AeSocketConnector.Supervisor]
+    opts = [strategy: :one_for_one, name: SocketConnector.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

@@ -1,9 +1,9 @@
-defmodule AeSocketConnector.MixProject do
+defmodule SocketConnector.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :aesocketconnector,
+      app: :socket_connector,
       version: "0.1.0",
       build_path: "../../_build",
       config_path: "../../config/config.exs",
@@ -19,7 +19,7 @@ defmodule AeSocketConnector.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {AeSocketConnector.Application, []}
+      mod: {SocketConnector.Application, []}
     ]
   end
 

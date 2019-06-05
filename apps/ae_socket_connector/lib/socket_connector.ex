@@ -1,4 +1,4 @@
-defmodule AeSocketConnector do
+defmodule SocketConnector do
   use WebSockex
   require Logger
 
@@ -511,7 +511,7 @@ defmodule AeSocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state,
+      sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
       )
@@ -526,7 +526,7 @@ defmodule AeSocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state,
+      sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
       )
@@ -596,7 +596,7 @@ defmodule AeSocketConnector do
   end
 
   # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-  #   {response, nonce_map} = sign_transaction(to_sign, &AeValidator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
+  #   {response, nonce_map} = sign_transaction(to_sign, &Validator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
   #   {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   # end
 
@@ -640,7 +640,7 @@ defmodule AeSocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
+      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update",
         logstring: "channels.sign.update"
       )
@@ -663,7 +663,7 @@ defmodule AeSocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
+      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update",
         logstring: "initiator_sign_update"
       )
@@ -676,7 +676,7 @@ defmodule AeSocketConnector do
   def process_message(
         %{
           "method" => "channels.get.contract_call.reply",
-          "params" => %{"data" => %{"return_value" => return_value, "return_type" => return_type}}
+          "params" => %{"data" => %{"return_value" => return_value, "return_type" => _return_type}}
         } = _message,
         state
       ) do
@@ -785,7 +785,7 @@ defmodule AeSocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
+      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
         logstring: "responder_sign_update"
       )
@@ -810,7 +810,7 @@ defmodule AeSocketConnector do
     Logger.info("no update")
 
     {response, nonce_map} =
-      sign_transaction(to_sign, &AeValidator.inspect_transfer_request/2, state,
+      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
         logstring: "responder_sign_update"
       )
@@ -835,7 +835,7 @@ defmodule AeSocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
-    AeValidator.verify_on_chain(signed_tx)
+    Validator.verify_on_chain(signed_tx)
     {:ok, state}
   end
 

@@ -4,7 +4,7 @@ defmodule AeChannelService.MixProject do
   def project do
     [
       apps_path: "apps",
-      # apps: [:aesocketconnector],
+      # apps: [:socket_connector],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]

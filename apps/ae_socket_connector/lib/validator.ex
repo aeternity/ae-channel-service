@@ -1,4 +1,4 @@
-defmodule AeValidator do
+defmodule Validator do
   # erlang inspiration
   # erlang test code reference
   # channel_sign_tx(ConnPid, Privkey, Tag, Config) ->
@@ -29,7 +29,7 @@ defmodule AeValidator do
   #   id = :erlang.unique_integer([:monotonic])
   # end
   require Logger
-  alias AeSocketConnector.WsConnection
+  alias SocketConnector.WsConnection
 
   defp pack_response(status, tx) do
     # TODO, needs some attention
