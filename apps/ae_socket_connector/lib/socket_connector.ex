@@ -2,6 +2,8 @@ defmodule SocketConnector do
   use WebSockex
   require Logger
 
+  @socket_ping_intervall 50
+
   defstruct pub_key: nil,
             priv_key: nil,
             role: nil,
@@ -18,7 +20,8 @@ defmodule SocketConnector do
             contract_file: nil,
             contract_owner: nil,
             contract_pubkey: nil,
-            contract_fun: nil
+            contract_fun: nil,
+            timer_reference: nil
 
   defmodule(WsConnection,
     do:
@@ -54,13 +57,18 @@ defmodule SocketConnector do
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
 
-    WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-      state_channel_context
-      | ws_manager_pid: ws_manager_pid,
-        ws_base: ws_base,
-        network_id: network_id,
-        color: [ansi_color: color]
-    })
+    {:ok, pid} =
+      WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
+        state_channel_context
+        | ws_manager_pid: ws_manager_pid,
+          ws_base: ws_base,
+          network_id: network_id,
+          timer_reference: nil,
+          color: [ansi_color: color]
+      })
+
+    start_ping(pid)
+    {:ok, pid}
 
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
@@ -91,13 +99,23 @@ defmodule SocketConnector do
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
 
-    WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-      state_channel_context
-      | ws_manager_pid: ws_manager_pid,
-        color: [ansi_color: color]
-    })
+    {:ok, pid} =
+      WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
+        state_channel_context
+        | ws_manager_pid: ws_manager_pid,
+          timer_reference: nil,
+          color: [ansi_color: color]
+      })
+
+    start_ping(pid)
+    {:ok, pid}
 
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
+  end
+
+  @spec start_ping(pid) :: :ok
+  def start_ping(pid) do
+    WebSockex.cast(pid, {:ping})
   end
 
   @spec initiate_transfer(pid, integer) :: :ok
@@ -156,6 +174,33 @@ defmodule SocketConnector do
     # Logger.info("Connected! #{inspect conn}")
     {:ok, state}
   end
+
+  def handle_cast({:ping}, state) do
+    get_timer = fn timer ->
+      case timer do
+        nil ->
+          {:ok, t_ref} =
+            :timer.apply_interval(
+              :timer.seconds(@socket_ping_intervall),
+              __MODULE__,
+              :start_ping,
+              [self()]
+            )
+
+          t_ref
+
+        timer ->
+          timer
+      end
+    end
+
+    timer_reference = get_timer.(state.timer_reference)
+    {:reply, :ping, %__MODULE__{state | timer_reference: timer_reference}}
+  end
+
+  # def handle_pong(pong_frame, state) do
+  #   {:ok, state}
+  # end
 
   def handle_cast({:transfer, amount}, state) do
     transfer = transfer_amount(state.session.initiator, state.session.responder, amount)
@@ -394,12 +439,14 @@ defmodule SocketConnector do
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}", state.color)
+    :timer.cancel(state.timer_reference)
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnected...", state.color)
-    GenServer.call(state.ws_manager_pid, {:connection_dropped, state})
+    :timer.cancel(state.timer_reference)
+    GenServer.cast(state.ws_manager_pid, {:connection_dropped, state})
     super(disconnect_map, state)
   end
 
@@ -657,7 +704,9 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.get.contract_call.reply",
-          "params" => %{"data" => %{"return_value" => return_value, "return_type" => _return_type}}
+          "params" => %{
+            "data" => %{"return_value" => return_value, "return_type" => _return_type}
+          }
         } = _message,
         state
       ) do

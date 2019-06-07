@@ -27,12 +27,12 @@ defmodule SessionHolder do
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
 
-  def handle_call({:connection_dropped, configuration}, _from, state) do
+  def handle_cast({:connection_dropped, configuration}, state) do
     # TODO, remove delay
     # give to other fair chanse to disconnect
     Process.sleep(1000)
     reestablish(self())
-    {:reply, :ok, %__MODULE__{state | configuration: configuration}}
+    {:noreply, %__MODULE__{state | configuration: configuration}}
   end
 
   def handle_cast({:reestablish}, state) do
