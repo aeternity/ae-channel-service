@@ -12,6 +12,7 @@ defmodule SocketConnector do
             color: nil,
             channel_id: nil,
             pending_id: nil,
+            sync_request_function: nil,
             ws_manager_pid: nil,
             state_tx: nil,
             network_id: nil,
@@ -286,11 +287,11 @@ defmodule SocketConnector do
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     address = state.contract_pubkey
 
-    transfer = call_contract_req(address, encoded_calldata)
+    {transfer, response_handler} = call_contract_req(address, encoded_calldata)
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), sync_request_function: response_handler}}
   end
 
   def handle_cast({:get_contract, contract_file, fun, round}, state) do
@@ -404,7 +405,7 @@ defmodule SocketConnector do
   end
 
   def call_contract_req(address, call_data) do
-    %{
+    {%{
       jsonrpc: "2.0",
       method: "channels.update.call_contract",
       params: %{
@@ -413,14 +414,14 @@ defmodule SocketConnector do
         call_data: call_data,
         contract: address
       }
-    }
+    }, &process_get_contract_call/2}
   end
 
   def get_contract_req(address, caller, round) do
     %{
       jsonrpc: "2.0",
       # Adding id will yeild anoter response.
-      # id: :erlang.unique_integer([:monotonic]),
+      id: :erlang.unique_integer([:monotonic]),
       method: "channels.get.contract_call",
       params: %{
         caller: caller,
@@ -700,6 +701,28 @@ defmodule SocketConnector do
      }}
   end
 
+  def process_get_contract_call(%{"result" => %{"return_value" => return_value}}, state) do
+    {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
+
+    sophia_value =
+      :aeso_compiler.to_sophia_value(
+        to_charlist(File.read!(state.contract_file)),
+        state.contract_fun,
+        :ok,
+        deserialized_return
+      )
+
+    Logger.debug(
+      "contract call reply (as result of calling: #{inspect(state.contract_fun)}): #{
+        inspect(sophia_value)
+      }",
+      state.color
+    )
+
+    {:ok, state}
+  end
+
+
   # this can be executed "sync" using id
   def process_message(
         %{
@@ -747,7 +770,12 @@ defmodule SocketConnector do
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id == pending_id do
     Logger.info("<= matched id, response: #{inspect(query_reponse)}", state.color)
-    {:ok, state}
+    case state.sync_request_function do
+      nil -> :ok
+      function ->
+        function.(query_reponse, state)
+    end
+    {:ok, %__MODULE__{state | sync_request_function: nil}}
   end
 
   # wrong unexpected id in response.
