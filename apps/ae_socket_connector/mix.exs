@@ -3,7 +3,7 @@ defmodule SocketConnector.MixProject do
 
   def project do
     [
-      app: :socket_connector,
+      app: :ae_socket_connector,
       version: "0.1.0",
       build_path: "../../_build",
       config_path: "../../config/config.exs",
