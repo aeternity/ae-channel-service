@@ -12,6 +12,8 @@ defmodule SocketConnector do
             color: nil,
             channel_id: nil,
             pending_id: nil,
+            # SyncCall{},
+            sync_call: %{},
             sync_request_function: nil,
             ws_manager_pid: nil,
             state_tx: nil,
@@ -31,6 +33,13 @@ defmodule SocketConnector do
         responder: nil,
         initiator_amount: nil,
         responder_amount: nil
+      )
+  )
+
+  defmodule(SyncCall,
+    do:
+      defstruct(
+        fuction: nil
       )
   )
 
@@ -164,9 +173,15 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:call_contract, contract_file, fun, args})
   end
 
-  @spec get_contract(pid, String.t(), binary()) :: :ok
-  def get_contract(pid, contract_file, fun, round \\ nil) do
-    WebSockex.cast(pid, {:get_contract, contract_file, fun, round})
+  @spec get_contract_reponse(pid, String.t(), binary()) :: :ok
+  def get_contract_reponse(pid, contract_file, fun, round \\ nil) do
+    WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, round})
+  end
+
+  @spec get_contract_reponse_sync(pid, pid, String.t(), binary()) :: :ok
+  def get_contract_reponse_sync(pid, from, contract_file, fun, round \\ nil) do
+    Logger.debug "sych websockex #{inspect from}"
+    WebSockex.cast(pid, {:get_contract_reponse_sync, from, contract_file, fun, round})
   end
 
   # server side
@@ -287,18 +302,18 @@ defmodule SocketConnector do
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     address = state.contract_pubkey
 
-    {transfer, response_handler} = call_contract_req(address, encoded_calldata)
+    transfer = call_contract_req(address, encoded_calldata)
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), sync_request_function: response_handler}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
-  def handle_cast({:get_contract, contract_file, fun, round}, state) do
+  def handle_cast({:get_contract_reponse, contract_file, fun, round}, state) do
     address = state.contract_pubkey
 
-    transfer =
-      get_contract_req(
+    {transfer, response_handler} =
+      get_contract_response_query(
         address,
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
         if(round == nil, do: state.nonce_map[:round], else: round)
@@ -311,9 +326,43 @@ defmodule SocketConnector do
        state
        | pending_id: Map.get(transfer, :id, nil),
          contract_file: contract_file,
-         contract_fun: fun
+         contract_fun: fun,
+         sync_request_function: response_handler
      }}
   end
+
+  # def handle_cast({:get_contract_reponse_sync, from, contract_file, fun, round}, state) do
+  #   WebSockex.cast(self(), {:get_contract_reponse_sync_inner, from, contract_file, fun, round})
+  #   {:noreply, state}
+  # end
+
+  def handle_cast({:get_contract_reponse_sync, from, contract_file, fun, round}, state) do
+    address = state.contract_pubkey
+
+    {transfer, response_handler} =
+      get_contract_response_query(
+        address,
+        :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
+        if(round == nil, do: state.nonce_map[:round], else: round)
+      )
+
+    Logger.info("=> get contract #{inspect(transfer)}", state.color)
+
+    reply_fun = fn(socket_response, state) ->
+      Logger.debug "returning message #{inspect from}"
+      GenServer.reply(from, response_handler.(socket_response, state))
+    end
+
+    {:reply, {:text, Poison.encode!(transfer)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(transfer, :id, nil),
+         contract_file: contract_file,
+         contract_fun: fun,
+         sync_request_function: reply_fun
+     }}
+  end
+
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state) do
@@ -405,7 +454,7 @@ defmodule SocketConnector do
   end
 
   def call_contract_req(address, call_data) do
-    {%{
+    %{
       jsonrpc: "2.0",
       method: "channels.update.call_contract",
       params: %{
@@ -414,11 +463,11 @@ defmodule SocketConnector do
         call_data: call_data,
         contract: address
       }
-    }, &process_get_contract_call/2}
+    }
   end
 
-  def get_contract_req(address, caller, round) do
-    %{
+  def get_contract_response_query(address, caller, round) do
+    {%{
       jsonrpc: "2.0",
       # Adding id will yeild anoter response.
       id: :erlang.unique_integer([:monotonic]),
@@ -428,7 +477,7 @@ defmodule SocketConnector do
         contract: address,
         round: round
       }
-    }
+    }, &process_get_contract_reponse/2}
   end
 
   def handle_frame({:text, msg}, state) do
@@ -701,7 +750,7 @@ defmodule SocketConnector do
      }}
   end
 
-  def process_get_contract_call(%{"result" => %{"return_value" => return_value}}, state) do
+  def process_get_contract_reponse(%{"result" => %{"return_value" => return_value}}, state) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
     sophia_value =
@@ -718,12 +767,10 @@ defmodule SocketConnector do
       }",
       state.color
     )
-
-    {:ok, state}
+    sophia_value
+    # {:ok, state}
   end
 
-
-  # this can be executed "sync" using id
   def process_message(
         %{
           "method" => "channels.get.contract_call.reply",
@@ -744,7 +791,7 @@ defmodule SocketConnector do
       )
 
     Logger.debug(
-      "contract call reply (as result of calling: #{inspect(state.contract_fun)}): #{
+      "contract call asynch reply (as result of calling: #{inspect(state.contract_fun)}): #{
         inspect(sophia_value)
       }",
       state.color

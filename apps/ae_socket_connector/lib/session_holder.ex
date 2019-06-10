@@ -19,6 +19,11 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:action, action})
   end
 
+  def run_action_sync(pid, action) do
+    GenServer.call(pid, {:action_sync, action})
+  end
+
+
   # Server
   def init({%SocketConnector{} = configuration, ae_url, network_id, color}) do
     {:ok, pid} =
@@ -48,4 +53,22 @@ defmodule SessionHolder do
     action.(state.pid)
     {:noreply, state}
   end
+
+  def handle_call({:action_sync, action}, from, state) do
+    Logger.error "HOLDER SELF is #{inspect self()}"
+    action.(state.pid, from)
+    {:noreply, state}
+  end
+
+  # def handle_info({:reply, message}, state) do
+  #   {:noreply, state}
+  # end
+
+  def handle_cast({:reply, message}, state) do
+    {:reply, message, state}
+  end
+  #
+  # def handle_call(message, state) do
+  #   {:reply, message, state}
+  # end
 end

@@ -88,8 +88,15 @@ defmodule ChannelRunner do
 
     Process.sleep(5000)
 
+    tennis = SessionHolder.run_action_sync(pid_initiator, fn (pid, from) ->
+      SocketConnector.get_contract_reponse_sync(pid, from, "contracts/TicTacToe.aes", 'make_move')
+    end)
+    Logger.error "dklsjdajks #{inspect tennis}"
+
+    Process.sleep(5000)
+
     SessionHolder.run_action(pid_initiator, fn pid ->
-      SocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
+      SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move')
     end)
 
     Process.sleep(5000)
@@ -98,11 +105,7 @@ defmodule ChannelRunner do
       SocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '1'])
     end)
 
-    Process.sleep(5000)
 
-    SessionHolder.run_action(pid_initiator, fn pid ->
-      SocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
-    end)
 
     Process.sleep(5000)
 
@@ -113,7 +116,7 @@ defmodule ChannelRunner do
     Process.sleep(5000)
 
     SessionHolder.run_action(pid_responder, fn pid ->
-      SocketConnector.get_contract(pid, "contracts/TicTacToe.aes", 'make_move')
+      SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move')
     end)
 
     Process.sleep(5000)
