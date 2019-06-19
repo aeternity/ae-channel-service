@@ -14,7 +14,6 @@ defmodule SocketConnector do
             pending_id: nil,
             # SyncCall{},
             sync_call: %{},
-            sync_request_function: nil,
             ws_manager_pid: nil,
             state_tx: nil,
             network_id: nil,
@@ -36,10 +35,21 @@ defmodule SocketConnector do
       )
   )
 
+  # TODO make some great use of this
+  defmodule(Contract,
+    do:
+      defstruct(
+        contract_file: nil,
+        contract_owner: nil,
+        contract_pubkey: nil
+      )
+  )
+
   defmodule(SyncCall,
     do:
       defstruct(
-        fuction: nil
+        request: nil,
+        response: nil
       )
   )
 
@@ -173,15 +183,14 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:call_contract, contract_file, fun, args})
   end
 
-  @spec get_contract_reponse(pid, String.t(), binary()) :: :ok
-  def get_contract_reponse(pid, contract_file, fun, round \\ nil) do
-    WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, round})
-  end
+  # @spec get_contract_reponse(pid, String.t(), binary()) :: :ok
+  # def get_contract_reponse(pid, contract_file, fun, round \\ nil) do
+  #   WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, round})
+  # end
 
-  @spec get_contract_reponse_sync(pid, pid, String.t(), binary()) :: :ok
-  def get_contract_reponse_sync(pid, from, contract_file, fun, round \\ nil) do
-    Logger.debug "sych websockex #{inspect from}"
-    WebSockex.cast(pid, {:get_contract_reponse_sync, from, contract_file, fun, round})
+  @spec get_contract_reponse(pid, String.t(), binary(), pid) :: :ok
+  def get_contract_reponse(pid, contract_file, fun, from \\ nil) do
+    WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, from})
   end
 
   # server side
@@ -219,11 +228,12 @@ defmodule SocketConnector do
   # end
 
   def handle_cast({:transfer, amount}, state) do
-    transfer = transfer_amount(state.session.initiator, state.session.responder, amount)
-    Logger.info("=> transfer #{inspect(transfer)}", state.color)
+    sync_call = transfer_amount(state.session.initiator, state.session.responder, amount)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    Logger.info("=> transfer #{inspect(sync_call)}", state.color)
+
+    {:reply, {:text, Poison.encode!(sync_call)},
+     %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
   end
 
   def handle_cast({:deposit, amount}, state) do
@@ -309,60 +319,57 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
-  def handle_cast({:get_contract_reponse, contract_file, fun, round}, state) do
-    address = state.contract_pubkey
-
-    {transfer, response_handler} =
-      get_contract_response_query(
-        address,
-        :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-        if(round == nil, do: state.nonce_map[:round], else: round)
-      )
-
-    Logger.info("=> get contract #{inspect(transfer)}", state.color)
-
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{
-       state
-       | pending_id: Map.get(transfer, :id, nil),
-         contract_file: contract_file,
-         contract_fun: fun,
-         sync_request_function: response_handler
-     }}
-  end
+  #
+  # def handle_cast({:get_contract_reponse, contract_file, fun, round}, state) do
+  #   address = state.contract_pubkey
+  #
+  #   {transfer, response_handler} =
+  #     get_contract_response_query(
+  #       address,
+  #       :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
+  #       if(round == nil, do: state.nonce_map[:round], else: round)
+  #     )
+  #
+  #   Logger.info("=> get contract #{inspect(transfer)}", state.color)
+  #
+  #   {:reply, {:text, Poison.encode!(transfer)},
+  #    %__MODULE__{
+  #      state
+  #      | pending_id: Map.get(transfer, :id, nil),
+  #        contract_file: contract_file,
+  #        contract_fun: fun,
+  #        sync_call: response_handler
+  #    }}
+  # end
 
   # def handle_cast({:get_contract_reponse_sync, from, contract_file, fun, round}, state) do
   #   WebSockex.cast(self(), {:get_contract_reponse_sync_inner, from, contract_file, fun, round})
   #   {:noreply, state}
   # end
 
-  def handle_cast({:get_contract_reponse_sync, from, contract_file, fun, round}, state) do
+  def handle_cast({:get_contract_reponse, contract_file, fun, from}, state) do
     address = state.contract_pubkey
 
-    {transfer, response_handler} =
+    sync_call =
+      %SyncCall{request: request} =
       get_contract_response_query(
+        from,
         address,
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-        if(round == nil, do: state.nonce_map[:round], else: round)
+        state.nonce_map[:round]
       )
 
-    Logger.info("=> get contract #{inspect(transfer)}", state.color)
+    Logger.info("=> get contract #{inspect(request)}", state.color)
 
-    reply_fun = fn(socket_response, state) ->
-      Logger.debug "returning message #{inspect from}"
-      GenServer.reply(from, response_handler.(socket_response, state))
-    end
-
-    {:reply, {:text, Poison.encode!(transfer)},
+    {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
        state
-       | pending_id: Map.get(transfer, :id, nil),
+       | pending_id: Map.get(request, :id, nil),
          contract_file: contract_file,
          contract_fun: fun,
-         sync_request_function: reply_fun
+         sync_call: sync_call
      }}
   end
-
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state) do
@@ -382,15 +389,17 @@ defmodule SocketConnector do
     account_from = :aeser_api_encoder.encode(:account_pubkey, from)
     account_to = :aeser_api_encoder.encode(:account_pubkey, to)
 
-    %{
-      jsonrpc: "2.0",
-      id: :erlang.unique_integer([:monotonic]),
-      method: "channels.update.new",
-      params: %{
-        from: account_from,
-        to: account_to,
-        amount: amount
-      }
+    %SyncCall{
+      request: %{
+        jsonrpc: "2.0",
+        method: "channels.update.new",
+        params: %{
+          from: account_from,
+          to: account_to,
+          amount: amount
+        }
+      },
+      response: nil
     }
   end
 
@@ -466,18 +475,41 @@ defmodule SocketConnector do
     }
   end
 
-  def get_contract_response_query(address, caller, round) do
-    {%{
-      jsonrpc: "2.0",
-      # Adding id will yeild anoter response.
-      id: :erlang.unique_integer([:monotonic]),
-      method: "channels.get.contract_call",
-      params: %{
-        caller: caller,
-        contract: address,
-        round: round
+  def make_sync(from, %SyncCall{request: request, response: response}) do
+    {request, response}
+
+    case from do
+      nil ->
+        %SyncCall{request: request, response: nil}
+
+      _pid ->
+        %SyncCall{
+          request: Map.put(request, :id, :erlang.unique_integer([:monotonic])),
+          response: response
+        }
+    end
+  end
+
+  def get_contract_response_query(from, address, caller, round) do
+    make_sync(
+      from,
+      %SyncCall{
+        request: %{
+          jsonrpc: "2.0",
+          method: "channels.get.contract_call",
+          params: %{
+            caller: caller,
+            contract: address,
+            round: round
+          }
+        },
+        response: fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_contract_reponse(result, state)
+          GenServer.reply(from, result)
+          {result, state_updated}
+        end
       }
-    }, &process_get_contract_reponse/2}
+    )
   end
 
   def handle_frame({:text, msg}, state) do
@@ -750,52 +782,16 @@ defmodule SocketConnector do
      }}
   end
 
-  def process_get_contract_reponse(%{"result" => %{"return_value" => return_value}}, state) do
+  def process_get_contract_reponse(%{"return_value" => return_value}, state) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
     sophia_value =
-      :aeso_compiler.to_sophia_value(
-        to_charlist(File.read!(state.contract_file)),
-        state.contract_fun,
-        :ok,
-        deserialized_return
-      )
-
-    Logger.debug(
-      "contract call reply (as result of calling: #{inspect(state.contract_fun)}): #{
-        inspect(sophia_value)
-      }",
-      state.color
-    )
-    sophia_value
-    # {:ok, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.get.contract_call.reply",
-          "params" => %{
-            "data" => %{"return_value" => return_value, "return_type" => _return_type}
-          }
-        } = _message,
-        state
-      ) do
-    {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
-
-    sophia_value =
-      :aeso_compiler.to_sophia_value(
-        to_charlist(File.read!(state.contract_file)),
-        state.contract_fun,
-        :ok,
-        deserialized_return
-      )
-
-    Logger.debug(
-      "contract call asynch reply (as result of calling: #{inspect(state.contract_fun)}): #{
-        inspect(sophia_value)
-      }",
-      state.color
-    )
+       :aeso_compiler.to_sophia_value(
+         to_charlist(File.read!(state.contract_file)),
+         state.contract_fun,
+         :ok,
+         deserialized_return
+       )
 
     # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
     # {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
@@ -806,7 +802,29 @@ defmodule SocketConnector do
     #   }", state.color
     # )
 
-    {:ok, state}
+    {sophia_value, state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.get.contract_call.reply",
+          "params" => %{
+            # "data" => %{"return_value" => return_value, "return_type" => _return_type}
+            "data" => data
+          }
+        } = _message,
+        state
+      ) do
+    {sophia_value, state_update} = process_get_contract_reponse(data, state)
+
+    Logger.debug(
+      "contract call async reply (as result of calling: #{inspect(state.contract_fun)}): #{
+        inspect(sophia_value)
+      }",
+      state.color
+    )
+
+    {:ok, state_update}
   end
 
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
@@ -816,13 +834,22 @@ defmodule SocketConnector do
 
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id == pending_id do
-    Logger.info("<= matched id, response: #{inspect(query_reponse)}", state.color)
-    case state.sync_request_function do
-      nil -> :ok
-      function ->
-        function.(query_reponse, state)
-    end
-    {:ok, %__MODULE__{state | sync_request_function: nil}}
+    Logger.info(
+      "<= matched id, synhronous call, response: #{inspect(query_reponse)}",
+      state.color
+    )
+
+    {_result, updated_state} =
+      case state.sync_call do
+        %SyncCall{response: response} ->
+          response.(query_reponse, state)
+
+        %{} ->
+          {:ok, state}
+      end
+
+    # TODO is this where sync_call should be modified or in responce.?
+    {:ok, %__MODULE__{updated_state | sync_call: %{}}}
   end
 
   # wrong unexpected id in response.

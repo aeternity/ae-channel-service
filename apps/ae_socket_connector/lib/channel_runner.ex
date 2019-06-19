@@ -69,8 +69,8 @@ defmodule ChannelRunner do
     # Process.sleep(4000)
     # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.query_funds(pid) end)
     #
-    # Process.sleep(4000)
-    # SessionHolder.run_action(pid_responder, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
+    Process.sleep(4000)
+    SessionHolder.run_action(pid_responder, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
     # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
     Process.sleep(5000)
 
@@ -82,21 +82,37 @@ defmodule ChannelRunner do
 
     # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-    SessionHolder.run_action(pid_initiator, fn pid ->
+
+    SessionHolder.run_action(pid_initiator, fn (pid) ->
       SocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['11', '1'])
     end)
 
     Process.sleep(5000)
+    # Logger.error "get_contract_respose #{inspect get_contract_respose}"
 
-    tennis = SessionHolder.run_action_sync(pid_initiator, fn (pid, from) ->
-      SocketConnector.get_contract_reponse_sync(pid, from, "contracts/TicTacToe.aes", 'make_move')
-    end)
-    Logger.error "dklsjdajks #{inspect tennis}"
+    get_contract_respose =
+      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+        SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', from)
+      end)
+
+    Logger.info("get_contract_respose sync #{inspect(get_contract_respose)}")
+
+    get_contract_respose =
+      SessionHolder.run_action(pid_initiator, fn pid ->
+        SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', nil)
+      end)
+
+    Logger.info("get_contract_respose async #{inspect(get_contract_respose)}")
+
+    # get_contract_respose = SessionHolder.run_action_sync(pid_responder, fn (pid, from) ->
+    #   SocketConnector.call_contract_sync(pid, from, "contracts/TicTacToe.aes", 'make_move', ['12', '1'])
+    # end)
+    # Logger.error "get_contract_respose #{inspect get_contract_respose}"
 
     Process.sleep(5000)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
-      SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move')
+      SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', nil)
     end)
 
     Process.sleep(5000)
@@ -104,8 +120,6 @@ defmodule ChannelRunner do
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '1'])
     end)
-
-
 
     Process.sleep(5000)
 
