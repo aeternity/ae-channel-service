@@ -80,6 +80,9 @@ defmodule ChannelRunner do
 
     Process.sleep(5000)
 
+    funds = SessionHolder.run_action_sync(pid_initiator, fn pid, from -> SocketConnector.query_funds(pid, from) end)
+    Logger.info("funds are: #{inspect funds}")
+
     # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
 
@@ -95,14 +98,14 @@ defmodule ChannelRunner do
         SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', from)
       end)
 
-    Logger.info("get_contract_respose sync #{inspect(get_contract_respose)}")
+    Logger.info("get contract response sync is: #{inspect(get_contract_respose)}")
 
     get_contract_respose =
       SessionHolder.run_action(pid_initiator, fn pid ->
         SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', nil)
       end)
 
-    Logger.info("get_contract_respose async #{inspect(get_contract_respose)}")
+    Logger.info("get contract response Async is: #{inspect(get_contract_respose)}")
 
     # get_contract_respose = SessionHolder.run_action_sync(pid_responder, fn (pid, from) ->
     #   SocketConnector.call_contract_sync(pid, from, "contracts/TicTacToe.aes", 'make_move', ['12', '1'])
