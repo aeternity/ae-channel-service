@@ -83,6 +83,10 @@ defmodule ChannelRunner do
     funds = SessionHolder.run_action_sync(pid_initiator, fn pid, from -> SocketConnector.query_funds(pid, from) end)
     Logger.info("funds are: #{inspect funds}")
 
+    channel_state = SessionHolder.run_action_sync(pid_initiator, fn(pid, from) -> SocketConnector.get_offchain_state(pid, from) end)
+    Logger.info("state is: #{inspect channel_state}")
+
+
     # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
 

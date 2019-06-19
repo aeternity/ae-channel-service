@@ -158,9 +158,9 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:query_funds, from})
   end
 
-  @spec get_offchain_state(pid) :: :ok
-  def get_offchain_state(pid) do
-    WebSockex.cast(pid, {:get_offchain_state, {}})
+  @spec get_offchain_state(pid, pid) :: :ok
+  def get_offchain_state(pid, from \\ nil) do
+    WebSockex.cast(pid, {:get_offchain_state, from})
   end
 
   @spec shutdown(pid) :: :ok
@@ -265,13 +265,28 @@ defmodule SocketConnector do
      }}
   end
 
-  def handle_cast({:get_offchain_state, {}}, state) do
-    transfer = get_offchain_state()
-    Logger.info("=> get_offchain_state #{inspect(transfer)}", state.color)
+  def handle_cast({:get_offchain_state, from_pid}, state) do
+    sync_call = %SyncCall{request: request} = get_offchain_state_query(from_pid)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    Logger.info("=> get offchain state #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
   end
+
+  #
+  #
+  # def handle_cast({:get_offchain_state, {}}, state) do
+  #   transfer = get_offchain_state()
+  #   Logger.info("=> get_offchain_state #{inspect(transfer)}", state.color)
+  #
+  #   {:reply, {:text, Poison.encode!(transfer)},
+  #    %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+  # end
 
   def handle_cast({:shutdown, {}}, state) do
     transfer = shutdown()
@@ -416,13 +431,19 @@ defmodule SocketConnector do
     }
   end
 
-  def get_offchain_state() do
-    %{
-      id: :erlang.unique_integer([:monotonic]),
-      jsonrpc: "2.0",
-      method: "channels.get.offchain_state",
-      params: %{}
-    }
+  def get_offchain_state_query(from_pid) do
+    make_sync(from_pid, %SyncCall{
+      request: %{
+        id: :erlang.unique_integer([:monotonic]),
+        jsonrpc: "2.0",
+        method: "channels.get.offchain_state",
+        params: %{}
+      },
+      response: fn %{"result" => result}, state ->
+        GenServer.reply(from_pid, result)
+        {result, state}
+      end
+    })
   end
 
   def shutdown() do
