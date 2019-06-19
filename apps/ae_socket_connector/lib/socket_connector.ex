@@ -218,10 +218,6 @@ defmodule SocketConnector do
     {:reply, :ping, %__MODULE__{state | timer_reference: timer_reference}}
   end
 
-  # def handle_pong(pong_frame, state) do
-  #   {:ok, state}
-  # end
-
   def handle_cast({:transfer, amount}, state) do
     sync_call = transfer_amount(state.session.initiator, state.session.responder, amount)
 
@@ -391,7 +387,6 @@ defmodule SocketConnector do
   def get_offchain_state_query(from_pid) do
     make_sync(from_pid, %SyncCall{
       request: %{
-        id: :erlang.unique_integer([:monotonic]),
         jsonrpc: "2.0",
         method: "channels.get.offchain_state",
         params: %{}
