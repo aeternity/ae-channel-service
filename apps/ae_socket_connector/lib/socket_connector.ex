@@ -183,11 +183,6 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:call_contract, contract_file, fun, args})
   end
 
-  # @spec get_contract_reponse(pid, String.t(), binary()) :: :ok
-  # def get_contract_reponse(pid, contract_file, fun, round \\ nil) do
-  #   WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, round})
-  # end
-
   @spec get_contract_reponse(pid, String.t(), binary(), pid) :: :ok
   def get_contract_reponse(pid, contract_file, fun, from \\ nil) do
     WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, from})
@@ -278,16 +273,6 @@ defmodule SocketConnector do
      }}
   end
 
-  #
-  #
-  # def handle_cast({:get_offchain_state, {}}, state) do
-  #   transfer = get_offchain_state()
-  #   Logger.info("=> get_offchain_state #{inspect(transfer)}", state.color)
-  #
-  #   {:reply, {:text, Poison.encode!(transfer)},
-  #    %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
-  # end
-
   def handle_cast({:shutdown, {}}, state) do
     transfer = shutdown()
     Logger.info("=> shutdown #{inspect(transfer)}", state.color)
@@ -338,34 +323,6 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(transfer)},
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
-
-  #
-  # def handle_cast({:get_contract_reponse, contract_file, fun, round}, state) do
-  #   address = state.contract_pubkey
-  #
-  #   {transfer, response_handler} =
-  #     get_contract_response_query(
-  #       address,
-  #       :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-  #       if(round == nil, do: state.nonce_map[:round], else: round)
-  #     )
-  #
-  #   Logger.info("=> get contract #{inspect(transfer)}", state.color)
-  #
-  #   {:reply, {:text, Poison.encode!(transfer)},
-  #    %__MODULE__{
-  #      state
-  #      | pending_id: Map.get(transfer, :id, nil),
-  #        contract_file: contract_file,
-  #        contract_fun: fun,
-  #        sync_call: response_handler
-  #    }}
-  # end
-
-  # def handle_cast({:get_contract_reponse_sync, from, contract_file, fun, round}, state) do
-  #   WebSockex.cast(self(), {:get_contract_reponse_sync_inner, from, contract_file, fun, round})
-  #   {:noreply, state}
-  # end
 
   def handle_cast({:get_contract_reponse, contract_file, fun, from_pid}, state) do
     address = state.contract_pubkey
@@ -550,7 +507,6 @@ defmodule SocketConnector do
     message = Poison.decode!(msg)
     # Logger.info("Received Message: #{inspect msg} #{inspect message} #{inspect self()}")
     process_message(message, state)
-    # {:ok, state}
   end
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do
