@@ -23,7 +23,8 @@ defmodule SocketConnector do
             contract_owner: nil,
             contract_pubkey: nil,
             contract_fun: nil,
-            timer_reference: nil
+            timer_reference: nil,
+            socket_ping_intervall: @socket_ping_intervall
 
   defmodule(WsConnection,
     do:
@@ -45,6 +46,7 @@ defmodule SocketConnector do
       )
   )
 
+  # TODO bad naming
   defmodule(SyncCall,
     do:
       defstruct(
@@ -201,7 +203,7 @@ defmodule SocketConnector do
         nil ->
           {:ok, t_ref} =
             :timer.apply_interval(
-              :timer.seconds(@socket_ping_intervall),
+              :timer.seconds(state.socket_ping_intervall),
               __MODULE__,
               :start_ping,
               [self()]
@@ -219,11 +221,11 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:transfer, amount}, state) do
-    sync_call = transfer_amount(state.session.initiator, state.session.responder, amount)
+    sync_call = %SyncCall{request: request} = transfer_amount(state.session.initiator, state.session.responder, amount)
 
-    Logger.info("=> transfer #{inspect(sync_call)}", state.color)
+    Logger.info("=> transfer #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(sync_call)},
+    {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
   end
 
@@ -246,7 +248,7 @@ defmodule SocketConnector do
   def handle_cast({:query_funds, from_pid}, state) do
     sync_call = %SyncCall{request: request} = request_funds(state, from_pid)
 
-    Logger.info("=> get contract #{inspect(request)}", state.color)
+    Logger.info("=> query_funds #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
@@ -373,6 +375,7 @@ defmodule SocketConnector do
     %SyncCall{
       request: %{
         jsonrpc: "2.0",
+        # id: :erlang.unique_integer([:monotonic]),
         method: "channels.update.new",
         params: %{
           from: account_from,
@@ -812,9 +815,12 @@ defmodule SocketConnector do
     {:ok, state_update}
   end
 
+  # @forgiving :error
+  @forgiving :ok
+
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("<= error unprocessed message: #{inspect(error)}")
-    {:ok, state}
+    {@forgiving, state}
   end
 
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
@@ -823,7 +829,9 @@ defmodule SocketConnector do
       case state.sync_call do
         %SyncCall{response: response} ->
           case response do
-            nil -> Logger.error("Not implemented received data is: #{inspect(query_reponse)}")
+            nil ->
+              Logger.error("Not implemented received data is: #{inspect(query_reponse)}")
+              {@forgiving, state}
             _ -> response.(query_reponse, state)
           end
 
@@ -839,8 +847,8 @@ defmodule SocketConnector do
   # wrong unexpected id in response.
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id != pending_id do
-    Logger.error("<= Failed match id, response: #{inspect(query_reponse)} #{inspect(pending_id)}")
-    {:ok, state}
+    Logger.error("<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{inspect(pending_id)}")
+    {@forgiving, state}
   end
 
   def process_message(
