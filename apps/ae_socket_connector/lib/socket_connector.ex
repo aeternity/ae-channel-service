@@ -46,7 +46,8 @@ defmodule SocketConnector do
         contract_owner: nil,
         contract_pubkey: nil,
         contract_last_call: nil,
-        contract_last_params: nil
+        contract_last_params: nil,
+        contract_nonce: nil
       )
   )
 
@@ -825,11 +826,15 @@ defmodule SocketConnector do
      }}
   end
 
+  def get_matching_contract(contract_id, contracts) do
+    [matching_contract] = for {_key, %Contract{contract_pubkey: contract_pubkey} = contract} <- contracts, contract_pubkey == contract_id, do: contract
+    matching_contract
+  end
+
   def process_get_contract_reponse(%{"return_value" => return_value, "contract_id" => contract_id}, state) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    # TODO the first matching contract under pub key should be matching
-    contract = Map.get(state.contracts, state.pub_key)
+    contract = get_matching_contract(contract_id, state.contracts)
     match = contract.contract_pubkey == contract_id
 
     Logger.info ("Contract get responce, found mathing contract #{inspect match}")
@@ -967,7 +972,8 @@ defmodule SocketConnector do
                 # TODO check if this is the contract that was deployd by us or other party.
                 {:account_pubkey, decoded_pubkey} = :aeser_api_encoder.decode(owner)
 
-                # so if this is out contract decoded_pukey == state_pubkey
+                # so if this is our contract decoded_pukey == state_pubkey
+
 
                 Map.put(state.contracts, decoded_pubkey, %Contract{Map.get(state.contracts, decoded_pubkey, %Contract{}) |
                   contract_owner: decoded_pubkey,
@@ -975,6 +981,7 @@ defmodule SocketConnector do
                   contract_bytecode: Map.get(entry, "code")
                 })
             end
+          # "OffChainCallContract" ->
 
           _ ->
             state.contracts
