@@ -19,6 +19,7 @@ defmodule SocketConnector do
             network_id: nil,
             ws_base: nil,
             nonce_map: %{},
+            contracts: %{},
             contract_file: nil,
             contract_owner: nil,
             contract_pubkey: nil,
@@ -40,6 +41,7 @@ defmodule SocketConnector do
   defmodule(Contract,
     do:
       defstruct(
+        contract_bytecode: nil,
         contract_file: nil,
         contract_owner: nil,
         contract_pubkey: nil
@@ -175,9 +177,9 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:leave, {}})
   end
 
-  @spec new_contract(pid, String.t()) :: :ok
-  def new_contract(pid, contract_file) do
-    WebSockex.cast(pid, {:new_contract, contract_file})
+  @spec new_contract(pid, {binary(), String.t()}) :: :ok
+  def new_contract(pid, {pub_key, contract_file}) do
+    WebSockex.cast(pid, {:new_contract, {pub_key, contract_file}})
   end
 
   @spec call_contract(pid, String.t(), binary(), binary()) :: :ok
@@ -287,7 +289,11 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
-  def handle_cast({:new_contract, contract_file}, state) do
+  # def get_contract_identifier({pub_key, compiled_contract}) do
+  #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
+  # end
+
+  def handle_cast({:new_contract, {pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
 
@@ -299,9 +305,10 @@ defmodule SocketConnector do
     # transfer = new_contract(encoded_bytecode, "", 3)
     # transfer = new_contract(@code, @call_data, 3)
     Logger.info("=> new contract #{inspect(transfer)}", state.color)
+    contracts = Map.put(state.contracts, pub_key, %Contract{contract_bytecode: encoded_bytecode})
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contracts: contracts}}
   end
 
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
@@ -745,6 +752,23 @@ defmodule SocketConnector do
      %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
+  def update_contract({contract_owner, contract_pubkey, code}, state) do
+    case Map.get(state.contracts, contract_owner, nil) do
+      nil ->
+        Logger.error "Dont know this contract"
+      contract_map ->
+        # verify that code matches
+        case contract_map.contract_bytecode == code do
+          true ->
+            %Contract{contract_map | contract_pubkey: contract_pubkey}
+          false ->
+            Logger.error "Dont sign this...."
+            %Contract{}
+        end
+    end
+  end
+
+  # TODO re-arrange here, if no match then don't sign ;)
   def process_message(
         %{
           "method" => "channels.sign.update",
@@ -759,14 +783,19 @@ defmodule SocketConnector do
       )
 
     updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
-    {contract_owner, contract_pubkey} = extract_contract_info(update, updated_nonce_map, state)
+    contract_info = {contract_owner, contract_pubkey, code} = extract_contract_info(update, updated_nonce_map, state)
+
+    updated_contract_map = update_contract(contract_info, state)
+
+    contracts = Map.put(state.contracts, contract_owner, updated_contract_map)
+
+    Logger.info "ASKLJSLKJLSKJ"
 
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
        state
        | nonce_map: updated_nonce_map,
-         contract_owner: contract_owner,
-         contract_pubkey: contract_pubkey
+         contracts: contracts
      }}
   end
 
@@ -875,21 +904,23 @@ defmodule SocketConnector do
   end
 
   def extract_contract_info(update, nonce_map, state) do
-    {contract_owner, contract_pubkey} =
+    {contract_owner, contract_pubkey, code} =
       case update do
         [] ->
           # TODO needs to be reworked, need to be able to remove contracts
-          {state.contract_owner.state.contract_pubkey}
+          Logger.error "Contract update, update is empty...."
+          {state.contract_owner, state.contract_pubkey}
 
         [entry] ->
           case Map.get(entry, "owner", nil) do
             # TODO needs to be reworked, need to be able to remove contracts
             nil ->
-              {state.contract_owner, state.contract_pubkey}
+              Logger.error "Contract update, owner is missing...."
+              {state.contract_owner, state.contract_pubkey, nil}
 
             owner ->
               {:account_pubkey, decoded_pubkey} = :aeser_api_encoder.decode(owner)
-              {owner, compute_contract_address(decoded_pubkey, nonce_map)}
+              {decoded_pubkey, compute_contract_address(decoded_pubkey, nonce_map), Map.get(entry, "code")}
           end
       end
 
@@ -898,7 +929,7 @@ defmodule SocketConnector do
       state.color
     )
 
-    {contract_owner, contract_pubkey}
+    {contract_owner, contract_pubkey, code}
   end
 
   def process_message(
@@ -911,11 +942,13 @@ defmodule SocketConnector do
     {response, nonce_map} =
       sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
-        logstring: "responder_sign_update"
+        logstring: "responder_sign_update_ack"
       )
 
     updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
-    {contract_owner, contract_pubkey} = extract_contract_info(update, updated_nonce_map, state)
+    {contract_owner, contract_pubkey, code} = extract_contract_info(update, updated_nonce_map, state)
+
+
 
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
