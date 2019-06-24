@@ -492,7 +492,7 @@ defmodule ChannelRunner do
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
 
     SessionHolder.run_action(pid_initiator, fn pid ->
-      SocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['11', '1'])
+      SocketConnector.call_contract(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move', ['11', '1'])
     end)
 
     Process.sleep(5000)
@@ -500,14 +500,14 @@ defmodule ChannelRunner do
 
     get_contract_respose =
       SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
-        SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', from)
+        SocketConnector.get_contract_reponse(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move', from)
       end)
 
     Logger.info("get contract response sync is: #{inspect(get_contract_respose)}")
 
     get_contract_respose =
       SessionHolder.run_action(pid_initiator, fn pid ->
-        SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', nil)
+        SocketConnector.get_contract_reponse(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move', nil)
       end)
 
     Logger.info("get contract response Async is: #{inspect(get_contract_respose)}")
@@ -520,26 +520,26 @@ defmodule ChannelRunner do
     Process.sleep(5000)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
-      SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move', nil)
+      SocketConnector.get_contract_reponse(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move', nil)
     end)
 
     Process.sleep(5000)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
-      SocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '1'])
+      SocketConnector.call_contract(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move', ['12', '1'])
     end)
 
     Process.sleep(5000)
 
     SessionHolder.run_action(pid_responder, fn pid ->
-      SocketConnector.call_contract(pid, "contracts/TicTacToe.aes", 'make_move', ['12', '2'])
+      SocketConnector.call_contract(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move', ['12', '2'])
     end)
 
     Process.sleep(5000)
 
-    SessionHolder.run_action(pid_responder, fn pid ->
-      SocketConnector.get_contract_reponse(pid, "contracts/TicTacToe.aes", 'make_move')
-    end)
+    # SessionHolder.run_action(pid_responder, fn pid ->
+    #   SocketConnector.get_contract_reponse(pid, {initiator_pub, "contracts/TicTacToe.aes"}, 'make_move')
+    # end)
 
     Process.sleep(5000)
 

@@ -20,10 +20,10 @@ defmodule SocketConnector do
             ws_base: nil,
             nonce_map: %{},
             contracts: %{},
-            contract_file: nil,
-            contract_owner: nil,
-            contract_pubkey: nil,
-            contract_fun: nil,
+            # contract_file: nil,
+            # contract_owner: nil,
+            # contract_pubkey: nil,
+            # contract_fun: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall
 
@@ -44,7 +44,9 @@ defmodule SocketConnector do
         contract_bytecode: nil,
         contract_file: nil,
         contract_owner: nil,
-        contract_pubkey: nil
+        contract_pubkey: nil,
+        contract_last_call: nil,
+        contract_last_params: nil
       )
   )
 
@@ -182,14 +184,14 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:new_contract, {pub_key, contract_file}})
   end
 
-  @spec call_contract(pid, String.t(), binary(), binary()) :: :ok
-  def call_contract(pid, contract_file, fun, args) do
-    WebSockex.cast(pid, {:call_contract, contract_file, fun, args})
+  @spec call_contract(pid, {binary, String.t()}, binary(), binary()) :: :ok
+  def call_contract(pid, {pub_key, contract_file}, fun, args) do
+    WebSockex.cast(pid, {:call_contract, {pub_key, contract_file}, fun, args})
   end
 
-  @spec get_contract_reponse(pid, String.t(), binary(), pid) :: :ok
-  def get_contract_reponse(pid, contract_file, fun, from \\ nil) do
-    WebSockex.cast(pid, {:get_contract_reponse, contract_file, fun, from})
+  @spec get_contract_reponse(pid, {binary(), String.t()}, binary(), pid) :: :ok
+  def get_contract_reponse(pid, {pub_key, contract_file}, fun, from \\ nil) do
+    WebSockex.cast(pid, {:get_contract_reponse, {pub_key, contract_file}, fun, from})
   end
 
   # server side
@@ -223,7 +225,9 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:transfer, amount}, state) do
-    sync_call = %SyncCall{request: request} = transfer_amount(state.session.initiator, state.session.responder, amount)
+    sync_call =
+      %SyncCall{request: request} =
+      transfer_amount(state.session.initiator, state.session.responder, amount)
 
     Logger.info("=> transfer #{inspect(request)}", state.color)
 
@@ -305,7 +309,7 @@ defmodule SocketConnector do
     # transfer = new_contract(encoded_bytecode, "", 3)
     # transfer = new_contract(@code, @call_data, 3)
     Logger.info("=> new contract #{inspect(transfer)}", state.color)
-    contracts = Map.put(state.contracts, pub_key, %Contract{contract_bytecode: encoded_bytecode})
+    contracts = Map.put(state.contracts, pub_key, %Contract{contract_bytecode: encoded_bytecode, contract_file: contract_file})
 
     {:reply, {:text, Poison.encode!(transfer)},
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contracts: contracts}}
@@ -313,33 +317,49 @@ defmodule SocketConnector do
 
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, contract_file, fun, args}, state) do
+  def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-    Logger.debug("call_contract, contract pubkey #{inspect(state.contract_pubkey)}")
+    contract = Map.get(state.contracts, pub_key)
+    contract_updated = %Contract{contract | contract_last_call: fun, contract_last_params: args}
+
+    Logger.debug("call_contract, contract pubkey #{inspect(state.contracts)}")
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    address = state.contract_pubkey
 
-    transfer = call_contract_req(address, encoded_calldata)
+    transfer = call_contract_req(contract.contract_pubkey, encoded_calldata)
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+     %__MODULE__{
+       state
+       | pending_id: Map.get(transfer, :id, nil),
+         contracts: Map.put(state.contracts, pub_key, contract_updated)
+     }}
   end
 
-  def handle_cast({:get_contract_reponse, contract_file, fun, from_pid}, state) do
-    address = state.contract_pubkey
+  def handle_cast({:get_contract_reponse, {pub_key, contract_file}, fun, from_pid}, state) do
+    contract = Map.get(state.contracts, pub_key)
 
     sync_call =
       %SyncCall{request: request} =
       get_contract_response_query(
-        address,
+        contract.contract_pubkey,
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
         state.nonce_map[:round],
         from_pid
       )
+
+    case (Map.get(contract, :contract_last_call, nil) == fun) do
+      false ->
+        Logger.error(
+          "this is not the last call made, last call is: #{inspect(contract.contract_last_call)}"
+        )
+
+      _ ->
+        :ok
+    end
 
     Logger.info("=> get contract #{inspect(request)}", state.color)
 
@@ -347,8 +367,8 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_id: Map.get(request, :id, nil),
-         contract_file: contract_file,
-         contract_fun: fun,
+         # contract_file: contract_file,
+         # contract_fun: fun,
          sync_call: sync_call
      }}
   end
@@ -752,21 +772,24 @@ defmodule SocketConnector do
      %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   end
 
-  def update_contract({contract_owner, contract_pubkey, code}, state) do
-    case Map.get(state.contracts, contract_owner, nil) do
-      nil ->
-        Logger.error "Dont know this contract"
-      contract_map ->
-        # verify that code matches
-        case contract_map.contract_bytecode == code do
-          true ->
-            %Contract{contract_map | contract_pubkey: contract_pubkey}
-          false ->
-            Logger.error "Dont sign this...."
-            %Contract{}
-        end
-    end
-  end
+  # def update_contract({contract_owner, contract_pubkey, code}, state) do
+  #   case Map.get(state.contracts, contract_owner, nil) do
+  #     nil ->
+  #       # TODO this is a contract deployed by the other side.
+  #       Logger.error("Dont know this contract")
+  #
+  #     contract_map ->
+  #       # verify that code matches
+  #       case contract_map.contract_bytecode == code do
+  #         true ->
+  #           %Contract{contract_map | contract_pubkey: contract_pubkey}
+  #
+  #         false ->
+  #           Logger.error("Dont sign this....")
+  #           %Contract{}
+  #       end
+  #   end
+  # end
 
   # TODO re-arrange here, if no match then don't sign ;)
   def process_message(
@@ -783,13 +806,16 @@ defmodule SocketConnector do
       )
 
     updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
-    contract_info = {contract_owner, contract_pubkey, code} = extract_contract_info(update, updated_nonce_map, state)
 
-    updated_contract_map = update_contract(contract_info, state)
+    # contract_info =
+    #   {contract_owner, contract_pubkey, code} =
+    #   parse_updates_contracts(update, updated_nonce_map, state)
+    #
+    # updated_contract_map = update_contract(contract_info, state)
+    #
+    # contracts = Map.put(state.contracts, contract_owner, updated_contract_map)
 
-    contracts = Map.put(state.contracts, contract_owner, updated_contract_map)
-
-    Logger.info "ASKLJSLKJLSKJ"
+    contracts = parse_updates_contracts(update, updated_nonce_map, state)
 
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
@@ -799,13 +825,20 @@ defmodule SocketConnector do
      }}
   end
 
-  def process_get_contract_reponse(%{"return_value" => return_value}, state) do
+  def process_get_contract_reponse(%{"return_value" => return_value, "contract_id" => contract_id}, state) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
+
+    # TODO the first matching contract under pub key should be matching
+    contract = Map.get(state.contracts, state.pub_key)
+    match = contract.contract_pubkey == contract_id
+
+    Logger.info ("Contract get responce, found mathing contract #{inspect match}")
+    # Logger.debug "LOOKING for key #{inspect contract_id} INININI #{inspect state.contracts}"
 
     sophia_value =
       :aeso_compiler.to_sophia_value(
-        to_charlist(File.read!(state.contract_file)),
-        state.contract_fun,
+        to_charlist(File.read!(contract.contract_file)),
+        contract.contract_last_call,
         :ok,
         deserialized_return
       )
@@ -835,7 +868,10 @@ defmodule SocketConnector do
     {sophia_value, state_update} = process_get_contract_reponse(data, state)
 
     Logger.debug(
-      "contract call async reply (as result of calling: #{inspect(state.contract_fun)}): #{
+      # "contract call async reply (as result of calling: #{inspect(state.contract_fun)}): #{
+      #   inspect(sophia_value)
+      # }",
+      "contract call async reply (as result of calling: bla bla): #{
         inspect(sophia_value)
       }",
       state.color
@@ -861,7 +897,9 @@ defmodule SocketConnector do
             nil ->
               Logger.error("Not implemented received data is: #{inspect(query_reponse)}")
               {@forgiving, state}
-            _ -> response.(query_reponse, state)
+
+            _ ->
+              response.(query_reponse, state)
           end
 
         %{} ->
@@ -876,7 +914,12 @@ defmodule SocketConnector do
   # wrong unexpected id in response.
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id != pending_id do
-    Logger.error("<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{inspect(pending_id)}")
+    Logger.error(
+      "<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{
+        inspect(pending_id)
+      }"
+    )
+
     {@forgiving, state}
   end
 
@@ -898,38 +941,45 @@ defmodule SocketConnector do
     {:ok, %__MODULE__{state | state_tx: state_tx}}
   end
 
+  # TODO store the decoded key, never use encoded
   defp compute_contract_address(contract_owner, nonce_map) do
     address_inter = :aect_contracts.compute_contract_pubkey(contract_owner, nonce_map[:round])
     :aeser_api_encoder.encode(:contract_pubkey, address_inter)
   end
 
-  def extract_contract_info(update, nonce_map, state) do
-    {contract_owner, contract_pubkey, code} =
-      case update do
-        [] ->
-          # TODO needs to be reworked, need to be able to remove contracts
-          Logger.error "Contract update, update is empty...."
-          {state.contract_owner, state.contract_pubkey}
+  def parse_updates_contracts(update, nonce_map, state) do
+    case update do
+      [] ->
+        # TODO needs to be reworked, need to be able to remove contracts
+        Logger.error("Contract update, update is empty....")
+        state.contracts
 
-        [entry] ->
-          case Map.get(entry, "owner", nil) do
-            # TODO needs to be reworked, need to be able to remove contracts
-            nil ->
-              Logger.error "Contract update, owner is missing...."
-              {state.contract_owner, state.contract_pubkey, nil}
+      [entry] ->
+        case Map.get(entry, "op") do
+          "OffChainNewContract" ->
+            case Map.get(entry, "owner", nil) do
+              nil ->
+                # TODO add clause to remove contracts...
+                Logger.error("Owner missing...")
+                {state.contract_owner, state.contract_pubkey, nil}
 
-            owner ->
-              {:account_pubkey, decoded_pubkey} = :aeser_api_encoder.decode(owner)
-              {decoded_pubkey, compute_contract_address(decoded_pubkey, nonce_map), Map.get(entry, "code")}
-          end
-      end
+              owner ->
+                # TODO check if this is the contract that was deployd by us or other party.
+                {:account_pubkey, decoded_pubkey} = :aeser_api_encoder.decode(owner)
 
-    Logger.debug(
-      "contract info: #{inspect(contract_owner)} #{inspect(contract_pubkey)}",
-      state.color
-    )
+                # so if this is out contract decoded_pukey == state_pubkey
 
-    {contract_owner, contract_pubkey, code}
+                Map.put(state.contracts, decoded_pubkey, %Contract{Map.get(state.contracts, decoded_pubkey, %Contract{}) |
+                  contract_owner: decoded_pubkey,
+                  contract_pubkey: compute_contract_address(decoded_pubkey, nonce_map),
+                  contract_bytecode: Map.get(entry, "code")
+                })
+            end
+
+          _ ->
+            state.contracts
+        end
+    end
   end
 
   def process_message(
@@ -946,16 +996,16 @@ defmodule SocketConnector do
       )
 
     updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
-    {contract_owner, contract_pubkey, code} = extract_contract_info(update, updated_nonce_map, state)
 
-
+    contracts = parse_updates_contracts(update, updated_nonce_map, state)
 
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
        state
        | nonce_map: updated_nonce_map,
-         contract_owner: contract_owner,
-         contract_pubkey: contract_pubkey
+         contracts: contracts
+         # contract_owner: contract_owner,
+         # contract_pubkey: contract_pubkey
      }}
   end
 
