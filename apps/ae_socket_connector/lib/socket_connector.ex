@@ -20,12 +20,23 @@ defmodule SocketConnector do
             ws_base: nil,
             nonce_map: %{},
             contracts: %{},
+            updates: %{},
+            pending_update: %{},
             # contract_file: nil,
             # contract_owner: nil,
             # contract_pubkey: nil,
             # contract_fun: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall
+
+  defmodule(Update,
+    do:
+      defstruct(
+        updates: nil,
+        tx: nil,
+        state_tx: nil
+      )
+  )
 
   defmodule(WsConnection,
     do:
@@ -619,7 +630,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.channel_create_tx/2, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
       )
@@ -634,7 +645,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.channel_create_tx/2, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
       )
@@ -763,7 +774,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.update",
-          "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}
+          "params" => %{"data" => %{"tx" => to_sign, "updates" => updates}}
         } = _message,
         state
       ) do
@@ -783,13 +794,14 @@ defmodule SocketConnector do
     #
     # contracts = Map.put(state.contracts, contract_owner, updated_contract_map)
 
-    contracts = parse_updates_contracts(update, updated_nonce_map, state)
+    contracts = parse_updates_contracts(updates, updated_nonce_map, state.contracts)
 
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
        state
        | nonce_map: updated_nonce_map,
-         contracts: contracts
+         contracts: contracts,
+         pending_update: %{updated_nonce_map[:round] => %Update{updates: updates, tx: to_sign}}
      }}
   end
 
@@ -895,6 +907,16 @@ defmodule SocketConnector do
     {@forgiving, state}
   end
 
+  def check_updated(state_tx, pending_map) do
+    round = Validator.get_round(state_tx)
+    case Map.get(pending_map, round) do
+      nil ->
+        %{}
+      update ->
+        %{round => %Update{update | state_tx: state_tx}}
+    end
+  end
+
   def process_message(
         %{
           "method" => "channels.update",
@@ -903,14 +925,18 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
-    log_string =
-      case state_tx == state.state_tx do
-        true -> "unchanged, state is #{inspect(state_tx)}"
-        false -> "updated, state is #{inspect(state_tx)} old was #{inspect(state.state_tx)}"
-      end
+    # log_string =
+    #   case state_tx == state.state_tx do
+    #     true -> "unchanged, state is #{inspect(state_tx)}"
+    #     false -> "updated, state is #{inspect(state_tx)} old was #{inspect(state.state_tx)}"
+    #   end
 
-    Logger.debug("= channels.update: " <> log_string, state.color)
-    {:ok, %__MODULE__{state | state_tx: state_tx}}
+    updates = check_updated(state_tx, state.pending_update)
+    # Logger.debug("= channels.update: " <> log_string, state.color)
+    # Logger.debug("= channels.update: " <> log_string <> " Updates are: #{inspect state.updates}", state.color)
+    Logger.debug("Updates #{inspect state.updates}", state.color)
+    Logger.debug "Map length #{inspect length(Map.to_list(state.updates))}", state.color
+    {:ok, %__MODULE__{state | state_tx: state_tx, updates: Map.merge(state.updates, updates), pending_update: %{}}}
   end
 
   # TODO store the decoded key, never use encoded
@@ -919,12 +945,12 @@ defmodule SocketConnector do
     :aeser_api_encoder.encode(:contract_pubkey, address_inter)
   end
 
-  def parse_updates_contracts(update, nonce_map, state) do
+  def parse_updates_contracts(update, nonce_map, contracts) do
     case update do
       [] ->
         # TODO needs to be reworked, need to be able to remove contracts
         Logger.error("Contract update, update is empty....")
-        state.contracts
+        contracts
 
       [entry] ->
         case Map.get(entry, "op") do
@@ -933,7 +959,7 @@ defmodule SocketConnector do
               nil ->
                 # TODO add clause to remove contracts...
                 Logger.error("Owner missing...")
-                {state.contract_owner, state.contract_pubkey, nil}
+                # {state.contract_owner, state.contract_pubkey, nil}
 
               owner ->
                 # TODO check if this is the contract that was deployd by us or other party.
@@ -942,7 +968,7 @@ defmodule SocketConnector do
                 # so if this is our contract decoded_pukey == state_pubkey
 
 
-                Map.put(state.contracts, decoded_pubkey, %Contract{Map.get(state.contracts, decoded_pubkey, %Contract{}) |
+                Map.put(contracts, decoded_pubkey, %Contract{Map.get(contracts, decoded_pubkey, %Contract{}) |
                   contract_owner: decoded_pubkey,
                   contract_pubkey: compute_contract_address(decoded_pubkey, nonce_map),
                   contract_bytecode: Map.get(entry, "code")
@@ -951,7 +977,7 @@ defmodule SocketConnector do
           # "OffChainCallContract" ->
 
           _ ->
-            state.contracts
+            contracts
         end
     end
   end
@@ -959,7 +985,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.update_ack",
-          "params" => %{"data" => %{"tx" => to_sign, "updates" => update}}
+          "params" => %{"data" => %{"tx" => to_sign, "updates" => updates}}
         } = _message,
         state
       ) do
@@ -971,13 +997,14 @@ defmodule SocketConnector do
 
     updated_nonce_map = Map.merge(state.nonce_map, nonce_map)
 
-    contracts = parse_updates_contracts(update, updated_nonce_map, state)
+    contracts = parse_updates_contracts(updates, updated_nonce_map, state.contracts)
 
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
        state
        | nonce_map: updated_nonce_map,
-         contracts: contracts
+         contracts: contracts,
+         pending_update: %{updated_nonce_map[:round] => %Update{updates: updates, tx: to_sign}}
          # contract_owner: contract_owner,
          # contract_pubkey: contract_pubkey
      }}

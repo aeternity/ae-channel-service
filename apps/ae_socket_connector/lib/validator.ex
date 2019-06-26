@@ -50,7 +50,22 @@ defmodule Validator do
   #     {status, %{nonce: tx["nonce"]}}
   # end
 
-  def inspect_sign_request(tx, state) do
+
+
+  def get_round(tx) do
+    # signed_tx(aetx(off-chain_tx))
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
+    deserialized = :aetx_sign.deserialize_from_binary(signed_tx)
+    # get aetx
+    aetx = :aetx_sign.tx(deserialized)
+    # :aetx.specialize_type(aetx)
+    {module, instance} = :aetx.specialize_callback(aetx)
+    # modele is :aesc_offchain_tx or :aesc_create_tx
+    # nonce = apply(module, :nonce, [instance])
+    apply(module, :round, [instance])
+  end
+
+  def channel_create_tx(tx, state) do
     # TODO make sure to verify that what we are signing matches according to the original request made.
     {module, tx_instance} = :aetx.specialize_callback(tx)
     # modeule is: aesc_create_tx
