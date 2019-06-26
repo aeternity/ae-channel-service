@@ -31,17 +31,6 @@ defmodule Validator do
   require Logger
   alias SocketConnector.WsConnection
 
-  defp pack_response(status, tx) do
-    # TODO, needs some attention
-    case tx["round"] do
-      nil ->
-        {status, %{nonce: tx["nonce"]}}
-
-      _value ->
-        {status, %{round: tx["round"]}}
-    end
-  end
-
   # %{"type" => type} = tx
   # case type do
   #   "ChannelOffchainTx" ->
@@ -50,9 +39,15 @@ defmodule Validator do
   #     {status, %{nonce: tx["nonce"]}}
   # end
 
+  # TODO we should be able to mere these two, get_state_round
+  def get_unsigned_round(to_sign) do
+    {:ok, create_bin_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
+    tx = :aetx.deserialize_from_binary(create_bin_tx)
+    tx_client = :aetx.serialize_for_client(tx)
+    tx_client["round"]
+  end
 
-
-  def get_round(tx) do
+  def get_state_round(tx) do
     # signed_tx(aetx(off-chain_tx))
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
     deserialized = :aetx_sign.deserialize_from_binary(signed_tx)
@@ -77,7 +72,7 @@ defmodule Validator do
     # TODO, redo above without specialized callback
 
     tx_client = :aesc_create_tx.for_client(tx_instance)
-    Logger.info("sign request, human readable: #{inspect(tx_client)}")
+    Logger.info("sign request, human readable: #{inspect(tx_client)}", state.color)
 
     # Logger.info "pubkey: #{inspect responder_pub_key} #{inspect responder_amount}", state.color
 
@@ -91,17 +86,21 @@ defmodule Validator do
             responder_amount: responder_amount
           }) == state.session do
       true ->
-        response = pack_response(:ok, tx_client)
+        response = :ok
         Logger.info("OK to sign! #{inspect(response)}", state.color)
         response
 
       # :ok
       false ->
-        response = pack_response(:unsecure, tx_client)
+        response = :unsecure
         Logger.error("NOK to sign #{inspect(response)}", state.color)
         response
     end
   end
+
+  # def get_contract_identifier({pub_key, compiled_contract}) do
+  #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
+  # end
 
   def inspect_transfer_request(tx, state) do
     # sample code on how various way on how to chech context of tx message
@@ -122,7 +121,7 @@ defmodule Validator do
     # Logger.info "for client 2 #{inspect :aetx.serialize_for_client(tx)}"
     tx_client = :aetx.serialize_for_client(tx)
     Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}")
-    response = pack_response(:ok, tx_client)
+    response = :ok
     Logger.info("sign result: #{inspect(response)}", state.color)
     response
   end
