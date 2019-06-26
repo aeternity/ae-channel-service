@@ -22,6 +22,8 @@ defmodule SocketConnector do
             contracts: %{},
             updates: %{},
             pending_update: %{},
+            contract2: nil,
+            contract2_round: nil,
             # contract_file: nil,
             # contract_owner: nil,
             # contract_pubkey: nil,
@@ -34,7 +36,8 @@ defmodule SocketConnector do
       defstruct(
         updates: nil,
         tx: nil,
-        state_tx: nil
+        state_tx: nil,
+        contract_call: nil,
       )
   )
 
@@ -327,6 +330,7 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contracts: contracts}}
   end
 
+  # returns all the contracts which mathes... TODO the return is currenty not doing that
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
@@ -334,8 +338,17 @@ defmodule SocketConnector do
     # find matching contracts
     # beware this code assumes that length(updates) == 1
     rounds = for {round, %Update{updates: [%{"op" => "OffChainNewContract", "owner" => ^owner_encoded, "code" => ^encoded_bytecode}]}} <- updates, do: round
+    # rounds = for {round, %Update{updates: [%{"owner" => ^owner_encoded, "code" => ^encoded_bytecode, }]}} <- updates, do: round
     address_inter = :aect_contracts.compute_contract_pubkey(owner, Enum.min(rounds))
-    {rounds, :aeser_api_encoder.encode(:contract_pubkey, address_inter)}
+    # {rounds, :aeser_api_encoder.encode(:contract_pubkey, address_inter)}
+    {rounds, address_inter}
+  end
+
+  def find_contract_rounds(caller, contract_pubkey, updates) do
+    caller_encoded = :aeser_api_encoder.encode(:contract_pubkey, caller)
+    contract_pubkey_encoded = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey)
+    rounds = for {round, %Update{updates: [%{"op" => "OffChainCallContract", "contract" => ^contract_pubkey_encoded}]}} <- updates, do: round
+    # rounds = for {round, %Update{updates: [%{"op" => "OffChainCallContract"}]}} <- updates, do: round
   end
 
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
@@ -353,8 +366,14 @@ defmodule SocketConnector do
     #
     # Logger.debug("call_contract, contract pubkey #{inspect(state.contracts)}")
     #
-    {_rounds, contract_pubkey} = calculate_contract_address({pub_key, contract_file}, state.updates)
+
+
+    {_rounds, contract_pubkey_not_encoded} = calculate_contract_address({pub_key, contract_file}, state.updates)
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+
+    contract_pubkey = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey_not_encoded)
+
+    contract2 = {encoded_calldata, contract_pubkey, fun, args}
     #
     transfer = call_contract_req(contract_pubkey, encoded_calldata)
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
@@ -363,21 +382,28 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_id: Map.get(transfer, :id, nil),
+       contract2: contract2
          # contracts: Map.put(state.contracts, pub_key, contract_updated)
      }}
   end
 
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, fun, from_pid}, state) do
-    {rounds, contract_pubkey} = calculate_contract_address({pub_key, contract_file}, state.updates)
+    {_round, contract_pubkey} = calculate_contract_address({pub_key, contract_file}, state.updates)
+
+    rounds = find_contract_rounds(pub_key, contract_pubkey, state.updates)
     # contract = Map.get(state.contracts, pub_key)
+
+    # go per default to the last call, until we expose round.
+    max_round = Enum.max(rounds)
+
+    Logger.error "ROUNDS: #{inspect rounds}", state.color
 
     sync_call =
       %SyncCall{request: request} =
       get_contract_response_query(
-        contract_pubkey,
+        :aeser_api_encoder.encode(:contract_pubkey,contract_pubkey),
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-        # go per default to the last call
-        Enum.max(rounds),
+        max_round,
         from_pid
       )
 
@@ -387,6 +413,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_id: Map.get(request, :id, nil),
+         contract2_round: max_round,
          # contract_file: contract_file,
          # contract_fun: fun,
          sync_call: sync_call
@@ -802,6 +829,12 @@ defmodule SocketConnector do
     #
     # contracts = Map.put(state.contracts, contract_owner, updated_contract_map)
 
+    {:ok, create_bin_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
+    tx = :aetx.deserialize_from_binary(create_bin_tx)
+    tx_client = :aetx.serialize_for_client(tx)
+
+    Logger.error "1 round is #{inspect tx_client["round"]} other round is #{inspect updated_nonce_map[:round]}, state.contract2 is: #{inspect state.contract2}", state.color
+
     contracts = parse_updates_contracts(updates, updated_nonce_map, state.contracts)
 
     {:reply, {:text, Poison.encode!(response)},
@@ -809,7 +842,8 @@ defmodule SocketConnector do
        state
        | nonce_map: updated_nonce_map,
          contracts: contracts,
-         pending_update: %{updated_nonce_map[:round] => %Update{updates: updates, tx: to_sign}}
+         pending_update: %{updated_nonce_map[:round] => %Update{updates: updates, tx: to_sign, contract_call: state.contract2}},
+         contract2: nil,
      }}
   end
 
@@ -818,19 +852,29 @@ defmodule SocketConnector do
     matching_contract
   end
 
-  def process_get_contract_reponse(%{"return_value" => return_value, "contract_id" => contract_id}, state) do
+  def process_get_contract_reponse(%{"return_value" => return_value, "contract_id" => contract_id} = data, state) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
     contract = get_matching_contract(contract_id, state.contracts)
     match = contract.contract_pubkey == contract_id
 
     Logger.info ("Contract get responce, found mathing contract #{inspect match}")
+    # Logger.error ("Contract call result is: #{inspect data}")
     # Logger.debug "LOOKING for key #{inspect contract_id} INININI #{inspect state.contracts}"
+
+    Logger.error "lookup round #{inspect state.contract2_round} in map #{inspect Map.keys(state.updates)}", state.color
+
+    Enum.map(state.updates, fn {key, %Update{contract_call: contract_call}} -> Logger.error("Contract key #{inspect key} contains #{inspect contract_call}", state.color) end)
+
+    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args}} = Map.get(state.updates, state.contract2_round)
+
+    #TODO need some improvement :)
+    hack = "contracts/TicTacToe.aes"
 
     sophia_value =
       :aeso_compiler.to_sophia_value(
-        to_charlist(File.read!(contract.contract_file)),
-        contract.contract_last_call,
+        to_charlist(File.read!(hack)),
+        fun,
         :ok,
         deserialized_return
       )
@@ -942,8 +986,9 @@ defmodule SocketConnector do
     updates = check_updated(state_tx, state.pending_update)
     # Logger.debug("= channels.update: " <> log_string, state.color)
     # Logger.debug("= channels.update: " <> log_string <> " Updates are: #{inspect state.updates}", state.color)
-    Logger.debug("Updates #{inspect state.updates}", state.color)
+    # Logger.debug("Updates #{inspect state.updates}", state.color)
     Logger.debug "Map length #{inspect length(Map.to_list(state.updates))}", state.color
+    Logger.debug "Update to be added is: #{inspect updates}", state.color
     {:ok, %__MODULE__{state | state_tx: state_tx, updates: Map.merge(state.updates, updates), pending_update: %{}}}
   end
 
@@ -1007,33 +1052,44 @@ defmodule SocketConnector do
 
     contracts = parse_updates_contracts(updates, updated_nonce_map, state.contracts)
 
+    {:ok, create_bin_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
+    tx = :aetx.deserialize_from_binary(create_bin_tx)
+    tx_client = :aetx.serialize_for_client(tx)
+
+    Logger.error "2 round is #{inspect tx_client["round"]} other round is #{inspect updated_nonce_map[:round]}, state.contract2 is: #{inspect state.contract2}", state.color
+
+
+    # TODO
+    # double check that the call_data is the calldata we produces
+
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
        state
        | nonce_map: updated_nonce_map,
          contracts: contracts,
-         pending_update: %{updated_nonce_map[:round] => %Update{updates: updates, tx: to_sign}}
+         pending_update: %{updated_nonce_map[:round] => %Update{updates: updates, tx: to_sign, contract_call: state.contract2}},
+         contract2: nil
          # contract_owner: contract_owner,
          # contract_pubkey: contract_pubkey
      }}
   end
-
-  def process_message(
-        %{"method" => "channels.sign.update_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
-        state
-      ) do
-    Logger.info("no update")
-
-    {response, nonce_map} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
-        method: "channels.update_ack",
-        logstring: "responder_sign_update"
-      )
-
-    {:reply, {:text, Poison.encode!(response)},
-     %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
-  end
+  #
+  # def process_message(
+  #       %{"method" => "channels.sign.update_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
+  #         _message,
+  #       state
+  #     ) do
+  #   Logger.info("no update")
+  #
+  #   {response, nonce_map} =
+  #     Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+  #       method: "channels.update_ack",
+  #       logstring: "responder_sign_update"
+  #     )
+  #
+  #   {:reply, {:text, Poison.encode!(response)},
+  #    %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
+  # end
 
   def process_message(
         %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message,

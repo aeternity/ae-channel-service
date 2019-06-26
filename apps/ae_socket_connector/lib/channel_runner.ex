@@ -452,37 +452,42 @@ defmodule ChannelRunner do
     # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.query_funds(pid) end)
     #
 
-    Process.sleep(3000)
+    # Process.sleep(3000)
+    #
+    # funds =
+    #   SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+    #     SocketConnector.query_funds(pid, from)
+    #   end)
+    #
+    # Logger.info("funds are: #{inspect(funds)}")
+    #
+    # Process.sleep(3000)
+    #
+    # SessionHolder.run_action(pid_responder, fn pid ->
+    #   SocketConnector.initiate_transfer(pid, 2)
+    # end)
+    #
+    # # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
+    #
+    # Process.sleep(3000)
+    #
+    # funds =
+    #   SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+    #     SocketConnector.query_funds(pid, from)
+    #   end)
+    #
+    # Logger.info("funds are: #{inspect(funds)}")
 
-    funds =
-      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
-        SocketConnector.query_funds(pid, from)
-      end)
+    Logger.info("delploy contract")
 
-    Logger.info("funds are: #{inspect(funds)}")
-
-    Process.sleep(3000)
-
-    SessionHolder.run_action(pid_responder, fn pid ->
-      SocketConnector.initiate_transfer(pid, 2)
-    end)
-
-    # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
-
-    Process.sleep(3000)
-
-    funds =
-      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
-        SocketConnector.query_funds(pid, from)
-      end)
-
-    Logger.info("funds are: #{inspect(funds)}")
-
-    Process.sleep(3000)
+    Process.sleep(7000)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.new_contract(pid, {initiator_pub, "contracts/TicTacToe.aes"})
     end)
+
+
+    Process.sleep(6000)
 
     # Process.sleep(5000)
     #
@@ -493,19 +498,19 @@ defmodule ChannelRunner do
     #
     # Logger.info("funds are: #{inspect(funds)}")
     #
-    channel_state =
-      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
-        SocketConnector.get_offchain_state(pid, from)
-      end)
-    #
-    Logger.info("state is: #{inspect(channel_state)}")
+    # channel_state =
+    #   SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+    #     SocketConnector.get_offchain_state(pid, from)
+    #   end)
+    # #
+    # Logger.info("state is: #{inspect(channel_state)}")
 
     # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
 
-    Logger.info("0")
 
-    Process.sleep(2000)
+    Process.sleep(4000)
+    Logger.info("call contract", ansi_color: :yellow)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.call_contract(
@@ -516,9 +521,11 @@ defmodule ChannelRunner do
       )
     end)
 
-    Logger.info("1")
 
-    Process.sleep(2000)
+
+    Process.sleep(8000)
+
+    Logger.info("get contract result", ansi_color: :yellow)
 
     get_contract_respose =
       SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
@@ -533,6 +540,8 @@ defmodule ChannelRunner do
     Logger.error("get contract response sync is: #{inspect(get_contract_respose)}")
 
     Logger.error "STEP1"
+
+    Process.sleep(123442)
 
     SessionHolder.run_action(pid_responder, fn pid ->
       SocketConnector.call_contract(
