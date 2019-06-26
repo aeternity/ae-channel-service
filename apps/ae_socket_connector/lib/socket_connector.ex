@@ -327,14 +327,30 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil), contracts: contracts}}
   end
 
+  def calculate_contract_address({owner, contract_file}, updates) do
+    {:ok, map} = :aeso_compiler.file(contract_file)
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
+    owner_encoded = :aeser_api_encoder.encode(:account_pubkey, owner)
+    # find matching contracts
+    # beware this code assumes that length(updates) == 1
+    [{owner, round}] = for {round, %Update{updates: [%{"op" => "OffChainNewContract", "owner" => ^owner_encoded, "code" => ^encoded_bytecode}]}} <- updates, do: {owner, round}
+    address_inter = :aect_contracts.compute_contract_pubkey(owner, round)
+    :aeser_api_encoder.encode(:contract_pubkey, address_inter)
+  end
+
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
+
     contract = Map.get(state.contracts, pub_key)
     contract_updated = %Contract{contract | contract_last_call: fun, contract_last_params: args}
+
+    check = contract.contract_pubkey == calculate_contract_address({pub_key, contract_file}, state.updates)
+
+    Logger.error("contract check #{inspect check}")
 
     Logger.debug("call_contract, contract pubkey #{inspect(state.contracts)}")
 
