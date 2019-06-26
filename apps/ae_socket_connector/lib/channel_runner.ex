@@ -501,7 +501,7 @@ defmodule ChannelRunner do
 
     Logger.info("0")
 
-    Process.sleep(4000)
+    Process.sleep(2000)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.call_contract(
@@ -514,7 +514,7 @@ defmodule ChannelRunner do
 
     Logger.info("1")
 
-    Process.sleep(4000)
+    Process.sleep(2000)
 
     # SessionHolder.run_action(pid_responder, fn pid ->
     #   SocketConnector.call_contract(
@@ -543,7 +543,7 @@ defmodule ChannelRunner do
     # Logger.info("get contract response sync is initiator: #{inspect(get_contract_respose)}")
 
     Logger.info("3")
-    Process.sleep(10_000)
+    Process.sleep(2000)
 
     get_contract_respose =
       SessionHolder.run_action(pid_initiator, fn pid ->

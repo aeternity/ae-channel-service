@@ -602,39 +602,6 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  defp sign_transaction_perform(
-         to_sign,
-         state,
-         verify_hook \\ fn _tx, _state -> {:unsecure, nil} end
-       ) do
-    {:ok, create_bin_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
-    # returns #aetx
-    tx = :aetx.deserialize_from_binary(create_bin_tx)
-
-    case verify_hook.(tx, state) do
-      {:unsecure, nonce_map} ->
-        {"", nonce_map}
-
-      {:ok, nonce_map} ->
-        # bin = :aetx.serialize_to_binary(tx)
-        bin = create_bin_tx
-        bin_for_network = <<state.network_id::binary, bin::binary>>
-        result_signed = :enacl.sign_detached(bin_for_network, state.priv_key)
-        signed_create_tx = :aetx_sign.new(tx, [result_signed])
-
-        {:aeser_api_encoder.encode(
-           :transaction,
-           :aetx_sign.serialize_to_binary(signed_create_tx)
-         ), nonce_map}
-    end
-  end
-
-  defp sign_transaction(to_sign, authenticator, state, method: method, logstring: logstring) do
-    {enc_signed_create_tx, nonce_map} = sign_transaction_perform(to_sign, state, authenticator)
-    response = %{jsonrpc: "2.0", method: method, params: %{tx: enc_signed_create_tx}}
-    Logger.debug("=>#{inspect(logstring)} : #{inspect(response)} #{inspect(self())}", state.color)
-    {response, nonce_map}
-  end
 
   def process_message(
         %{
@@ -652,7 +619,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
       )
@@ -667,7 +634,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_sign_request/2, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
       )
@@ -682,7 +649,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
+      Signer.sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
         method: "channels.deposit_tx",
         logstring: "initiator_sign"
       )
@@ -697,7 +664,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
+      Signer.sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
         method: "channels.deposit_ack",
         logstring: "responder_sign"
       )
@@ -712,7 +679,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
+      Signer.sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
         method: "channels.withdraw_tx",
         logstring: "initiator_sign"
       )
@@ -727,7 +694,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
+      Signer.sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
         method: "channels.withdraw_ack",
         logstring: "responder_sign"
       )
@@ -737,7 +704,7 @@ defmodule SocketConnector do
   end
 
   # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
-  #   {response, nonce_map} = sign_transaction(to_sign, &Validator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
+  #   {response, nonce_map} = Signer.sign_transaction(to_sign, &Validator.inspect_sign_request/2, state, [method: "channels.responder_sign", logstring: "responder_sign"])
   #   {:reply, {:text, Poison.encode!(response)}, %__MODULE__{state | nonce_map: Map.merge(state.nonce_map, nonce_map)}}
   # end
 
@@ -747,7 +714,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
+      Signer.sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
         method: "channels.shutdown_sign",
         logstring: "initiator_sign"
       )
@@ -764,7 +731,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
+      Signer.sign_transaction(to_sign, fn _a, _b -> {:ok, %{}} end, state,
         method: "channels.shutdown_sign_ack",
         logstring: "initiator_sign"
       )
@@ -801,7 +768,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update",
         logstring: "channels.sign.update"
       )
@@ -997,7 +964,7 @@ defmodule SocketConnector do
         state
       ) do
     {response, nonce_map} =
-      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
         logstring: "responder_sign_update_ack"
       )
@@ -1024,7 +991,7 @@ defmodule SocketConnector do
     Logger.info("no update")
 
     {response, nonce_map} =
-      sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.update_ack",
         logstring: "responder_sign_update"
       )
