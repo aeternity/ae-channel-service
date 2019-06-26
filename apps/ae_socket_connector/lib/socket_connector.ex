@@ -333,9 +333,9 @@ defmodule SocketConnector do
     owner_encoded = :aeser_api_encoder.encode(:account_pubkey, owner)
     # find matching contracts
     # beware this code assumes that length(updates) == 1
-    [{owner, round}] = for {round, %Update{updates: [%{"op" => "OffChainNewContract", "owner" => ^owner_encoded, "code" => ^encoded_bytecode}]}} <- updates, do: {owner, round}
-    address_inter = :aect_contracts.compute_contract_pubkey(owner, round)
-    :aeser_api_encoder.encode(:contract_pubkey, address_inter)
+    rounds = for {round, %Update{updates: [%{"op" => "OffChainNewContract", "owner" => ^owner_encoded, "code" => ^encoded_bytecode}]}} <- updates, do: round
+    address_inter = :aect_contracts.compute_contract_pubkey(owner, Enum.min(rounds))
+    {rounds, :aeser_api_encoder.encode(:contract_pubkey, address_inter)}
   end
 
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
@@ -344,50 +344,42 @@ defmodule SocketConnector do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-
-    contract = Map.get(state.contracts, pub_key)
-    contract_updated = %Contract{contract | contract_last_call: fun, contract_last_params: args}
-
-    check = contract.contract_pubkey == calculate_contract_address({pub_key, contract_file}, state.updates)
-
-    Logger.error("contract check #{inspect check}")
-
-    Logger.debug("call_contract, contract pubkey #{inspect(state.contracts)}")
-
+    # contract = Map.get(state.contracts, pub_key)
+    # contract_updated = %Contract{contract | contract_last_call: fun, contract_last_params: args}
+    #
+    # check = contract.contract_pubkey == calculate_contract_address({pub_key, contract_file}, state.updates)
+    #
+    # Logger.error("contract check #{inspect check}")
+    #
+    # Logger.debug("call_contract, contract pubkey #{inspect(state.contracts)}")
+    #
+    {_rounds, contract_pubkey} = calculate_contract_address({pub_key, contract_file}, state.updates)
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-
-    transfer = call_contract_req(contract.contract_pubkey, encoded_calldata)
+    #
+    transfer = call_contract_req(contract_pubkey, encoded_calldata)
     Logger.info("=> call contract #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
      %__MODULE__{
        state
        | pending_id: Map.get(transfer, :id, nil),
-         contracts: Map.put(state.contracts, pub_key, contract_updated)
+         # contracts: Map.put(state.contracts, pub_key, contract_updated)
      }}
   end
 
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, fun, from_pid}, state) do
-    contract = Map.get(state.contracts, pub_key)
+    {rounds, contract_pubkey} = calculate_contract_address({pub_key, contract_file}, state.updates)
+    # contract = Map.get(state.contracts, pub_key)
 
     sync_call =
       %SyncCall{request: request} =
       get_contract_response_query(
-        contract.contract_pubkey,
+        contract_pubkey,
         :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
-        state.nonce_map[:round],
+        # go per default to the last call
+        Enum.max(rounds),
         from_pid
       )
-
-    case (Map.get(contract, :contract_last_call, nil) == fun) do
-      false ->
-        Logger.error(
-          "this is not the last call made, last call is: #{inspect(contract.contract_last_call)}"
-        )
-
-      _ ->
-        :ok
-    end
 
     Logger.info("=> get contract #{inspect(request)}", state.color)
 
