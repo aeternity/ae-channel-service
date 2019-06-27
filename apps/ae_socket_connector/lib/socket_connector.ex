@@ -341,7 +341,9 @@ defmodule SocketConnector do
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
-    [{_max_round, contract_pubkey_not_encoded} | _t] = Enum.sort(contract_list, fn({a, _b}, {a2, _b2}) -> a > a2 end)
+
+    [{_max_round, contract_pubkey_not_encoded} | _t] =
+      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     # {_rounds, contract_pubkey_not_encoded} =
     #   calculate_contract_address({pub_key, contract_file}, state.updates)
@@ -364,7 +366,10 @@ defmodule SocketConnector do
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
     contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
-    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn({a, _b}, {a2, _b2}) -> a > a2 end)
+
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+
     rounds = find_contract_calls(pub_key, contract_pubkey, state.updates)
 
     # TODO go per default to the last call, until we expose round to client.
