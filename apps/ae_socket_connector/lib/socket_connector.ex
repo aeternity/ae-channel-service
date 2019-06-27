@@ -303,32 +303,26 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
-  # returns all the contracts which mathes... TODO the return is currenty not doing that
+  # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
     owner_encoded = :aeser_api_encoder.encode(:account_pubkey, owner)
     # beware this code assumes that length(updates) == 1
-    rounds =
-      for {round,
-           %Update{
-             updates: [
-               %{
-                 "op" => "OffChainNewContract",
-                 "owner" => ^owner_encoded,
-                 "code" => ^encoded_bytecode
-               }
-             ]
-           }} <- updates,
-          do: round
-
-    # rounds = for {round, %Update{updates: [%{"owner" => ^owner_encoded, "code" => ^encoded_bytecode, }]}} <- updates, do: round
-    address_inter = :aect_contracts.compute_contract_pubkey(owner, Enum.min(rounds))
-    # {rounds, :aeser_api_encoder.encode(:contract_pubkey, address_inter)}
-    {rounds, address_inter}
+    for {round,
+         %Update{
+           updates: [
+             %{
+               "op" => "OffChainNewContract",
+               "owner" => ^owner_encoded,
+               "code" => ^encoded_bytecode
+             }
+           ]
+         }} <- updates,
+        do: {round, :aect_contracts.compute_contract_pubkey(owner, round)}
   end
 
-  def find_contract_rounds(caller, contract_pubkey, updates) do
+  def find_contract_calls(caller, contract_pubkey, updates) do
     # caller_encoded = :aeser_api_encoder.encode(:contract_pubkey, caller)
     contract_pubkey_encoded = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey)
 
@@ -337,18 +331,20 @@ defmodule SocketConnector do
            updates: [%{"op" => "OffChainCallContract", "contract" => ^contract_pubkey_encoded}]
          }} <- updates,
         do: round
-
-    # rounds = for {round, %Update{updates: [%{"op" => "OffChainCallContract"}]}} <- updates, do: round
   end
 
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
+  # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-    {_rounds, contract_pubkey_not_encoded} =
-      calculate_contract_address({pub_key, contract_file}, state.updates)
+    contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
+    [{_max_round, contract_pubkey_not_encoded} | _t] = Enum.sort(contract_list, fn({a, _b}, {a2, _b2}) -> a > a2 end)
+
+    # {_rounds, contract_pubkey_not_encoded} =
+    #   calculate_contract_address({pub_key, contract_file}, state.updates)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_pubkey = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey_not_encoded)
@@ -367,10 +363,9 @@ defmodule SocketConnector do
 
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
-    {_round, contract_pubkey} =
-      calculate_contract_address({pub_key, contract_file}, state.updates)
-
-    rounds = find_contract_rounds(pub_key, contract_pubkey, state.updates)
+    contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn({a, _b}, {a2, _b2}) -> a > a2 end)
+    rounds = find_contract_calls(pub_key, contract_pubkey, state.updates)
 
     # TODO go per default to the last call, until we expose round to client.
     max_round = Enum.max(rounds)
