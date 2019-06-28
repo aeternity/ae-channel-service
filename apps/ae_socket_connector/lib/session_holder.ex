@@ -2,6 +2,8 @@ defmodule SessionHolder do
   use GenServer
   require Logger
 
+  @sync_call_timeout 10_000
+
   defstruct pid: nil,
             color: nil,
             configuration: %SocketConnector{},
@@ -20,7 +22,7 @@ defmodule SessionHolder do
   end
 
   def run_action_sync(pid, action) do
-    GenServer.call(pid, {:action_sync, action})
+    GenServer.call(pid, {:action_sync, action}, @sync_call_timeout)
   end
 
   # Server
