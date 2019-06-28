@@ -323,12 +323,12 @@ defmodule SocketConnector do
   end
 
   def find_contract_calls(caller, contract_pubkey, updates) do
-    # caller_encoded = :aeser_api_encoder.encode(:contract_pubkey, caller)
+    caller_encoded = :aeser_api_encoder.encode(:account_pubkey, caller)
     contract_pubkey_encoded = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey)
 
     for {round,
          %Update{
-           updates: [%{"op" => "OffChainCallContract", "contract" => ^contract_pubkey_encoded}]
+           updates: [%{"op" => "OffChainCallContract", "contract" => ^contract_pubkey_encoded, "caller" => ^caller_encoded}]
          }} <- updates,
         do: round
   end
@@ -367,12 +367,11 @@ defmodule SocketConnector do
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
     contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
 
-    [{_max_round, contract_pubkey} | _t] =
+    a = [{_max_round, contract_pubkey} | _t] =
       Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
-    rounds = find_contract_calls(pub_key, contract_pubkey, state.updates)
-
-    # TODO go per default to the last call, until we expose round to client.
+    rounds = find_contract_calls(state.pub_key, contract_pubkey, state.updates)
+    # TODO now we per default get the last call, until we expose round to client.
     max_round = Enum.max(rounds)
 
     sync_call =
@@ -836,7 +835,8 @@ defmodule SocketConnector do
   @forgiving :ok
 
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
-    Logger.error("<= error unprocessed message: #{inspect(error)}")
+    Logger.error("error")
+    Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
     {@forgiving, state}
   end
 
@@ -896,8 +896,8 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
-    Logger.debug("Map length #{inspect(length(Map.to_list(state.updates)))}", state.color)
-    Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
+    Logger.debug("Map length #{inspect(length(Map.to_list(state.updates)))} round is: #{Validator.get_state_round(state_tx)} update is: #{inspect updates != %{}}", state.color)
+    # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 
     {:ok,
      %__MODULE__{
