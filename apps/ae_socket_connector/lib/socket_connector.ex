@@ -328,7 +328,13 @@ defmodule SocketConnector do
 
     for {round,
          %Update{
-           updates: [%{"op" => "OffChainCallContract", "contract" => ^contract_pubkey_encoded, "caller" => ^caller_encoded}]
+           updates: [
+             %{
+               "op" => "OffChainCallContract",
+               "contract" => ^contract_pubkey_encoded,
+               "caller" => ^caller_encoded
+             }
+           ]
          }} <- updates,
         do: round
   end
@@ -367,7 +373,7 @@ defmodule SocketConnector do
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
     contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
 
-    a = [{_max_round, contract_pubkey} | _t] =
+    [{_max_round, contract_pubkey} | _t] =
       Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     rounds = find_contract_calls(state.pub_key, contract_pubkey, state.updates)
@@ -896,7 +902,14 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
-    Logger.debug("Map length #{inspect(length(Map.to_list(state.updates)))} round is: #{Validator.get_state_round(state_tx)} update is: #{inspect updates != %{}}", state.color)
+
+    Logger.debug(
+      "Map length #{inspect(length(Map.to_list(state.updates)))} round is: #{
+        Validator.get_state_round(state_tx)
+      } update is: #{inspect(updates != %{})}",
+      state.color
+    )
+
     # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 
     {:ok,

@@ -27,7 +27,7 @@ defmodule ChannelRunner do
           nil,
           @ae_url,
           @network_id,
-          4000
+          @pause
         ])
 
         spawn(ChannelRunner, :start_responder, [
@@ -87,7 +87,7 @@ defmodule ChannelRunner do
   #
   #   Logger.debug("pid_responder #{inspect(pid_responder)}", ansi_color: :blue)
   #
-  #   # Process.sleep(4000)
+  #   # Process.sleep(@pause)
   #   # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.query_funds(pid) end)
   #   #
   #
@@ -102,7 +102,7 @@ defmodule ChannelRunner do
   #
   #   Logger.info("funds are: #{inspect(funds)}", ansi_color: :blue)
   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #
   #   SessionHolder.run_action(pid_responder, fn pid ->
   #     SocketConnector.initiate_transfer(pid, 2)
@@ -209,23 +209,23 @@ defmodule ChannelRunner do
   #   end)
   #
   #   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #   SessionHolder.run_action(pid_responder, fn pid -> SocketConnector.query_funds(pid) end)
   #   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #
   #   SessionHolder.run_action(pid_responder, fn pid ->
   #     SocketConnector.deposit(pid, 1_000_000)
   #   end)
   #
   #   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #   SessionHolder.run_action(pid_responder, fn pid -> SocketConnector.query_funds(pid) end)
   #   #
-  #   # Process.sleep(4000)
+  #   # Process.sleep(@pause)
   #   # SessionHolder.run_action(pid_responder, fn(pid) -> SocketConnector.get_offchain_state(pid) end)
   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #   # TODO mutual shutdown should not yield a reconnect, but rather a nice shutdown.
   #   SessionHolder.run_action(pid_responder, fn pid -> SocketConnector.leave(pid) end)
   #   # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.shutdown(pid) end)
@@ -262,7 +262,7 @@ defmodule ChannelRunner do
   #
   #   Logger.debug("pid_initiator #{inspect(pid_initiator)}", ansi_color: :yellow)
   #
-  #   # Process.sleep(4000)
+  #   # Process.sleep(@pause)
   #   # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.query_funds(pid) end)
   #   #
   #
@@ -277,7 +277,7 @@ defmodule ChannelRunner do
   #
   #   Logger.info("funds are: #{inspect(funds)}", ansi_color: :yellow)
   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #
   #   SessionHolder.run_action(pid_initiator, fn pid ->
   #     SocketConnector.initiate_transfer(pid, 2)
@@ -380,27 +380,29 @@ defmodule ChannelRunner do
   #   # end)
   #   #
   #   # #
-  #   # Process.sleep(4000)
+  #   # Process.sleep(@pause)
   #   # SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.query_funds(pid) end)
   #   # #
-  #   # Process.sleep(4000)
+  #   # Process.sleep(@pause)
   #   #
   #   # SessionHolder.run_action(pid_initiator, fn pid ->
   #   #   SocketConnector.deposit(pid, 1_000_000)
   #   # end)
   #
   #   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #   SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.query_funds(pid) end)
   #   #
-  #   # Process.sleep(4000)
+  #   # Process.sleep(@pause)
   #   # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.get_offchain_state(pid) end)
   #
-  #   Process.sleep(4000)
+  #   Process.sleep(@pause)
   #   # TODO mutual shutdown should not yield a reconnect, but rather a nice shutdown.
   #   SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.leave(pid) end)
   #   # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.shutdown(pid) end)
   # end
+
+  @pause 4000
 
   def start_channel(
         initiator_pub,
@@ -448,46 +450,45 @@ defmodule ChannelRunner do
 
     Logger.debug("pid_responder #{inspect(pid_responder)}", ansi_color: :blue)
 
-    # Process.sleep(4000)
-    # Logger.info("query funds async", ansi_color: :yellow)
-    #
-    # SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.query_funds(pid) end)
-    #
-    # Process.sleep(3000)
-    #
-    # Logger.info("query funds 2", ansi_color: :yellow)
-    #
-    # funds =
-    #   SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
-    #     SocketConnector.query_funds(pid, from)
-    #   end)
-    #
-    # Logger.info("funds are: #{inspect(funds)}")
-    #
-    # Process.sleep(3000)
-    #
-    # Logger.info("transfer funds", ansi_color: :blue)
-    #
-    # SessionHolder.run_action(pid_responder, fn pid ->
-    #   SocketConnector.initiate_transfer(pid, 2)
-    # end)
-    #
-    # #
-    # # # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
-    # #
-    # Process.sleep(3000)
-    #
-    # Logger.info("query funds 3", ansi_color: :yellow)
-    #
-    # funds =
-    #   SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
-    #     SocketConnector.query_funds(pid, from)
-    #   end)
-    #
-    # Logger.info("funds are: #{inspect(funds)}")
-    #
-    Process.sleep(7000)
+    Process.sleep(@pause)
+    Logger.info("query funds async", ansi_color: :yellow)
 
+    SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.query_funds(pid) end)
+
+    Process.sleep(@pause)
+
+    Logger.info("query funds 2", ansi_color: :yellow)
+
+    funds =
+      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end)
+
+    Logger.info("funds are: #{inspect(funds)}")
+
+    Process.sleep(@pause)
+
+    Logger.info("transfer funds", ansi_color: :blue)
+
+    SessionHolder.run_action(pid_responder, fn pid ->
+      SocketConnector.initiate_transfer(pid, 2)
+    end)
+
+    #
+    # # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.initiate_transfer(pid, 2) end)
+    #
+    Process.sleep(@pause)
+
+    Logger.info("query funds 3", ansi_color: :yellow)
+
+    funds =
+      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end)
+
+    Logger.info("funds are: #{inspect(funds)}")
+
+    Process.sleep(@pause)
 
     initiator_contract = {initiator_pub, "contracts/TicTacToe.aes"}
 
@@ -499,10 +500,19 @@ defmodule ChannelRunner do
       SocketConnector.new_contract(pid, initiator_contract)
     end)
 
-    Process.sleep(6000)
+    Process.sleep(@pause)
+
+    Logger.error("A")
+    Logger.info("deploy contract", ansi_color: :blue)
+
+    SessionHolder.run_action(pid_responder, fn pid ->
+      SocketConnector.new_contract(pid, responder_contract)
+    end)
+
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
 
-    Process.sleep(4000)
+    Process.sleep(@pause)
+    Logger.error("B")
     Logger.info("call contract", ansi_color: :yellow)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
@@ -514,9 +524,22 @@ defmodule ChannelRunner do
       )
     end)
 
-    Process.sleep(8000)
+    Process.sleep(@pause)
+    Logger.error("C")
+    Logger.info("call contract", ansi_color: :blue)
 
+    SessionHolder.run_action(pid_initiator, fn pid ->
+      SocketConnector.call_contract(
+        pid,
+        initiator_contract,
+        'make_move',
+        ['11', '1']
+      )
+    end)
+
+    Process.sleep(@pause)
     Logger.info("get contract result", ansi_color: :yellow)
+    Logger.error("D")
 
     get_contract_respose =
       SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
@@ -529,11 +552,56 @@ defmodule ChannelRunner do
       end)
 
     Logger.info("get contract response sync is: #{inspect(get_contract_respose)}",
-      ansi_color: :yellow
+      ansi_color: :blue
     )
 
-    Process.sleep(8000)
+    Process.sleep(@pause)
+    Logger.error("E")
+    Logger.info("call contract", ansi_color: :blue)
+
+    SessionHolder.run_action(pid_responder, fn pid ->
+      SocketConnector.call_contract(
+        pid,
+        responder_contract,
+        'make_move',
+        ['11', '1']
+      )
+    end)
+
+    Process.sleep(@pause)
+    Logger.info("get contract result", ansi_color: :blue)
+    Logger.error("F")
+
+    get_contract_respose =
+      SessionHolder.run_action_sync(pid_responder, fn pid, from ->
+        SocketConnector.get_contract_reponse(
+          pid,
+          responder_contract,
+          'make_move',
+          from
+        )
+      end)
+
+    Logger.info("get contract response sync is: #{inspect(get_contract_respose)}",
+      ansi_color: :blue
+    )
+
+    Process.sleep(@pause)
     Logger.info("call contract", ansi_color: :yellow)
+    Logger.error("G")
+
+    SessionHolder.run_action(pid_initiator, fn pid ->
+      SocketConnector.call_contract(
+        pid,
+        responder_contract,
+        'make_move',
+        ['12', '2']
+      )
+    end)
+
+    Process.sleep(@pause)
+    Logger.info("call contract", ansi_color: :yellow)
+    Logger.error("H")
 
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.call_contract(
@@ -544,8 +612,9 @@ defmodule ChannelRunner do
       )
     end)
 
-    Process.sleep(8000)
+    Process.sleep(@pause)
     Logger.info("call contract", ansi_color: :blue)
+    Logger.error("I")
 
     SessionHolder.run_action(pid_responder, fn pid ->
       SocketConnector.call_contract(
@@ -556,7 +625,21 @@ defmodule ChannelRunner do
       )
     end)
 
-    Process.sleep(8000)
+    # Process.sleep(@pause)
+    # Logger.info("call contract", ansi_color: :blue)
+    # Logger.error("J")
+
+    # SessionHolder.run_action(pid_responder, fn pid ->
+    #   SocketConnector.call_contract(
+    #     pid,
+    #     responder_contract,
+    #     'make_move',
+    #     ['12', '2']
+    #   )
+    # end)
+
+    Process.sleep(@pause)
+    Logger.error("K")
 
     Logger.info("get contract result", ansi_color: :blue)
 
@@ -574,8 +657,7 @@ defmodule ChannelRunner do
       ansi_color: :blue
     )
 
-
-    Process.sleep(8000)
+    Logger.error("L")
 
     Logger.info("get contract result", ansi_color: :yellow)
 
@@ -584,6 +666,24 @@ defmodule ChannelRunner do
         SocketConnector.get_contract_reponse(
           pid,
           initiator_contract,
+          'make_move',
+          from
+        )
+      end)
+
+    Logger.info("get contract response sync is: #{inspect(get_contract_respose)}",
+      ansi_color: :yellow
+    )
+
+    Logger.error("M")
+
+    Logger.info("get contract result", ansi_color: :yellow)
+
+    get_contract_respose =
+      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+        SocketConnector.get_contract_reponse(
+          pid,
+          responder_contract,
           'make_move',
           from
         )
@@ -632,7 +732,7 @@ defmodule ChannelRunner do
     # # end)
     #
 
-    Process.sleep(4000)
+    Process.sleep(@pause)
 
     Logger.info("get contract off-chain state",
       ansi_color: :yellow
@@ -645,7 +745,7 @@ defmodule ChannelRunner do
 
     Logger.info("off-chain state is: #{inspect(channel_state)}", ansi_color: :yellow)
 
-    Process.sleep(3000)
+    Process.sleep(@pause)
 
     Logger.info("withdraw", ansi_color: :blue)
 
@@ -653,23 +753,23 @@ defmodule ChannelRunner do
       SocketConnector.withdraw(pid, 1_000_000)
     end)
 
-    Process.sleep(3000)
+    Process.sleep(@pause)
     Logger.info("query", ansi_color: :yellow)
 
     SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.query_funds(pid) end)
-    Process.sleep(4000)
+    Process.sleep(@pause)
     Logger.info("deposit", ansi_color: :blue)
 
     SessionHolder.run_action(pid_responder, fn pid ->
       SocketConnector.deposit(pid, 1_000_000)
     end)
 
-    Process.sleep(4000)
+    Process.sleep(@pause)
     SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.query_funds(pid) end)
 
     Logger.info("get offchain state", ansi_color: :yellow)
 
-    Process.sleep(4000)
+    Process.sleep(@pause)
     SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.get_offchain_state(pid) end)
 
     Logger.info("leave", ansi_color: :yellow)
