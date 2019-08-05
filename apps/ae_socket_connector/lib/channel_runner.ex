@@ -4,6 +4,8 @@ defmodule ChannelRunner do
   @ae_url "ws://localhost:3014/channel"
   @network_id "my_test"
 
+  @pause 2000
+
   def start_channel_helper(),
     do: start_channel_helper(:single)
 
@@ -401,8 +403,6 @@ defmodule ChannelRunner do
   #   SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.leave(pid) end)
   #   # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.shutdown(pid) end)
   # end
-
-  @pause 4000
 
   def start_channel(
         initiator_pub,

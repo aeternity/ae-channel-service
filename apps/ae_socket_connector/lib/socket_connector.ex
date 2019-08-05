@@ -639,7 +639,7 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.initiator_sign", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.initiator_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -653,7 +653,7 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -760,7 +760,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.update",
-          "params" => %{"data" => %{"tx" => to_sign, "updates" => updates}}
+          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
         } = _message,
         state
       ) do
@@ -777,7 +777,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_update: %{
-           Validator.get_unsigned_round(to_sign) => %Update{
+           Validator.get_state_round(to_sign) => %Update{
              updates: updates,
              tx: to_sign,
              contract_call: state.contract_call_in_flight
@@ -924,7 +924,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.update_ack",
-          "params" => %{"data" => %{"tx" => to_sign, "updates" => updates}}
+          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
         } = _message,
         state
       ) do
@@ -941,7 +941,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_update: %{
-           Validator.get_unsigned_round(to_sign) => %Update{
+           Validator.get_state_round(to_sign) => %Update{
              updates: updates,
              tx: to_sign,
              contract_call: state.contract_call_in_flight
