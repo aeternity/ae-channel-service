@@ -31,29 +31,6 @@ defmodule Validator do
   require Logger
   alias SocketConnector.WsConnection
 
-  # %{"type" => type} = tx
-  # case type do
-  #   "ChannelOffchainTx" ->
-  #     {status, %{round: tx["round"]}}
-  #   _ ->
-  #     {status, %{nonce: tx["nonce"]}}
-  # end
-
-
-  # {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
-  # # returns #aetx
-  # deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
-  # aetx = :aetx_sign.tx(deserialized_signed_tx)
-
-  # # TODO we should be able to mere these two, get_state_round
-  # def get_unsigned_round(to_sign) do
-  #   get_state_round(to_sign)
-  #   # {:ok, create_bin_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
-  #   # tx = :aetx.deserialize_from_binary(create_bin_tx)
-  #   # tx_client = :aetx.serialize_for_client(tx)
-  #   # tx_client["round"]
-  # end
-
   def get_state_round(tx) do
     # signed_tx(aetx(off-chain_tx))
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
