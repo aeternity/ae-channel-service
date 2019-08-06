@@ -331,8 +331,8 @@ defmodule SocketConnector do
            updates: [
              %{
                "op" => "OffChainCallContract",
-               "contract" => ^contract_pubkey_encoded,
-               "caller" => ^caller_encoded
+               "contract_id" => ^contract_pubkey_encoded,
+               "caller_id" => ^caller_encoded
              }
            ]
          }} <- updates,
@@ -513,7 +513,7 @@ defmodule SocketConnector do
         abi_version: 1,
         amount: 0,
         call_data: call_data,
-        contract: address
+        contract_id: address
       }
     }
   end
@@ -541,8 +541,8 @@ defmodule SocketConnector do
           jsonrpc: "2.0",
           method: "channels.get.contract_call",
           params: %{
-            caller: caller,
-            contract: address,
+            caller_id: caller,
+            contract_id: address,
             round: round
           }
         },
