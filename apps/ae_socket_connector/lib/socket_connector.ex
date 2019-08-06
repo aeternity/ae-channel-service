@@ -639,8 +639,10 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.initiator_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.initiator_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
@@ -653,8 +655,10 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.responder_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =

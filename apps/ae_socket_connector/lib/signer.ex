@@ -9,8 +9,7 @@ defmodule Signer do
     {response}
   end
 
-
-# https://github.com/aeternity/aeternity/commit/e164fc4518263db9692c02a9b84e179d69bfcc13#diff-e14138de459cdd890333dfad3bd83f4c
+  # https://github.com/aeternity/aeternity/commit/e164fc4518263db9692c02a9b84e179d69bfcc13#diff-e14138de459cdd890333dfad3bd83f4c
   defp sign_transaction_perform(
          to_sign,
          state,
