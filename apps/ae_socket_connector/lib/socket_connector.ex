@@ -15,9 +15,9 @@ defmodule SocketConnector do
             # SyncCall{},
             sync_call: %{},
             ws_manager_pid: nil,
-            state_tx: nil,
             network_id: nil,
             ws_base: nil,
+            # {nonce => %Update{}},
             nonce_and_updates: %{},
             pending_update: %{},
             contract_call_in_flight: nil,
@@ -94,28 +94,33 @@ defmodule SocketConnector do
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
+  # def start_link(
+  #       _name,
+  #       %__MODULE__{state_tx: nil},
+  #       _ws_base,
+  #       :reestablish,
+  #       color,
+  #       _ws_manager_pid
+  #     ) do
+  #   Logger.error("cannot reconnect", ansi_color: color)
+  #   {:ok, nil}
+  #
+  #   # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
+  # end
+
   def start_link(
         _name,
-        %__MODULE__{state_tx: nil},
-        _ws_base,
-        :reestablish,
-        color,
-        _ws_manager_pid
-      ) do
-    Logger.error("cannot reconnect", ansi_color: color)
-    {:ok, nil}
-
-    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
-  end
-
-  def start_link(
-        _name,
-        %__MODULE__{pub_key: _pub_key, role: role, channel_id: channel_id, state_tx: state_tx} =
-          state_channel_context,
+        %__MODULE__{
+          pub_key: _pub_key,
+          role: role,
+          channel_id: channel_id,
+          nonce_and_updates: nonce_and_updates
+        } = state_channel_context,
         :reestablish,
         color,
         ws_manager_pid
       ) do
+    {_nonce, %Update{state_tx: state_tx}} = Enum.max(nonce_and_updates)
     session_map = init_reestablish_map(channel_id, state_tx, role)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
@@ -890,7 +895,7 @@ defmodule SocketConnector do
 
     case Map.get(pending_map, round) do
       nil ->
-        %{}
+        %{round => %Update{state_tx: state_tx}}
 
       update ->
         %{round => %Update{update | state_tx: state_tx}}
@@ -919,8 +924,7 @@ defmodule SocketConnector do
     {:ok,
      %__MODULE__{
        state
-       | state_tx: state_tx,
-         nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
+       | nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
          pending_update: %{}
      }}
   end
