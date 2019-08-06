@@ -18,7 +18,7 @@ defmodule SocketConnector do
             state_tx: nil,
             network_id: nil,
             ws_base: nil,
-            updates: %{},
+            nonce_and_updates: %{},
             pending_update: %{},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
@@ -346,13 +346,13 @@ defmodule SocketConnector do
     {:ok, call_data, _, _} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-    contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
+    contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
 
     [{_max_round, contract_pubkey_not_encoded} | _t] =
       Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     # {_rounds, contract_pubkey_not_encoded} =
-    #   calculate_contract_address({pub_key, contract_file}, state.updates)
+    #   calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_pubkey = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey_not_encoded)
@@ -371,12 +371,12 @@ defmodule SocketConnector do
 
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
-    contract_list = calculate_contract_address({pub_key, contract_file}, state.updates)
+    contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
 
     [{_max_round, contract_pubkey} | _t] =
       Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
-    rounds = find_contract_calls(state.pub_key, contract_pubkey, state.updates)
+    rounds = find_contract_calls(state.pub_key, contract_pubkey, state.nonce_and_updates)
     # TODO now we per default get the last call, until we expose round to client.
     max_round = Enum.max(rounds)
 
@@ -798,9 +798,9 @@ defmodule SocketConnector do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
     %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, contract_file}} =
-      Map.get(state.updates, state.contract_call_in_flight_round)
+      Map.get(state.nonce_and_updates, state.contract_call_in_flight_round)
 
-    # TODO well consider using contract_id. If this user called the contract the function is in the state.updates
+    # TODO well consider using contract_id. If this user called the contract the function is in the state.nonce_and_updates
     sophia_value =
       :aeso_compiler.to_sophia_value(
         to_charlist(File.read!(contract_file)),
@@ -908,7 +908,7 @@ defmodule SocketConnector do
     updates = check_updated(state_tx, state.pending_update)
 
     Logger.debug(
-      "Map length #{inspect(length(Map.to_list(state.updates)))} round is: #{
+      "Map length #{inspect(length(Map.to_list(state.nonce_and_updates)))} round is: #{
         Validator.get_state_round(state_tx)
       } update is: #{inspect(updates != %{})}",
       state.color
@@ -920,7 +920,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | state_tx: state_tx,
-         updates: Map.merge(state.updates, updates),
+         nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
          pending_update: %{}
      }}
   end
