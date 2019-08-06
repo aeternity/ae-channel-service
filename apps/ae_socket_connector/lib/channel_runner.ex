@@ -502,7 +502,7 @@ defmodule ChannelRunner do
 
     Process.sleep(@pause)
 
-    Logger.error("A")
+    Logger.info("A", ansi_color: :red)
     Logger.info("deploy contract", ansi_color: :blue)
 
     SessionHolder.run_action(pid_responder, fn pid ->
@@ -512,7 +512,7 @@ defmodule ChannelRunner do
     # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
 
     Process.sleep(@pause)
-    Logger.error("B")
+    Logger.info("B", ansi_color: :red)
     Logger.info("call contract", ansi_color: :yellow)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
@@ -525,7 +525,7 @@ defmodule ChannelRunner do
     end)
 
     Process.sleep(@pause)
-    Logger.error("C")
+    Logger.info("C", ansi_color: :red)
     Logger.info("call contract", ansi_color: :blue)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
@@ -539,7 +539,7 @@ defmodule ChannelRunner do
 
     Process.sleep(@pause)
     Logger.info("get contract result", ansi_color: :yellow)
-    Logger.error("D")
+    Logger.info("D", ansi_color: :red)
 
     get_contract_respose =
       SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
@@ -556,7 +556,7 @@ defmodule ChannelRunner do
     )
 
     Process.sleep(@pause)
-    Logger.error("E")
+    Logger.info("E", ansi_color: :red)
     Logger.info("call contract", ansi_color: :blue)
 
     SessionHolder.run_action(pid_responder, fn pid ->
@@ -570,7 +570,7 @@ defmodule ChannelRunner do
 
     Process.sleep(@pause)
     Logger.info("get contract result", ansi_color: :blue)
-    Logger.error("F")
+    Logger.info("F", ansi_color: :red)
 
     get_contract_respose =
       SessionHolder.run_action_sync(pid_responder, fn pid, from ->
@@ -588,7 +588,7 @@ defmodule ChannelRunner do
 
     Process.sleep(@pause)
     Logger.info("call contract", ansi_color: :yellow)
-    Logger.error("G")
+    Logger.info("G", ansi_color: :red)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.call_contract(
@@ -601,7 +601,7 @@ defmodule ChannelRunner do
 
     Process.sleep(@pause)
     Logger.info("call contract", ansi_color: :yellow)
-    Logger.error("H")
+    Logger.info("H", ansi_color: :red)
 
     SessionHolder.run_action(pid_initiator, fn pid ->
       SocketConnector.call_contract(
@@ -614,7 +614,7 @@ defmodule ChannelRunner do
 
     Process.sleep(@pause)
     Logger.info("call contract", ansi_color: :blue)
-    Logger.error("I")
+    Logger.info("I", ansi_color: :red)
 
     SessionHolder.run_action(pid_responder, fn pid ->
       SocketConnector.call_contract(
@@ -627,7 +627,7 @@ defmodule ChannelRunner do
 
     # Process.sleep(@pause)
     # Logger.info("call contract", ansi_color: :blue)
-    # Logger.error("J")
+    # Logger.info("J", ansi_color: :red)
 
     # SessionHolder.run_action(pid_responder, fn pid ->
     #   SocketConnector.call_contract(
@@ -639,7 +639,7 @@ defmodule ChannelRunner do
     # end)
 
     Process.sleep(@pause)
-    Logger.error("K")
+    Logger.info("K", ansi_color: :red)
 
     Logger.info("get contract result", ansi_color: :blue)
 
@@ -657,7 +657,7 @@ defmodule ChannelRunner do
       ansi_color: :blue
     )
 
-    Logger.error("L")
+    Logger.info("L", ansi_color: :red)
 
     Logger.info("get contract result", ansi_color: :yellow)
 
@@ -675,7 +675,7 @@ defmodule ChannelRunner do
       ansi_color: :yellow
     )
 
-    Logger.error("M")
+    Logger.info("M", ansi_color: :red)
 
     Logger.info("get contract result", ansi_color: :yellow)
 
