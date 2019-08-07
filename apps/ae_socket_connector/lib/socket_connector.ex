@@ -424,6 +424,29 @@ defmodule SocketConnector do
     %{params: Map.merge(default_params, params), method: method, jsonrpc: "2.0"}
   end
 
+  def process_response(method, from_pid) do
+    case method do
+      "channels.get.contract_call" ->
+        fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_contract_reponse(result, state)
+          GenServer.reply(from_pid, result)
+          {result, state_updated}
+        end
+
+      "channels.get.balances" ->
+        fn %{"result" => result}, state ->
+          GenServer.reply(from_pid, result)
+          {result, state}
+        end
+
+      "channels.get.offchain_state" ->
+        fn %{"result" => result}, state ->
+          GenServer.reply(from_pid, result)
+          {result, state}
+        end
+    end
+  end
+
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state, from_pid) do
     %WsConnection{initiator: initiator, responder: responder} = state.session
@@ -437,10 +460,11 @@ defmodule SocketConnector do
           build_request("channels.get.balances", %{
             accounts: [account_initiator, account_responder]
           }),
-        response: fn %{"result" => result}, state ->
-          GenServer.reply(from_pid, result)
-          {result, state}
-        end
+        response: process_response("channels.get.balances", from_pid)
+        # response: fn %{"result" => result}, state ->
+        #   GenServer.reply(from_pid, result)
+        #   {result, state}
+        # end
       }
     )
   end
@@ -463,10 +487,11 @@ defmodule SocketConnector do
   def get_offchain_state_query(from_pid) do
     make_sync(from_pid, %SyncCall{
       request: build_request("channels.get.offchain_state"),
-      response: fn %{"result" => result}, state ->
-        GenServer.reply(from_pid, result)
-        {result, state}
-      end
+      response: process_response("channels.get.offchain_state", from_pid)
+      # response: fn %{"result" => result}, state ->
+      #   GenServer.reply(from_pid, result)
+      #   {result, state}
+      # end
     })
   end
 
@@ -514,11 +539,12 @@ defmodule SocketConnector do
             contract_id: address,
             round: round
           }),
-        response: fn %{"result" => result}, state ->
-          {result, state_updated} = process_get_contract_reponse(result, state)
-          GenServer.reply(from_pid, result)
-          {result, state_updated}
-        end
+        response: process_response("channels.get.contract_call", from_pid)
+        # response: fn %{"result" => result}, state ->
+        #   {result, state_updated} = process_get_contract_reponse(result, state)
+        #   GenServer.reply(from_pid, result)
+        #   {result, state_updated}
+        # end
       }
     )
   end
