@@ -405,6 +405,16 @@ defmodule SocketConnector do
      }}
   end
 
+  def build_request(method, params \\ %{}) do
+    default_params =
+      case method do
+        "channels.get.balances" -> %{jsonrpc: "2.0", method: method}
+        _ -> %{}
+      end
+
+    %{params: Map.merge(default_params, params), method: method, jsonrpc: "2.0"}
+  end
+
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state, from_pid) do
     %WsConnection{initiator: initiator, responder: responder} = state.session
@@ -414,11 +424,10 @@ defmodule SocketConnector do
     make_sync(
       from_pid,
       %SyncCall{
-        request: %{
-          jsonrpc: "2.0",
-          method: "channels.get.balances",
-          params: %{accounts: [account_initiator, account_responder]}
-        },
+        request:
+          build_request("channels.get.balances", %{
+            accounts: [account_initiator, account_responder]
+          }),
         response: fn %{"result" => result}, state ->
           GenServer.reply(from_pid, result)
           {result, state}
@@ -432,27 +441,34 @@ defmodule SocketConnector do
     account_to = :aeser_api_encoder.encode(:account_pubkey, to)
 
     %SyncCall{
-      request: %{
-        jsonrpc: "2.0",
-        # id: :erlang.unique_integer([:monotonic]),
-        method: "channels.update.new",
-        params: %{
+      request:
+        build_request("channels.update.new", %{
           from: account_from,
           to: account_to,
           amount: amount
-        }
-      },
+        }),
+      # request: %{
+      #   jsonrpc: "2.0",
+      #   # id: :erlang.unique_integer([:monotonic]),
+      #   method: "channels.update.new",
+      #   params: %{
+      #     from: account_from,
+      #     to: account_to,
+      #     amount: amount
+      #   }
+      # },
       response: nil
     }
   end
 
   def get_offchain_state_query(from_pid) do
     make_sync(from_pid, %SyncCall{
-      request: %{
-        jsonrpc: "2.0",
-        method: "channels.get.offchain_state",
-        params: %{}
-      },
+      request: build_request("channels.get.offchain_state"),
+      # request: %{
+      #   jsonrpc: "2.0",
+      #   method: "channels.get.offchain_state",
+      #   params: %{}
+      # },
       response: fn %{"result" => result}, state ->
         GenServer.reply(from_pid, result)
         {result, state}
@@ -461,66 +477,91 @@ defmodule SocketConnector do
   end
 
   def shutdown() do
-    %{
-      jsonrpc: "2.0",
-      method: "channels.shutdown",
-      params: %{}
-    }
+    build_request("channels.shutdown")
+    # %{
+    #   jsonrpc: "2.0",
+    #   method: "channels.shutdown",
+    #   params: %{}
+    # }
   end
 
   def leave() do
-    %{
-      jsonrpc: "2.0",
-      method: "channels.leave",
-      params: %{}
-    }
+    build_request("channels.leave")
+    # %{
+    #   jsonrpc: "2.0",
+    #   method: "channels.leave",
+    #   params: %{}
+    # }
   end
 
   def deposit(amount) do
-    %{
-      jsonrpc: "2.0",
-      method: "channels.deposit",
-      params: %{
-        amount: amount
-      }
-    }
+    build_request("channels.deposit", %{
+      amount: amount
+    })
+
+    # %{
+    #   jsonrpc: "2.0",
+    #   method: "channels.deposit",
+    #   params: %{
+    #     amount: amount
+    #   }
+    # }
   end
 
   def withdraw(amount) do
-    %{
-      jsonrpc: "2.0",
-      method: "channels.withdraw",
-      params: %{
-        amount: amount
-      }
-    }
+    build_request("channels.withdraw", %{
+      amount: amount
+    })
+
+    # %{
+    #   jsonrpc: "2.0",
+    #   method: "channels.withdraw",
+    #   params: %{
+    #     amount: amount
+    #   }
+    # }
   end
 
   def new_contract_req(code, call_data, _version) do
-    %{
-      jsonrpc: "2.0",
-      method: "channels.update.new_contract",
-      params: %{
-        abi_version: 1,
-        call_data: call_data,
-        code: code,
-        deposit: 10,
-        vm_version: 3
-      }
-    }
+    build_request("channels.update.new_contract", %{
+      abi_version: 1,
+      call_data: call_data,
+      code: code,
+      deposit: 10,
+      vm_version: 3
+    })
+
+    # %{
+    #   jsonrpc: "2.0",
+    #   method: "channels.update.new_contract",
+    #   params: %{
+    #     abi_version: 1,
+    #     call_data: call_data,
+    #     code: code,
+    #     deposit: 10,
+    #     vm_version: 3
+    #   }
+    # }
   end
 
   def call_contract_req(address, call_data) do
-    %{
-      jsonrpc: "2.0",
-      method: "channels.update.call_contract",
-      params: %{
-        abi_version: 1,
-        amount: 0,
-        call_data: call_data,
-        contract_id: address
-      }
-    }
+    build_request("channels.update.call_contract", %{
+      abi_version: 1,
+      amount: 0,
+      call_data: call_data,
+      contract_id: address
+    })
+
+    # %{
+    #   jsonrpc: "2.0",
+    #   method: "channels.update.call_contract",
+    #   params: %{
+    #     abi_version: 1,
+    #     amount: 0,
+    #     call_data: call_data,
+    #     contract_id: address
+    #   }
+    # }
   end
 
   def make_sync(from, %SyncCall{request: request, response: response}) do
@@ -542,15 +583,21 @@ defmodule SocketConnector do
     make_sync(
       from_pid,
       %SyncCall{
-        request: %{
-          jsonrpc: "2.0",
-          method: "channels.get.contract_call",
-          params: %{
+        request:
+          build_request("channels.get.contract_call", %{
             caller_id: caller,
             contract_id: address,
             round: round
-          }
-        },
+          }),
+        # request: %{
+        #   jsonrpc: "2.0",
+        #   method: "channels.get.contract_call",
+        #   params: %{
+        #     caller_id: caller,
+        #     contract_id: address,
+        #     round: round
+        #   }
+        # },
         response: fn %{"result" => result}, state ->
           {result, state_updated} = process_get_contract_reponse(result, state)
           GenServer.reply(from_pid, result)
