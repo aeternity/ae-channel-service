@@ -236,7 +236,11 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:deposit, amount}, state) do
-    transfer = deposit(amount)
+    transfer =
+      build_request("channels.deposit", %{
+        amount: amount
+      })
+
     Logger.info("=> deposit #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
@@ -244,7 +248,11 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:withdraw, amount}, state) do
-    transfer = withdraw(amount)
+    transfer =
+      build_request("channels.withdraw", %{
+        amount: amount
+      })
+
     Logger.info("=> withdraw #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
@@ -278,7 +286,7 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:shutdown, {}}, state) do
-    transfer = shutdown()
+    transfer = build_request("channels.shutdown")
     Logger.info("=> shutdown #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
@@ -286,7 +294,7 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:leave, {}}, state) do
-    transfer = leave()
+    transfer = build_request("channels.leave")
     Logger.info("=> leave #{inspect(transfer)}", state.color)
 
     {:reply, {:text, Poison.encode!(transfer)},
@@ -408,7 +416,8 @@ defmodule SocketConnector do
   def build_request(method, params \\ %{}) do
     default_params =
       case method do
-        "channels.get.balances" -> %{jsonrpc: "2.0", method: method}
+        # here we could do custom thing e.g. simpler method names
+        # "channels.get.balances" -> %{jsonrpc: "2.0", method: method}
         _ -> %{}
       end
 
@@ -458,26 +467,6 @@ defmodule SocketConnector do
         GenServer.reply(from_pid, result)
         {result, state}
       end
-    })
-  end
-
-  def shutdown() do
-    build_request("channels.shutdown")
-  end
-
-  def leave() do
-    build_request("channels.leave")
-  end
-
-  def deposit(amount) do
-    build_request("channels.deposit", %{
-      amount: amount
-    })
-  end
-
-  def withdraw(amount) do
-    build_request("channels.withdraw", %{
-      amount: amount
     })
   end
 
