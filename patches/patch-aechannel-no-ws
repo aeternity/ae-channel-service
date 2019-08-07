@@ -1,0 +1,91 @@
+diff --git a/apps/aechannel/include/hard_forks.hrl b/apps/aechannel/include/hard_forks.hrl
+new file mode 100644
+index 0000000..9dde123
+--- /dev/null
++++ b/apps/aechannel/include/hard_forks.hrl
+@@ -0,0 +1,10 @@
++%%%-------------------------------------------------------------------
++%%% @copyright (C) 2018, Aeternity Anstalt
++%%% @doc
++%%%     Definition of hard forks
++%%% @end
++%%%-------------------------------------------------------------------
++
++-define(ROMA_PROTOCOL_VSN, 1).
++-define(MINERVA_PROTOCOL_VSN, 2).
++-define(FORTUNA_PROTOCOL_VSN, 3).
+diff --git a/apps/aechannel/src/aesc_channels.erl b/apps/aechannel/src/aesc_channels.erl
+index 999def4..813c2a0 100644
+--- a/apps/aechannel/src/aesc_channels.erl
++++ b/apps/aechannel/src/aesc_channels.erl
+@@ -51,7 +51,7 @@
+ 
+ -compile({no_auto_import, [round/1]}).
+ 
+--include("../../aecontract/include/hard_forks.hrl").
++-include("include/hard_forks.hrl").
+ 
+ %%%===================================================================
+ %%% Types
+diff --git a/apps/aechannel/src/aesc_force_progress_tx.erl b/apps/aechannel/src/aesc_force_progress_tx.erl
+index 8c99e6f..beea788 100644
+--- a/apps/aechannel/src/aesc_force_progress_tx.erl
++++ b/apps/aechannel/src/aesc_force_progress_tx.erl
+@@ -40,7 +40,7 @@
+ -export([from_db_format/1
+         ]).
+ 
+--include_lib("aecontract/include/hard_forks.hrl").
++-include_lib("include/hard_forks.hrl").
+ %%%===================================================================
+ %%% Types
+ %%%===================================================================
+@@ -340,4 +340,3 @@ valid_at_protocol(Protocol, #channel_force_progress_tx{payload = Payload} = Tx)
+     CorrectPayloadVsn = aesc_utils:is_payload_valid_at_protocol(Protocol,
+                                                                 Payload),
+     CorrectTxVsn andalso CorrectPayloadVsn.
+-
+diff --git a/apps/aechannel/src/aesc_offchain_state.erl b/apps/aechannel/src/aesc_offchain_state.erl
+index 72da227..870d91c 100644
+--- a/apps/aechannel/src/aesc_offchain_state.erl
++++ b/apps/aechannel/src/aesc_offchain_state.erl
+@@ -1,7 +1,7 @@
+ -module(aesc_offchain_state).
+ 
+ -include("../../aecore/include/blocks.hrl").
+--include_lib("aecontract/include/hard_forks.hrl").
++-include_lib("include/hard_forks.hrl").
+ 
+ -define(NO_TX, no_tx).
+ 
+@@ -405,4 +405,3 @@ serialize_for_client_tx_or_notx(?NO_TX) ->
+ serialize_for_client_tx_or_notx(Tx) ->
+     STx = aetx_sign:serialize_to_binary(Tx),
+     aeser_api_encoder:encode(transaction, STx).
+-
+diff --git a/apps/aechannel/src/aesc_offchain_tx.erl b/apps/aechannel/src/aesc_offchain_tx.erl
+index 98817ed..5742a42 100644
+--- a/apps/aechannel/src/aesc_offchain_tx.erl
++++ b/apps/aechannel/src/aesc_offchain_tx.erl
+@@ -38,7 +38,7 @@
+          set_state_hash/2]).
+ -endif.
+ 
+--include_lib("aecontract/include/hard_forks.hrl").
++-include_lib("include/hard_forks.hrl").
+ %%%===================================================================
+ %%% Types
+ %%%===================================================================
+diff --git a/apps/aechannel/src/aesc_ttb.erl b/apps/aechannel/src/aesc_ttb.erl
+index 4c6c78a..c51e7d1 100644
+--- a/apps/aechannel/src/aesc_ttb.erl
++++ b/apps/aechannel/src/aesc_ttb.erl
+@@ -12,7 +12,7 @@
+ 
+ -export([event/1]).
+ 
+--include_lib("trace_runner/include/trace_runner.hrl").
++% -include_lib("trace_runner/include/trace_runner.hrl").
+ 
+ %% This function is also traced. Can be used to insert markers in the trace log.
+ event(E) ->
