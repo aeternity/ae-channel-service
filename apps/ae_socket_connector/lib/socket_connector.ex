@@ -951,6 +951,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
+    # Produces some logging output. 
     Validator.verify_on_chain(signed_tx)
     {:ok, state}
   end
