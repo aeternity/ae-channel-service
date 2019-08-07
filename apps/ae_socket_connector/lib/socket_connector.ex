@@ -461,10 +461,6 @@ defmodule SocketConnector do
             accounts: [account_initiator, account_responder]
           }),
         response: process_response("channels.get.balances", from_pid)
-        # response: fn %{"result" => result}, state ->
-        #   GenServer.reply(from_pid, result)
-        #   {result, state}
-        # end
       }
     )
   end
@@ -488,10 +484,6 @@ defmodule SocketConnector do
     make_sync(from_pid, %SyncCall{
       request: build_request("channels.get.offchain_state"),
       response: process_response("channels.get.offchain_state", from_pid)
-      # response: fn %{"result" => result}, state ->
-      #   GenServer.reply(from_pid, result)
-      #   {result, state}
-      # end
     })
   end
 
@@ -540,11 +532,6 @@ defmodule SocketConnector do
             round: round
           }),
         response: process_response("channels.get.contract_call", from_pid)
-        # response: fn %{"result" => result}, state ->
-        #   {result, state_updated} = process_get_contract_reponse(result, state)
-        #   GenServer.reply(from_pid, result)
-        #   {result, state_updated}
-        # end
       }
     )
   end
