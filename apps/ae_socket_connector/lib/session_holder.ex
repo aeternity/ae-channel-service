@@ -34,6 +34,7 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:connection_dropped, configuration}, state) do
+    Logger.debug("connection dropped", ansi_color: state.color)
     # TODO, remove delay
     # give to other fair chanse to disconnect
     Process.sleep(1000)

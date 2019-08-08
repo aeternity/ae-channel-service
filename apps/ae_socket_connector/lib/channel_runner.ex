@@ -7,7 +7,8 @@ defmodule ChannelRunner do
   @pause 2000
 
   def start_channel_helper(),
-    do: start_channel_helper(:single)
+    # do: start_channel_helper(:single)
+    do: start_channel_helper(:reestablish)
 
   def start_channel_helper(mode) do
     case mode do
@@ -41,6 +42,15 @@ defmodule ChannelRunner do
           @network_id,
           0
         ])
+      :reestablish ->
+        start_channel_reestablish(
+          TestAccounts.initiatorPubkey(),
+          TestAccounts.initiatorPrivkey(),
+          TestAccounts.responderPubkey(),
+          TestAccounts.responderPrivkey(),
+          @ae_url,
+          @network_id
+        )
     end
 
     # start_channel(
@@ -778,5 +788,92 @@ defmodule ChannelRunner do
     # TODO mutual shutdown should not yield a reconnect, but rather a nice shutdown.
     SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.leave(pid) end)
     # SessionHolder.run_action(pid_initiator, fn(pid) -> SocketConnector.shutdown(pid) end)
+  end
+
+  def start_channel_reestablish(
+        initiator_pub,
+        initiator_priv,
+        responder_pub,
+        responder_priv,
+        ae_url,
+        network_id
+      ) do
+    # TODO introduce a job list sequence for the instances.
+    state_channel_configuration = %SocketConnector.WsConnection{
+      initiator: initiator_pub,
+      initiator_amount: 7_000_000_000_000,
+      responder: responder_pub,
+      responder_amount: 4_000_000_000_000
+    }
+
+    {:ok, pid_initiator} =
+      SessionHolder.start_link(
+        %SocketConnector{
+          pub_key: initiator_pub,
+          priv_key: initiator_priv,
+          session: state_channel_configuration,
+          role: :initiator
+        },
+        ae_url,
+        network_id,
+        :yellow
+      )
+
+    Logger.debug("pid_initiator #{inspect(pid_initiator)}", ansi_color: :yellow)
+
+    {:ok, pid_responder} =
+      SessionHolder.start_link(
+        %SocketConnector{
+          pub_key: responder_pub,
+          priv_key: responder_priv,
+          session: state_channel_configuration,
+          role: :responder
+        },
+        ae_url,
+        network_id,
+        :blue
+      )
+
+    Logger.debug("pid_responder #{inspect(pid_responder)}", ansi_color: :blue)
+
+    Process.sleep(@pause)
+    Process.sleep(@pause)
+
+    Logger.info("query funds 2", ansi_color: :yellow)
+
+    funds =
+      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end)
+
+    Logger.info("funds are: #{inspect(funds)}")
+
+    Process.sleep(@pause)
+
+    Logger.info("query funds 3", ansi_color: :yellow)
+
+    funds =
+      SessionHolder.run_action_sync(pid_initiator, fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end)
+
+    Logger.info("funds are: #{inspect(funds)}")
+
+    Process.sleep(6000)
+
+    Logger.info("leave", ansi_color: :yellow)
+
+    SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.leave(pid) end)
+
+    Process.sleep(1000)
+
+    # SessionHolder.reestablish(pid_initiator)
+    # SessionHolder.reestablish(pid_responder)
+
+    Process.sleep(6000)
+
+    Process.sleep(6000)
+
+    Process.sleep(6000)
   end
 end
