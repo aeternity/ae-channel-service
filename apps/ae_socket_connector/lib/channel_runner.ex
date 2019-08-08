@@ -867,8 +867,8 @@ defmodule ChannelRunner do
 
     Process.sleep(1000)
 
-    # SessionHolder.reestablish(pid_initiator)
-    # SessionHolder.reestablish(pid_responder)
+    SessionHolder.reestablish(pid_initiator)
+    SessionHolder.reestablish(pid_responder)
 
     Process.sleep(6000)
 
