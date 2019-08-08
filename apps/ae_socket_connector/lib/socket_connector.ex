@@ -907,6 +907,19 @@ defmodule SocketConnector do
 
   def process_message(
         %{
+          "method" => "channels.leave",
+          "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when channel_id == current_channel_id do
+    # this must be the already persisted last state
+    {_nonce, %Update{state_tx: ^state_tx}} = Enum.max(state.nonce_and_updates)
+    {:ok, state}
+  end
+
+  def process_message(
+        %{
           "method" => "channels.sign.update_ack",
           "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
         } = _message,
@@ -951,7 +964,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
-    # Produces some logging output. 
+    # Produces some logging output.
     Validator.verify_on_chain(signed_tx)
     {:ok, state}
   end
