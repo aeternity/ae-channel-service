@@ -863,17 +863,17 @@ defmodule ChannelRunner do
 
     Logger.info("leave", ansi_color: :yellow)
 
-    SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.leave(pid) end)
+    Enum.map(1..10, fn(_) ->
 
-    Process.sleep(1000)
+      SessionHolder.run_action(pid_initiator, fn pid -> SocketConnector.leave(pid) end)
 
-    SessionHolder.reestablish(pid_initiator)
-    SessionHolder.reestablish(pid_responder)
+      Process.sleep(1000)
 
-    Process.sleep(6000)
+      SessionHolder.reestablish(pid_initiator)
+      SessionHolder.reestablish(pid_responder)
 
-    Process.sleep(6000)
+      Process.sleep(6000)
 
-    Process.sleep(6000)
+    end)
   end
 end
