@@ -331,8 +331,8 @@ defmodule SocketConnector do
            updates: [
              %{
                "op" => "OffChainCallContract",
-               "contract" => ^contract_pubkey_encoded,
-               "caller" => ^caller_encoded
+               "contract_id" => ^contract_pubkey_encoded,
+               "caller_id" => ^caller_encoded
              }
            ]
          }} <- updates,
@@ -513,7 +513,7 @@ defmodule SocketConnector do
         abi_version: 1,
         amount: 0,
         call_data: call_data,
-        contract: address
+        contract_id: address
       }
     }
   end
@@ -541,8 +541,8 @@ defmodule SocketConnector do
           jsonrpc: "2.0",
           method: "channels.get.contract_call",
           params: %{
-            caller: caller,
-            contract: address,
+            caller_id: caller,
+            contract_id: address,
             round: round
           }
         },
@@ -639,8 +639,10 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.initiator_sign", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.initiator_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
@@ -653,8 +655,10 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.responder_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
@@ -760,7 +764,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.update",
-          "params" => %{"data" => %{"tx" => to_sign, "updates" => updates}}
+          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
         } = _message,
         state
       ) do
@@ -777,7 +781,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_update: %{
-           Validator.get_unsigned_round(to_sign) => %Update{
+           Validator.get_state_round(to_sign) => %Update{
              updates: updates,
              tx: to_sign,
              contract_call: state.contract_call_in_flight
@@ -924,7 +928,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.update_ack",
-          "params" => %{"data" => %{"tx" => to_sign, "updates" => updates}}
+          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
         } = _message,
         state
       ) do
@@ -941,7 +945,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_update: %{
-           Validator.get_unsigned_round(to_sign) => %Update{
+           Validator.get_state_round(to_sign) => %Update{
              updates: updates,
              tx: to_sign,
              contract_call: state.contract_call_in_flight
