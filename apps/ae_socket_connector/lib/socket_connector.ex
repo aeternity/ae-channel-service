@@ -23,7 +23,8 @@ defmodule SocketConnector do
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
             timer_reference: nil,
-            socket_ping_intervall: @socket_ping_intervall
+            socket_ping_intervall: @socket_ping_intervall,
+            connection_callbacks: nil
 
   defmodule(Update,
     do:
@@ -32,6 +33,14 @@ defmodule SocketConnector do
         tx: nil,
         state_tx: nil,
         contract_call: nil
+      )
+  )
+
+  defmodule(ConnectionCallbacks,
+    do:
+      defstruct(
+        sign_approve: nil,
+        channels_update: nil
       )
   )
 
@@ -951,7 +960,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
-    # Produces some logging output. 
+    # Produces some logging output.
     Validator.verify_on_chain(signed_tx)
     {:ok, state}
   end
