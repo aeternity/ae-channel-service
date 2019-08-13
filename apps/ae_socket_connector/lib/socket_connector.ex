@@ -94,20 +94,6 @@ defmodule SocketConnector do
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
-  # def start_link(
-  #       _name,
-  #       %__MODULE__{state_tx: nil},
-  #       _ws_base,
-  #       :reestablish,
-  #       color,
-  #       _ws_manager_pid
-  #     ) do
-  #   Logger.error("cannot reconnect", ansi_color: color)
-  #   {:ok, nil}
-  #
-  #   # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
-  # end
-
   def start_link(
         _name,
         %__MODULE__{
