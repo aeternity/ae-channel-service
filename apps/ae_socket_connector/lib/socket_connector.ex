@@ -904,6 +904,10 @@ defmodule SocketConnector do
       state.color
     )
 
+    case state.connection_callbacks do
+      nil -> :ok
+      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} -> channels_update.(Validator.get_state_round(state_tx))
+    end
     # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 
     {:ok,

@@ -23,6 +23,7 @@ defmodule ClientRunner do
         {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url,
          network_id, role, jobs, color}
       ) do
+    current_pid = self()
     {:ok, pid_session_holder} =
       SessionHolder.start_link(
         %SocketConnector{
@@ -32,7 +33,10 @@ defmodule ClientRunner do
           role: role,
           connection_callbacks: %SocketConnector.ConnectionCallbacks{
             sign_approve: fn _x -> :ok end,
-            channels_update: fn nonce -> nonce end
+            channels_update: fn nonce ->
+              Logger.debug("callback received #{inspect nonce}")
+              GenServer.cast(current_pid, {:process_job_lists})
+            end
           }
         },
         ae_url,
@@ -40,7 +44,7 @@ defmodule ClientRunner do
         color
       )
 
-    GenServer.cast(self(), {:process_job_lists})
+    # GenServer.cast(self(), {:process_job_lists})
     {:ok, %__MODULE__{pid_session_holder: pid_session_holder, job_list: jobs, color: [ansi_color: color]}}
   end
 
@@ -48,7 +52,6 @@ defmodule ClientRunner do
     # [{mod, func, args} | rest] = state.job_list
     # apply(mod, func, args)
     # SessionHolder.run_action(state.pid_session_holder, )
-    Process.sleep(5000)
     remaining_jobs =
       case Enum.count(state.job_list) do
         0 ->
@@ -58,7 +61,7 @@ defmodule ClientRunner do
           Logger.debug "Sequence remainin jobs #{inspect remaining}", state.color
           [{fun} | rest] = state.job_list
           SessionHolder.run_action(state.pid_session_holder, fun)
-          GenServer.cast(self(), {:process_job_lists})
+          # GenServer.cast(self(), {:process_job_lists})
           rest
       end
     {:noreply, %__MODULE__{state | job_list: remaining_jobs}}
@@ -84,7 +87,8 @@ defmodule ClientRunner do
 
   def start_helper() do
 
-    jobs = [{fn pid -> SocketConnector.initiate_transfer(pid, 2) end}]
+    jobs = [{fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+            {fn pid -> SocketConnector.initiate_transfer(pid, 20) end}]
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
     state_channel_configuration = %SocketConnector.WsConnection{
