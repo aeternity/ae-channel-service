@@ -69,6 +69,9 @@ defmodule ClientRunner do
               response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
               Logger.debug("sync response is: #{inspect(response)}", state.color)
               GenServer.cast(self(), {:process_job_lists})
+
+            :local ->
+              fun.()
           end
 
           rest
@@ -87,18 +90,21 @@ defmodule ClientRunner do
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 20) end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
       {:sync,
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 20) end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4) end},
       {:sync,
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 20) end}
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end}
     ]
+
+    empty_jobs = Enum.map(1..4, fn(count) -> {:local, fn -> Logger.debug("doing nothing #{inspect count}", ansi_color: :white) end} end)
+    jobs_responder = empty_jobs ++ jobs
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
@@ -117,7 +123,7 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :responder, [], :blue}
+       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue}
     )
   end
 end
