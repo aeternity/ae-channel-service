@@ -29,9 +29,14 @@ defmodule ClientRunner do
           role: role,
           connection_callbacks: %SocketConnector.ConnectionCallbacks{
             sign_approve: fn _x -> :ok end,
-            channels_update: fn nonce ->
-              Logger.debug("callback received round is: #{inspect(nonce)}")
-              GenServer.cast(current_pid, {:process_job_lists})
+            channels_update: fn (round_initiator, nonce) ->
+              Logger.debug("callback received round is: #{inspect(nonce)} round_initiator is: #{inspect round_initiator}}", ansi_color: color)
+              case round_initiator do
+                n when n == :self or n == :init ->
+                  GenServer.cast(current_pid, {:process_job_lists})
+                :other ->
+                  GenServer.cast(current_pid, {:process_job_lists})
+              end
             end
           }
         },
@@ -40,8 +45,6 @@ defmodule ClientRunner do
         color
       )
 
-    # as soon as connection is up this will execute
-    # GenServer.cast(self(), {:process_job_lists})
     {:ok,
      %__MODULE__{
        pid_session_holder: pid_session_holder,
@@ -84,7 +87,7 @@ defmodule ClientRunner do
   @network_id "my_test"
 
   def start_helper() do
-    jobs = [
+    jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
       {:sync,
        fn pid, from ->
@@ -104,7 +107,7 @@ defmodule ClientRunner do
     ]
 
     empty_jobs = Enum.map(1..4, fn(count) -> {:local, fn -> Logger.debug("doing nothing #{inspect count}", ansi_color: :white) end} end)
-    jobs_responder = empty_jobs ++ jobs
+    jobs_responder = empty_jobs ++ jobs_initiator
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
@@ -118,7 +121,7 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :initiator, jobs, :yellow}
+       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow}
     )
 
     start_link(
