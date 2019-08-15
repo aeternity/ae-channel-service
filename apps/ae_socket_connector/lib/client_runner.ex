@@ -111,35 +111,35 @@ defmodule ClientRunner do
 
   def start_helper() do
     jobs_initiator = [
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4) end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+      # {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+      # {:sync,
+      #  fn pid, from ->
+      #    SocketConnector.query_funds(pid, from)
+      #  end},
+      # {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+      # {:sync,
+      #  fn pid, from ->
+      #    SocketConnector.query_funds(pid, from)
+      #  end},
+      # {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4) end},
+      # {:sync,
+      #  fn pid, from ->
+      #    SocketConnector.query_funds(pid, from)
+      #  end},
+      # {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
       {:async, fn pid -> SocketConnector.leave(pid) end},
       {:local,
        fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
     ]
 
     jobs_responder =
-      empty_jobs(1..5) ++
+      empty_jobs(1..1) ++
         [
           {:local,
            fn _client_runner, pid_session_holder ->
              SessionHolder.reestablish(pid_session_holder)
            end}
-        ] ++ jobs_initiator
+        ]
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
