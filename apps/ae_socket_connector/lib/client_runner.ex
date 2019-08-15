@@ -29,13 +29,27 @@ defmodule ClientRunner do
           role: role,
           connection_callbacks: %SocketConnector.ConnectionCallbacks{
             sign_approve: fn _x -> :ok end,
-            channels_update: fn (round_initiator, nonce) ->
-              Logger.debug("callback received round is: #{inspect(nonce)} round_initiator is: #{inspect round_initiator}}", ansi_color: color)
+            channels_update: fn round_initiator, nonce ->
+              Logger.debug(
+                "callback received round is: #{inspect(nonce)} round_initiator is: #{
+                  inspect(round_initiator)
+                }}",
+                ansi_color: color
+              )
+
               case round_initiator do
-                n when n == :self or n == :transient ->
+                :self ->
                   GenServer.cast(current_pid, {:process_job_lists})
+
                 :other ->
                   GenServer.cast(current_pid, {:process_job_lists})
+
+                :transient ->
+                  # connect/reconnect allow grace period before resuming
+                  spawn(fn ->
+                    Process.sleep(500)
+                    GenServer.cast(current_pid, {:process_job_lists})
+                  end)
               end
             end
           }
@@ -86,6 +100,15 @@ defmodule ClientRunner do
   @ae_url "ws://localhost:3014/channel"
   @network_id "my_test"
 
+  def empty_jobs(interval) do
+    Enum.map(interval, fn count ->
+      {:local,
+       fn _client_runner, _pid_session_holder ->
+         Logger.debug("doing nothing #{inspect(count)}", ansi_color: :white)
+       end}
+    end)
+  end
+
   def start_helper() do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
@@ -105,23 +128,19 @@ defmodule ClientRunner do
        end},
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
       {:async, fn pid -> SocketConnector.leave(pid) end},
-      {:local, fn (client_runner, _pid_session_holder) ->
-        Logger.debug("disconnect grace period")
-        Process.sleep(3000)
-        GenServer.cast(client_runner, {:process_job_lists})
-        end},
-      {:local, fn (_client_runner, pid_session_holder) -> SessionHolder.reestablish(pid_session_holder) end}
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
     ]
 
-    empty_jobs = Enum.map(1..5, fn(count) -> {:local, fn (_client_runner, _pid_session_holder) -> Logger.debug("doing nothing #{inspect count}", ansi_color: :white) end} end)
-    jobs_responder = empty_jobs ++
-    [{:local, fn (client_runner, _pid_session_holder) ->
-      Logger.debug("disconnect grace period")
-      Process.sleep(3000)
-      GenServer.cast(client_runner, {:process_job_lists})
-      end},
-    {:local, fn (_client_runner, pid_session_holder) -> SessionHolder.reestablish(pid_session_holder) end}] ++
-    jobs_initiator
+    jobs_responder =
+      empty_jobs(1..5) ++
+        [
+          {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.reestablish(pid_session_holder)
+           end}
+          # skip reconnect job.
+        ] ++ Enum.take(jobs_initiator, Enum.count(jobs_initiator) - 1)
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()

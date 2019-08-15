@@ -559,7 +559,7 @@ defmodule SocketConnector do
   end
 
   def handle_disconnect(disconnect_map, state) do
-    Logger.info("disconnected...", state.color)
+    Logger.info("disconnecting...", state.color)
     :timer.cancel(state.timer_reference)
     GenServer.cast(state.ws_manager_pid, {:connection_dropped, state})
     super(disconnect_map, state)
