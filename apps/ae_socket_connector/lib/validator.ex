@@ -104,7 +104,7 @@ defmodule Validator do
     # Logger.info "for client 1 #{inspect map_for_client}"
     # Logger.info "for client 2 #{inspect :aetx.serialize_for_client(tx)}"
     tx_client = :aetx.serialize_for_client(tx)
-    Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}")
+    Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}", state.color)
     response = :ok
     Logger.info("sign result: #{inspect(response)}", state.color)
     response

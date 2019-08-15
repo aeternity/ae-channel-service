@@ -32,7 +32,8 @@ defmodule SocketConnector do
         updates: nil,
         tx: nil,
         state_tx: nil,
-        contract_call: nil
+        contract_call: nil,
+        round_initiator: nil
       )
   )
 
@@ -774,7 +775,8 @@ defmodule SocketConnector do
            Validator.get_state_round(to_sign) => %Update{
              updates: updates,
              tx: to_sign,
-             contract_call: state.contract_call_in_flight
+             contract_call: state.contract_call_in_flight,
+             round_initiator: :self
            }
          },
          contract_call_in_flight: nil
@@ -906,7 +908,11 @@ defmodule SocketConnector do
 
     case state.connection_callbacks do
       nil -> :ok
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} -> channels_update.(Validator.get_state_round(state_tx))
+      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
+        round = Validator.get_state_round(state_tx)
+        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :init})
+        channels_update.(round_initiator, Validator.get_state_round(state_tx))
+        :ok
     end
     # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 
@@ -941,7 +947,8 @@ defmodule SocketConnector do
            Validator.get_state_round(to_sign) => %Update{
              updates: updates,
              tx: to_sign,
-             contract_call: state.contract_call_in_flight
+             contract_call: state.contract_call_in_flight,
+             round_initiator: :other
            }
          },
          contract_call_in_flight: nil
