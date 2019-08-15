@@ -44,7 +44,7 @@ defmodule Validator do
     apply(module, :round, [instance])
   end
 
-  def channel_create_tx(tx, state) do
+  defp channel_create_tx(tx, state) do
     # TODO make sure to verify that what we are signing matches according to the original request made.
     {module, tx_instance} = :aetx.specialize_callback(tx)
     # modeule is: aesc_create_tx
@@ -86,6 +86,16 @@ defmodule Validator do
   #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
   # end
 
+  # def send_approval_request(state, human_readable) do
+  #   case state.connection_callbacks do
+  #     nil -> :ok
+  #     %SocketConnector.ConnectionCallbacks{sign_approve: sign_approve, channels_update: _channels_update} ->
+  #       round = Validator.get_state_round(state_tx)
+  #       %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :init})
+  #       sign_approve.(round_initiator, Validator.get_state_round(state_tx))
+  #   end
+  # end
+
   def inspect_transfer_request(tx, state) do
     # sample code on how various way on how to chech context of tx message
     # {module, tx_instance} = :aetx.specialize_callback(tx)
@@ -103,9 +113,19 @@ defmodule Validator do
     # Logger.info "stuff is #{inspect stuff}"
     # Logger.info "for client 1 #{inspect map_for_client}"
     # Logger.info "for client 2 #{inspect :aetx.serialize_for_client(tx)}"
+    {module, _tx_instance} = :aetx.specialize_callback(tx)
+    approval =
+      case module do
+        :aesc_create_tx -> channel_create_tx(tx, state)
+        other ->
+          Logger.debug("Module is #{inspect other}")
+          :ok
+      end
+
     tx_client = :aetx.serialize_for_client(tx)
+
     Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}", state.color)
-    response = :ok
+    response = approval
     Logger.info("sign result: #{inspect(response)}", state.color)
     response
   end
