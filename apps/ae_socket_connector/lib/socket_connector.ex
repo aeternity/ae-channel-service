@@ -891,11 +891,11 @@ defmodule SocketConnector do
 
   def process_message(
         %{
-          "method" => "channels.update",
+          "method" => method,
           "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
-      )
+      ) when method == "channels.leave" or method == "channels.update"
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
 
@@ -910,7 +910,7 @@ defmodule SocketConnector do
       nil -> :ok
       %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
         round = Validator.get_state_round(state_tx)
-        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :init})
+        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :transient})
         channels_update.(round_initiator, Validator.get_state_round(state_tx))
         :ok
     end

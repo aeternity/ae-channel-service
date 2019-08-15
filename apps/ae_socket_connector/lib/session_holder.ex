@@ -34,10 +34,7 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:connection_dropped, configuration}, state) do
-    # TODO, remove delay
-    # give to other fair chanse to disconnect
-    Process.sleep(1000)
-    reestablish(self())
+    Logger.debug "Connection_dropped"
     {:noreply, %__MODULE__{state | configuration: configuration}}
   end
 

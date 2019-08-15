@@ -32,7 +32,7 @@ defmodule ClientRunner do
             channels_update: fn (round_initiator, nonce) ->
               Logger.debug("callback received round is: #{inspect(nonce)} round_initiator is: #{inspect round_initiator}}", ansi_color: color)
               case round_initiator do
-                n when n == :self or n == :init ->
+                n when n == :self or n == :transient ->
                   GenServer.cast(current_pid, {:process_job_lists})
                 :other ->
                   GenServer.cast(current_pid, {:process_job_lists})
@@ -74,7 +74,7 @@ defmodule ClientRunner do
               GenServer.cast(self(), {:process_job_lists})
 
             :local ->
-              fun.()
+              fun.(self(), state.pid_session_holder)
           end
 
           rest
@@ -103,11 +103,25 @@ defmodule ClientRunner do
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end}
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+      {:async, fn pid -> SocketConnector.leave(pid) end},
+      {:local, fn (client_runner, _pid_session_holder) ->
+        Logger.debug("disconnect grace period")
+        Process.sleep(3000)
+        GenServer.cast(client_runner, {:process_job_lists})
+        end},
+      {:local, fn (_client_runner, pid_session_holder) -> SessionHolder.reestablish(pid_session_holder) end}
     ]
 
-    empty_jobs = Enum.map(1..4, fn(count) -> {:local, fn -> Logger.debug("doing nothing #{inspect count}", ansi_color: :white) end} end)
-    jobs_responder = empty_jobs ++ jobs_initiator
+    empty_jobs = Enum.map(1..5, fn(count) -> {:local, fn (_client_runner, _pid_session_holder) -> Logger.debug("doing nothing #{inspect count}", ansi_color: :white) end} end)
+    jobs_responder = empty_jobs ++
+    [{:local, fn (client_runner, _pid_session_holder) ->
+      Logger.debug("disconnect grace period")
+      Process.sleep(3000)
+      GenServer.cast(client_runner, {:process_job_lists})
+      end},
+    {:local, fn (_client_runner, pid_session_holder) -> SessionHolder.reestablish(pid_session_holder) end}] ++
+    jobs_initiator
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
