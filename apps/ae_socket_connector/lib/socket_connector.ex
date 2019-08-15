@@ -637,7 +637,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.channel_create_tx/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
       )
@@ -653,7 +653,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.channel_create_tx/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
       )
@@ -667,7 +667,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, fn _a, _b -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.deposit_tx",
         logstring: "initiator_sign"
       )
@@ -681,7 +681,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, fn _a, _b -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.deposit_ack",
         logstring: "responder_sign"
       )
@@ -695,7 +695,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, fn _a, _b -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.withdraw_tx",
         logstring: "initiator_sign"
       )
@@ -709,7 +709,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, fn _a, _b -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.withdraw_ack",
         logstring: "responder_sign"
       )
@@ -728,7 +728,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, fn _a, _b -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.shutdown_sign",
         logstring: "initiator_sign"
       )
@@ -744,7 +744,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, fn _a, _b -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
         method: "channels.shutdown_sign_ack",
         logstring: "initiator_sign"
       )
