@@ -662,7 +662,7 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.deposit_tx", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.deposit_tx", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -676,7 +676,7 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.deposit_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.deposit_ack", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -690,7 +690,7 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.withdraw_tx", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.withdraw_tx", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -704,7 +704,7 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.withdraw_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.withdraw_ack", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -717,13 +717,13 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
-  # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
+  # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} = _message, state) do
   #   {response"])
   #   {:reply, {:text, Poison.encode!(response)}, state}
   # end
 
   def process_message(
-        %{"method" => "channels.sign.shutdown_sign", "params" => %{"data" => %{"tx" => to_sign}}} =
+        %{"method" => "channels.sign.shutdown_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} =
           _message,
         state
       ) do
@@ -739,7 +739,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.shutdown_sign_ack",
-          "params" => %{"data" => %{"tx" => to_sign}}
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
