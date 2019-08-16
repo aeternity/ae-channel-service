@@ -117,17 +117,15 @@ defmodule Validator do
     approval =
       case module do
         :aesc_create_tx -> channel_create_tx(tx, state)
-        other ->
-          Logger.debug("Module is #{inspect other}")
+        _other ->
+          Logger.debug("Sign request Missing inspection!! default approved. Module is #{inspect module}")
           :ok
       end
 
     tx_client = :aetx.serialize_for_client(tx)
 
-    Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}", state.color)
-    response = approval
-    Logger.info("sign result: #{inspect(response)}", state.color)
-    response
+    Logger.info("sign request (#{inspect module}). Approval is: #{inspect approval} human readable: #{inspect(tx_client)}", state.color)
+    approval
   end
 
   @ae_http_url "http://localhost:3013"
