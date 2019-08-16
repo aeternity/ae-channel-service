@@ -111,94 +111,31 @@ defmodule ClientRunner do
   end
 
   def start_helper() do
-    initiator_contract = {TestAccounts.initiatorPubkey(), "contracts/TicTacToe.aes"}
+    # initiator_contract = {TestAccounts.initiatorPubkey(), "contracts/TicTacToe.aes"}
     # responder_contract = {TestAccounts.responderPubkey(), "contracts/TicTacToe.aes"}
 
     jobs_initiator = [
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end},
-      {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end},
-      {:async,
-       fn pid ->
-         SocketConnector.call_contract(
-           pid,
-           initiator_contract,
-           'make_move',
-           ['11', '1']
-         )
-       end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.get_contract_reponse(
-           pid,
-           initiator_contract,
-           'make_move',
-           from
-         )
-       end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+      {:async, fn pid -> SocketConnector.leave(pid) end},
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end},
       {:async,
        fn pid ->
          SocketConnector.withdraw(pid, 1_000_000)
        end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4) end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
-      {:async, fn pid -> SocketConnector.leave(pid) end},
-      {:local,
-       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
+      {:async,
+       fn pid ->
+         SocketConnector.deposit(pid, 1_200_000)
+       end}
     ]
 
-    # [
-    #   {:async,
-    #    fn pid ->
-    #      SocketConnector.withdraw(pid, 1_000_000)
-    #    end},
-    #   {:async,
-    #    fn pid ->
-    #      SocketConnector.deposit(pid, 1_200_000)
-    #    end}
-    # ] ++
     jobs_responder =
-      empty_jobs(1..8) ++
+      empty_jobs(1..1) ++
         [
           {:local,
            fn _client_runner, pid_session_holder ->
              SessionHolder.reestablish(pid_session_holder)
            end}
-        ] ++
-        [
-          {:async,
-           fn pid ->
-             SocketConnector.call_contract(
-               pid,
-               initiator_contract,
-               'make_move',
-               ['11', '2']
-             )
-           end},
-          {:sync,
-           fn pid, from ->
-             SocketConnector.get_contract_reponse(
-               pid,
-               initiator_contract,
-               'make_move',
-               from
-             )
-           end}
         ]
-
-    # Enum.take(jobs_initiator, Enum.count(jobs_initiator) - 1)
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
