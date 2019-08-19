@@ -28,10 +28,38 @@ defmodule ClientRunner do
           session: state_channel_configuration,
           role: role,
           connection_callbacks: %SocketConnector.ConnectionCallbacks{
-            sign_approve: fn _x -> :ok end,
-            channels_update: fn nonce ->
-              Logger.debug("callback received round is: #{inspect(nonce)}")
-              GenServer.cast(current_pid, {:process_job_lists})
+            sign_approve: fn round_initiator, round, auto_approval, human ->
+              Logger.debug(
+                "Sign request for round: #{inspect(round)}, initated by: #{
+                  inspect(round_initiator)
+                }. auto_approval: #{inspect(auto_approval)}, containing: #{inspect(human)}",
+                ansi_color: color
+              )
+
+              auto_approval
+            end,
+            channels_update: fn round_initiator, nonce ->
+              Logger.debug(
+                "callback received round is: #{inspect(nonce)} round_initiator is: #{
+                  inspect(round_initiator)
+                }}",
+                ansi_color: color
+              )
+
+              case round_initiator do
+                :self ->
+                  GenServer.cast(current_pid, {:process_job_lists})
+
+                :other ->
+                  GenServer.cast(current_pid, {:process_job_lists})
+
+                :transient ->
+                  # connect/reconnect allow grace period before resuming
+                  spawn(fn ->
+                    Process.sleep(500)
+                    GenServer.cast(current_pid, {:process_job_lists})
+                  end)
+              end
             end
           }
         },
@@ -40,8 +68,6 @@ defmodule ClientRunner do
         color
       )
 
-    # as soon as connection is up this will execute
-    # GenServer.cast(self(), {:process_job_lists})
     {:ok,
      %__MODULE__{
        pid_session_holder: pid_session_holder,
@@ -68,10 +94,11 @@ defmodule ClientRunner do
             :sync ->
               response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
               Logger.debug("sync response is: #{inspect(response)}", state.color)
+              # Logger.error("sync response is: #{inspect(response)}")
               GenServer.cast(self(), {:process_job_lists})
 
             :local ->
-              fun.()
+              fun.(self(), state.pid_session_holder)
           end
 
           rest
@@ -83,14 +110,49 @@ defmodule ClientRunner do
   @ae_url "ws://localhost:3014/channel"
   @network_id "my_test"
 
+  def empty_jobs(interval) do
+    Enum.map(interval, fn count ->
+      {:local,
+       fn _client_runner, _pid_session_holder ->
+         Logger.debug("doing nothing #{inspect(count)}", ansi_color: :white)
+       end}
+    end)
+  end
+
   def start_helper() do
-    jobs = [
+    initiator_contract = {TestAccounts.initiatorPubkey(), "contracts/TicTacToe.aes"}
+    # responder_contract = {TestAccounts.responderPubkey(), "contracts/TicTacToe.aes"}
+
+    jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
       {:sync,
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
+      {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end},
+      {:async,
+       fn pid ->
+         SocketConnector.call_contract(
+           pid,
+           initiator_contract,
+           'make_move',
+           ['11', '1']
+         )
+       end},
+      {:sync,
+       fn pid, from ->
+         SocketConnector.get_contract_reponse(
+           pid,
+           initiator_contract,
+           'make_move',
+           from
+         )
+       end},
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+      {:async,
+       fn pid ->
+         SocketConnector.withdraw(pid, 1_000_000)
+       end},
       {:sync,
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
@@ -100,11 +162,52 @@ defmodule ClientRunner do
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end}
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+      {:async, fn pid -> SocketConnector.leave(pid) end},
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
     ]
 
-    empty_jobs = Enum.map(1..4, fn(count) -> {:local, fn -> Logger.debug("doing nothing #{inspect count}", ansi_color: :white) end} end)
-    jobs_responder = empty_jobs ++ jobs
+    # [
+    #   {:async,
+    #    fn pid ->
+    #      SocketConnector.withdraw(pid, 1_000_000)
+    #    end},
+    #   {:async,
+    #    fn pid ->
+    #      SocketConnector.deposit(pid, 1_200_000)
+    #    end}
+    # ] ++
+    jobs_responder =
+      empty_jobs(1..8) ++
+        [
+          {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.reestablish(pid_session_holder)
+           end}
+        ] ++
+        [
+          {:async,
+           fn pid ->
+             SocketConnector.call_contract(
+               pid,
+               initiator_contract,
+               'make_move',
+               ['11', '2']
+             )
+           end},
+          {:sync,
+           fn pid, from ->
+             SocketConnector.get_contract_reponse(
+               pid,
+               initiator_contract,
+               'make_move',
+               from
+             )
+           end}
+        ]
+
+    # Enum.take(jobs_initiator, Enum.count(jobs_initiator) - 1)
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
@@ -118,7 +221,7 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :initiator, jobs, :yellow}
+       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow}
     )
 
     start_link(

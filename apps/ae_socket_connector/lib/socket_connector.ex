@@ -559,7 +559,7 @@ defmodule SocketConnector do
   end
 
   def handle_disconnect(disconnect_map, state) do
-    Logger.info("disconnected...", state.color)
+    Logger.info("disconnecting...", state.color)
     :timer.cancel(state.timer_reference)
     GenServer.cast(state.ws_manager_pid, {:connection_dropped, state})
     super(disconnect_map, state)
@@ -637,7 +637,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
       )
@@ -653,7 +653,7 @@ defmodule SocketConnector do
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
       )
@@ -662,12 +662,14 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.deposit_tx", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.deposit_tx",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.deposit_tx",
         logstring: "initiator_sign"
       )
@@ -676,12 +678,14 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.deposit_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.deposit_ack",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.deposit_ack",
         logstring: "responder_sign"
       )
@@ -690,12 +694,14 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.withdraw_tx", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.withdraw_tx",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.withdraw_tx",
         logstring: "initiator_sign"
       )
@@ -704,12 +710,14 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.sign.withdraw_ack", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.withdraw_ack",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.withdraw_ack",
         logstring: "responder_sign"
       )
@@ -717,18 +725,20 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
-  # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"tx" => to_sign}}} = _message, state) do
+  # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} = _message, state) do
   #   {response"])
   #   {:reply, {:text, Poison.encode!(response)}, state}
   # end
 
   def process_message(
-        %{"method" => "channels.sign.shutdown_sign", "params" => %{"data" => %{"tx" => to_sign}}} =
-          _message,
+        %{
+          "method" => "channels.sign.shutdown_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.shutdown_sign",
         logstring: "initiator_sign"
       )
@@ -739,12 +749,12 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.sign.shutdown_sign_ack",
-          "params" => %{"data" => %{"tx" => to_sign}}
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.shutdown_sign_ack",
         logstring: "initiator_sign"
       )
@@ -754,15 +764,29 @@ defmodule SocketConnector do
 
   def process_message(
         %{
-          "method" => "channels.sign.update",
+          "method" => method,
           "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
         } = _message,
         state
-      ) do
+      )
+      when method == "channels.sign.update_ack" or method == "channels.sign.update" do
+    {round_initiator, return_method} =
+      case method do
+        "channels.sign.update" -> {:self, "channels.update"}
+        _ -> {:other, "channels.update_ack"}
+      end
+
+    pending_update = %Update{
+      updates: updates,
+      tx: to_sign,
+      contract_call: state.contract_call_in_flight,
+      round_initiator: round_initiator
+    }
+
     {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
-        method: "channels.update",
-        logstring: "channels.sign.update"
+      Signer.sign_transaction(pending_update, &Validator.inspect_transfer_request/3, state,
+        method: return_method,
+        logstring: method
       )
 
     # TODO
@@ -772,12 +796,7 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_update: %{
-           Validator.get_state_round(to_sign) => %Update{
-             updates: updates,
-             tx: to_sign,
-             contract_call: state.contract_call_in_flight,
-             round_initiator: :self
-           }
+           Validator.get_state_round(to_sign) => pending_update
          },
          contract_call_in_flight: nil
      }}
@@ -891,11 +910,11 @@ defmodule SocketConnector do
 
   def process_message(
         %{
-          "method" => "channels.update",
+          "method" => method,
           "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
-      )
+      ) when method == "channels.leave" or method == "channels.update"
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
 
@@ -907,13 +926,16 @@ defmodule SocketConnector do
     )
 
     case state.connection_callbacks do
-      nil -> :ok
+      nil ->
+        :ok
+
       %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
         round = Validator.get_state_round(state_tx)
-        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :init})
+        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :transient})
         channels_update.(round_initiator, Validator.get_state_round(state_tx))
         :ok
     end
+
     # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 
     {:ok,
@@ -924,36 +946,36 @@ defmodule SocketConnector do
      }}
   end
 
-  def process_message(
-        %{
-          "method" => "channels.sign.update_ack",
-          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
-        } = _message,
-        state
-      ) do
-    {response} =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/2, state,
-        method: "channels.update_ack",
-        logstring: "responder_sign_update_ack"
-      )
-
-    # TODO
-    # double check that the call_data is the calldata we produced
-
-    {:reply, {:text, Poison.encode!(response)},
-     %__MODULE__{
-       state
-       | pending_update: %{
-           Validator.get_state_round(to_sign) => %Update{
-             updates: updates,
-             tx: to_sign,
-             contract_call: state.contract_call_in_flight,
-             round_initiator: :other
-           }
-         },
-         contract_call_in_flight: nil
-     }}
-  end
+  # def process_message(
+  #       %{
+  #         "method" => "channels.sign.update_ack",
+  #         "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
+  #       } = _message,
+  #       state
+  #     ) do
+  #   {response} =
+  #     Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
+  #       method: "channels.update_ack",
+  #       logstring: "responder_sign_update_ack"
+  #     )
+  #
+  #   # TODO
+  #   # double check that the call_data is the calldata we produced
+  #
+  #   {:reply, {:text, Poison.encode!(response)},
+  #    %__MODULE__{
+  #      state
+  #      | pending_update: %{
+  #          Validator.get_state_round(to_sign) => %Update{
+  #            updates: updates,
+  #            tx: to_sign,
+  #            contract_call: state.contract_call_in_flight,
+  #            round_initiator: :other
+  #          }
+  #        },
+  #        contract_call_in_flight: nil
+  #    }}
+  # end
 
   def process_message(
         %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message,
