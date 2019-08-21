@@ -271,7 +271,7 @@ defmodule SocketConnector do
   end
 
   def handle_connect(conn, state) do
-    Logger.info("Connected! #{inspect(conn)}")
+    Logger.info("Connected! #{inspect(conn)}", state.color)
     {:ok, state}
   end
 

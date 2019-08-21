@@ -50,13 +50,13 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:kill_connection}, state) do
-    Logger.debug("killing connector #{inspect(state.pid)}")
+    Logger.debug("killing connector #{inspect(state.pid)}", ansi_color: state.color)
     Process.exit(state.pid, :normal)
     {:noreply, state}
   end
 
   def handle_cast({:close_connection}, state) do
-    Logger.debug("closing connector #{inspect(state.pid)}")
+    Logger.debug("closing connector #{inspect(state.pid)}", ansi_color: state.color)
     SocketConnector.close_connection(state.pid)
     {:noreply, state}
   end
