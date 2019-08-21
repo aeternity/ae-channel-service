@@ -225,24 +225,34 @@ defmodule ClientRunner do
     jobs_responder =
       empty_jobs(1..1) ++
         [
+          {:local,
+           fn client_runner, pid_session_holder ->
+             SessionHolder.close_connection(pid_session_holder)
+             GenServer.cast(client_runner, {:process_job_lists})
+           end},
           # {:local,
           #  fn _client_runner, pid_session_holder ->
           #    SessionHolder.reestablish(pid_session_holder)
           #  end},
-          {:local,
-           fn client_runner, pid_session_holder ->
-             SessionHolder.kill_connection(pid_session_holder)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end},
+          # {:local,
+          #  fn client_runner, pid_session_holder ->
+          #    SessionHolder.kill_connection(pid_session_holder)
+          #    GenServer.cast(client_runner, {:process_job_lists})
+          #  end},
           {:local,
            fn client_runner, _pid_session_holder ->
-             Process.sleep(70000)
+             Process.sleep(3000)
              GenServer.cast(client_runner, {:process_job_lists})
            end},
           {:local,
-           fn _client_runner, pid_session_holder ->
+           fn client_runner, pid_session_holder ->
              SessionHolder.reconnect(pid_session_holder)
-           end}
+             GenServer.cast(client_runner, {:process_job_lists})
+           end},
+         {:sync,
+          fn pid, from ->
+            SocketConnector.query_funds(pid, from)
+          end},
         ]
 
     {jobs_initiator, jobs_responder}

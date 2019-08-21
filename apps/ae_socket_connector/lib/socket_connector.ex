@@ -224,7 +224,7 @@ defmodule SocketConnector do
     # :aeser_api_encoder.encode(:channel_client_reconnect_tx, to_binary)
   end
 
-  @spec close_connection(pid) :: ok
+  @spec close_connection(pid) :: :ok
   def close_connection(pid) do
     WebSockex.cast(pid, {:close_connection})
   end
@@ -291,8 +291,8 @@ defmodule SocketConnector do
     exit(:normal)
   end
 
-  def handle_connect(_conn, state) do
-    # Logger.info("Connected! #{inspect conn}")
+  def handle_connect(conn, state) do
+    Logger.info("Connected! #{inspect conn}")
     {:ok, state}
   end
 

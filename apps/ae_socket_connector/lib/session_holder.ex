@@ -17,6 +17,10 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:kill_connection})
   end
 
+  def close_connection(pid) do
+    GenServer.cast(pid, {:close_connection})
+  end
+
   def reestablish(pid) do
     GenServer.cast(pid, {:reestablish})
   end
@@ -46,10 +50,17 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:kill_connection}, state) do
-    Logger.debug("Killing connector #{inspect(state.pid)}")
+    Logger.debug("killing connector #{inspect(state.pid)}")
     Process.exit(state.pid, :normal)
     {:noreply, state}
   end
+
+  def handle_cast({:close_connection}, state) do
+    Logger.debug("closing connector #{inspect(state.pid)}")
+    SocketConnector.close_connection(state.pid)
+    {:noreply, state}
+  end
+
 
   def handle_cast({:reconnect}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
