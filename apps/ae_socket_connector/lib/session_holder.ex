@@ -13,8 +13,16 @@ defmodule SessionHolder do
     GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color})
   end
 
+  def kill_connection(pid) do
+    GenServer.cast(pid, {:kill_connection})
+  end
+
   def reestablish(pid) do
     GenServer.cast(pid, {:reestablish})
+  end
+
+  def reconnect(pid) do
+    GenServer.cast(pid, {:reconnect})
   end
 
   def run_action(pid, action) do
@@ -33,13 +41,27 @@ defmodule SessionHolder do
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
 
-  def handle_cast({:connection_dropped, configuration}, state) do
-    Logger.debug "Connection_dropped"
+  def handle_cast({:state_tx_update, %SocketConnector{} = configuration}, state) do
     {:noreply, %__MODULE__{state | configuration: configuration}}
   end
 
+  def handle_cast({:kill_connection}, state) do
+    Logger.debug("Killing connector #{inspect(state.pid)}")
+    Process.exit(state.pid, :normal)
+    {:noreply, state}
+  end
+
+  def handle_cast({:reconnect}, state) do
+    Logger.debug("about to re-connect connection", ansi_color: state.color)
+
+    {:ok, pid} =
+      SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
+
+    {:noreply, %__MODULE__{state | pid: pid}}
+  end
+
   def handle_cast({:reestablish}, state) do
-    Logger.debug("about to reestablish connection", ansi_color: state.color)
+    Logger.debug("about to re-establish connection", ansi_color: state.color)
 
     {:ok, pid} =
       SocketConnector.start_link(:alice, state.configuration, :reestablish, state.color, self())

@@ -98,6 +98,7 @@ defmodule SocketConnector do
           color: [ansi_color: color]
       })
 
+    Logger.debug("started link pid is #{inspect(pid)}", ansi_color: color)
     start_ping(pid)
     {:ok, pid}
 
@@ -118,6 +119,37 @@ defmodule SocketConnector do
       ) do
     {_nonce, %Update{state_tx: state_tx}} = Enum.max(nonce_and_updates)
     session_map = init_reestablish_map(channel_id, state_tx, role)
+    ws_url = create_link(state_channel_context.ws_base, session_map)
+    Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
+
+    {:ok, pid} =
+      WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
+        state_channel_context
+        | ws_manager_pid: ws_manager_pid,
+          timer_reference: nil,
+          color: [ansi_color: color]
+      })
+
+    start_ping(pid)
+    {:ok, pid}
+
+    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
+  end
+
+  def start_link(
+        _name,
+        %__MODULE__{
+          pub_key: _pub_key,
+          role: role,
+          channel_id: channel_id,
+          nonce_and_updates: nonce_and_updates
+        } = state_channel_context,
+        :reconnect,
+        color,
+        ws_manager_pid
+      ) do
+    {_nonce, %Update{state_tx: state_tx}} = Enum.max(nonce_and_updates)
+    session_map = init_reconnect_map(state_tx)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
 
@@ -191,6 +223,11 @@ defmodule SocketConnector do
   end
 
   # server side
+
+  def terminate(reason, _state) do
+    Logger.info("Socket Terminating: #{inspect(reason)}")
+    exit(:normal)
+  end
 
   def handle_connect(_conn, state) do
     # Logger.info("Connected! #{inspect conn}")
@@ -547,7 +584,8 @@ defmodule SocketConnector do
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnecting...", state.color)
     :timer.cancel(state.timer_reference)
-    GenServer.cast(state.ws_manager_pid, {:connection_dropped, state})
+    # TODO this is redundant.
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     super(disconnect_map, state)
   end
 
@@ -571,6 +609,12 @@ defmodule SocketConnector do
       end
 
     Map.merge(same, role_map)
+  end
+
+  def init_reconnect_map(offchain_tx) do
+    %{
+      reconnect_tx: offchain_tx
+    }
   end
 
   def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role) do
@@ -900,7 +944,8 @@ defmodule SocketConnector do
           "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
-      ) when method == "channels.leave" or method == "channels.update"
+      )
+      when method == "channels.leave" or method == "channels.update"
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
 
@@ -917,10 +962,24 @@ defmodule SocketConnector do
 
       %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
         round = Validator.get_state_round(state_tx)
-        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
         channels_update.(round_initiator, Validator.get_state_round(state_tx))
         :ok
     end
+
+    # TODO this quite corse, we send it all, duplicated code.....
+    GenServer.cast(
+      state.ws_manager_pid,
+      {:state_tx_update,
+       %__MODULE__{
+         state
+         | nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
+           pending_update: %{}
+       }}
+    )
 
     # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 

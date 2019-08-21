@@ -210,8 +210,36 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
+  def reconnect_jobs() do
+    jobs_initiator = [
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+      {:sync,
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end},
+      {:async, fn pid -> SocketConnector.leave(pid) end},
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
+    ]
+
+    jobs_responder =
+      empty_jobs(1..2) ++
+        [
+          {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.reestablish(pid_session_holder)
+           end},
+          {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.kill_connection(pid_session_holder)
+           end}
+        ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
   def start_helper() do
-    {jobs_initiator, jobs_responder} = contract_jobs()
+    {jobs_initiator, jobs_responder} = reconnect_jobs()
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()

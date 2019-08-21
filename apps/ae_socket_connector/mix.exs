@@ -38,7 +38,9 @@ defmodule SocketConnector.MixProject do
       {:exometer_core,
        git: "https://github.com/aeternity/exometer_core.git", ref: "588da23", manager: :rebar3},
       # {:aebytecode, path: "../../aebytecode", manager: :rebar3, override: true, manager: :make},
-      {:aeserialization, git: "https://github.com/aeternity/aeserialization.git", ref: "4a07297", override: true},
+      {:aeserialization,
+       git: "https://github.com/aeternity/aeserialization.git", ref: "4a07297", override: true}
+      # {:aeserialization, git: "https://github.com/aeternity/aeserialization.git"},
     ]
   end
 end
