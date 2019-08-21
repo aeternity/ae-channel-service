@@ -136,22 +136,27 @@ defmodule SocketConnector do
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
+  # "ws://localhost:3014/channel?port=14035&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuEBxaFk2dtVESM%2BzvaLXl319O%2B3%2FKYeLKk9pTEBCQsdAxR85LmHLHuI7gh7kuDE0X0iU33CymvyZhYREohGQFTIOuFX4U4ICPwGhBhcVvJBxDP091oeKLKHW8agBzefkBFITZPJHUXayn9anAYlpbml0aWF0b3KhASLZizA%2BhxzczTNVDD0TYeYxI0%2BWU4ivbUiUdyc9vIoepDdZMA%3D%3D&role=initiator"
+  # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
   def start_link(
         _name,
         %__MODULE__{
-          pub_key: _pub_key,
+          pub_key: pub_key,
+          priv_key: priv_key,
           role: role,
           channel_id: channel_id,
-          nonce_and_updates: nonce_and_updates
+          nonce_and_updates: nonce_and_updates,
+          network_id: network_id
         } = state_channel_context,
         :reconnect,
         color,
         ws_manager_pid
       ) do
-    {_nonce, %Update{state_tx: state_tx}} = Enum.max(nonce_and_updates)
-    session_map = init_reconnect_map(state_tx)
+    {nonce, %Update{state_tx: _state_tx}} = Enum.max(nonce_and_updates)
+    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id)
+    session_map = init_reconnect_map(reconnect_tx, role)
     ws_url = create_link(state_channel_context.ws_base, session_map)
-    Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
+    Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
@@ -165,6 +170,63 @@ defmodule SocketConnector do
     {:ok, pid}
 
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
+  end
+
+  # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
+  def create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id) do
+    Logger.debug("Channel id is: #{inspect(channel_id)}")
+    {tag, channel} = :aeser_api_encoder.decode(channel_id)
+
+    Logger.debug(
+      "tag is: #{inspect(tag)}, Channel id encoded is: #{inspect(:aeser_id.create(tag, channel))}"
+    )
+
+    pubkey = :aeser_api_encoder.encode(:account_pubkey, pub_key)
+    Logger.debug("Channel id is: #{inspect(channel_id)}")
+    {tag2, pubkey_recoded} = :aeser_api_encoder.decode(pubkey)
+
+    Logger.debug(
+      "tag is: #{inspect(tag2)}, Pubkey id encoded is: #{
+        inspect(:aeser_id.create(:account, pubkey_recoded))
+      }"
+    )
+
+    thing =
+      {:ok, aetx} =
+      :aesc_client_reconnect_tx.new(%{
+        :channel_id => :aeser_id.create(tag, channel),
+        :round => nonce,
+        :role => role,
+        :pub_key => :aeser_id.create(:account, pubkey_recoded)
+        # :pub_key => pub_key
+      })
+
+    Logger.debug("reconnect tx is: #{inspect(thing)}")
+
+    bin = :aetx.serialize_to_binary(aetx)
+    # bin = signed_tx
+    bin_for_network = <<network_id::binary, bin::binary>>
+    result_signed = :enacl.sign_detached(bin_for_network, priv_key)
+    # if there are signatures already make sure to preserve them.
+    # signed_create_tx = :aetx_sign.new(aetx, [result_signed])
+    signed_create_tx = :aetx_sign.new(aetx, [result_signed])
+
+    {stuff} =
+      {:aeser_api_encoder.encode(
+         :transaction,
+         :aetx_sign.serialize_to_binary(signed_create_tx)
+       )}
+
+    Logger.debug("Signed reconnect tx is #{inspect(stuff)}")
+    stuff
+
+    # to_binary = :aeser_api_encoder.serialize_to_binary(thing)
+    # :aeser_api_encoder.encode(:channel_client_reconnect_tx, to_binary)
+  end
+
+  @spec close_connection(pid) :: ok
+  def close_connection(pid) do
+    WebSockex.cast(pid, {:close_connection})
   end
 
   @spec start_ping(pid) :: :ok
@@ -255,6 +317,10 @@ defmodule SocketConnector do
 
     timer_reference = get_timer.(state.timer_reference)
     {:reply, :ping, %__MODULE__{state | timer_reference: timer_reference}}
+  end
+
+  def handle_cast({:close_connection}, state) do
+    {:close, state}
   end
 
   def handle_cast({:transfer, amount}, state) do
@@ -611,9 +677,12 @@ defmodule SocketConnector do
     Map.merge(same, role_map)
   end
 
-  def init_reconnect_map(offchain_tx) do
+  def init_reconnect_map(reconnect_tx, role) do
     %{
-      reconnect_tx: offchain_tx
+      role: role,
+      port: "12350",
+      protocol: "json-rpc",
+      reconnect_tx: reconnect_tx
     }
   end
 
