@@ -1,0 +1,19 @@
+commit e8d5110b88d8e95daa903518a9c8bed87ad65135
+Author: Aleksandar Filipov <aleksandar.filipov@jayway.com>
+Date:   Wed Aug 21 09:31:56 2019 +0200
+
+    for patch
+
+diff --git a/apps/aechannel/src/aesc_ttb.erl b/apps/aechannel/src/aesc_ttb.erl
+index 64cf327..b613f87 100644
+--- a/apps/aechannel/src/aesc_ttb.erl
++++ b/apps/aechannel/src/aesc_ttb.erl
+@@ -12,7 +12,7 @@
+ 
+ -export([event/1]).
+ 
+--include_lib("trace_runner/include/trace_runner.hrl").
++% -include_lib("trace_runner/include/trace_runner.hrl").
+ 
+ %% This function is also traced. Can be used to insert markers in the trace log.
+ event(E) ->

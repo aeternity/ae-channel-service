@@ -12,7 +12,7 @@ echo "aechannel" >> .git/info/sparse-checkout
 echo "aecontract" >> .git/info/sparse-checkout
 
 git pull origin master
-git checkout a2fdf3bfcc1a0610e9bf02a4abe7a42b28dfb4e0
+git checkout eebe7a849d2ae149899433bafa382ec4e2180cc4
 cd ..
 
 
@@ -36,5 +36,6 @@ git clone https://github.com/aeternity/aeminer.git apps/aecore/aeminer
 git --git-dir=apps/aecore/aeminer/.git checkout 1cf2ecfd83f6ca3ec21a183f730083cf63ae7feb
 # git --git-dir=apps/aecore/exometer_core/.git checkout 588da231c885390a9b3c08a367949750f32d143c
 
-git apply patches/0001-aechannel-now-builds.patch
-git apply patches/0001-aecore-patches.patch
+git apply patches/lima-aechannels.patch
+# git apply patches/0001-aechannel-now-builds.patch
+# git apply patches/0001-aecore-patches.patch
