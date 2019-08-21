@@ -119,7 +119,7 @@ defmodule ClientRunner do
     end)
   end
 
-  def start_helper() do
+  def contract_jobs() do
     initiator_contract = {TestAccounts.initiatorPubkey(), "contracts/TicTacToe.aes"}
     # responder_contract = {TestAccounts.responderPubkey(), "contracts/TicTacToe.aes"}
 
@@ -162,10 +162,10 @@ defmodule ClientRunner do
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
-      {:async, fn pid -> SocketConnector.leave(pid) end},
-      {:local,
-       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end}
+      # {:async, fn pid -> SocketConnector.leave(pid) end},
+      # {:local,
+      #  fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
     ]
 
     # [
@@ -178,14 +178,14 @@ defmodule ClientRunner do
     #      SocketConnector.deposit(pid, 1_200_000)
     #    end}
     # ] ++
+    # [
+    #   {:local,
+    #    fn _client_runner, pid_session_holder ->
+    #      SessionHolder.reestablish(pid_session_holder)
+    #    end}
+    # ] ++
     jobs_responder =
-      empty_jobs(1..8) ++
-        [
-          {:local,
-           fn _client_runner, pid_session_holder ->
-             SessionHolder.reestablish(pid_session_holder)
-           end}
-        ] ++
+      empty_jobs(1..7) ++
         [
           {:async,
            fn pid ->
@@ -207,7 +207,11 @@ defmodule ClientRunner do
            end}
         ]
 
-    # Enum.take(jobs_initiator, Enum.count(jobs_initiator) - 1)
+    {jobs_initiator, jobs_responder}
+  end
+
+  def start_helper() do
+    {jobs_initiator, jobs_responder} = contract_jobs()
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
