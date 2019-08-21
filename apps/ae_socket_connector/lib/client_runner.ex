@@ -253,6 +253,11 @@ defmodule ClientRunner do
           fn pid, from ->
             SocketConnector.query_funds(pid, from)
           end},
+          {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+          {:sync,
+           fn pid, from ->
+             SocketConnector.query_funds(pid, from)
+           end}
         ]
 
     {jobs_initiator, jobs_responder}

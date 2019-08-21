@@ -154,7 +154,7 @@ defmodule SocketConnector do
       ) do
     {nonce, %Update{state_tx: _state_tx}} = Enum.max(nonce_and_updates)
     reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id)
-    session_map = init_reconnect_map(reconnect_tx, role)
+    session_map = init_reconnect_map(reconnect_tx)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 
@@ -174,35 +174,18 @@ defmodule SocketConnector do
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
   def create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id) do
-    Logger.debug("Channel id is: #{inspect(channel_id)}")
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
 
-    Logger.debug(
-      "tag is: #{inspect(tag)}, Channel id encoded is: #{inspect(:aeser_id.create(tag, channel))}"
-    )
-
-    pubkey = :aeser_api_encoder.encode(:account_pubkey, pub_key)
-    Logger.debug("Channel id is: #{inspect(channel_id)}")
-    {tag2, pubkey_recoded} = :aeser_api_encoder.decode(pubkey)
-
-    Logger.debug(
-      "tag is: #{inspect(tag2)}, Pubkey id encoded is: #{
-        inspect(:aeser_id.create(:account, pubkey_recoded))
-      }"
-    )
-
-    thing =
-      {:ok, aetx} =
+    {:ok, aetx} =
       :aesc_client_reconnect_tx.new(%{
         :channel_id => :aeser_id.create(tag, channel),
         :round => nonce,
         :role => role,
-        :pub_key => :aeser_id.create(:account, pubkey_recoded)
-        # :pub_key => pub_key
+        :pub_key => :aeser_id.create(:account, pub_key)
       })
 
-    Logger.debug("reconnect tx is: #{inspect(thing)}")
-
+    # now we just sign it.
+    # TODO reuse code from singer....
     bin = :aetx.serialize_to_binary(aetx)
     # bin = signed_tx
     bin_for_network = <<network_id::binary, bin::binary>>
@@ -211,17 +194,13 @@ defmodule SocketConnector do
     # signed_create_tx = :aetx_sign.new(aetx, [result_signed])
     signed_create_tx = :aetx_sign.new(aetx, [result_signed])
 
-    {stuff} =
+    {encoded_tx} =
       {:aeser_api_encoder.encode(
          :transaction,
          :aetx_sign.serialize_to_binary(signed_create_tx)
        )}
 
-    Logger.debug("Signed reconnect tx is #{inspect(stuff)}")
-    stuff
-
-    # to_binary = :aeser_api_encoder.serialize_to_binary(thing)
-    # :aeser_api_encoder.encode(:channel_client_reconnect_tx, to_binary)
+    encoded_tx
   end
 
   @spec close_connection(pid) :: :ok
@@ -292,7 +271,7 @@ defmodule SocketConnector do
   end
 
   def handle_connect(conn, state) do
-    Logger.info("Connected! #{inspect conn}")
+    Logger.info("Connected! #{inspect(conn)}")
     {:ok, state}
   end
 
@@ -677,10 +656,8 @@ defmodule SocketConnector do
     Map.merge(same, role_map)
   end
 
-  def init_reconnect_map(reconnect_tx, role) do
+  def init_reconnect_map(reconnect_tx) do
     %{
-      role: role,
-      port: "12350",
       protocol: "json-rpc",
       reconnect_tx: reconnect_tx
     }
