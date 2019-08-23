@@ -984,6 +984,21 @@ defmodule SocketConnector do
     end
   end
 
+  def produce_callback(state, round, method) do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+
+      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
+
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
+        channels_update.(round_initiator, round, method)
+        :ok
+    end
+  end
+
   def process_message(
         %{
           "method" => method,
@@ -1002,19 +1017,7 @@ defmodule SocketConnector do
       state.color
     )
 
-    case state.connection_callbacks do
-      nil ->
-        :ok
-
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
-        round = Validator.get_state_round(state_tx)
-
-        %Update{round_initiator: round_initiator} =
-          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
-
-        channels_update.(round_initiator, Validator.get_state_round(state_tx))
-        :ok
-    end
+    produce_callback(state, Validator.get_state_round(state_tx), method)
 
     # TODO this quite corse, we send it all, duplicated code.....
     GenServer.cast(
@@ -1037,36 +1040,20 @@ defmodule SocketConnector do
      }}
   end
 
-  # def process_message(
-  #       %{
-  #         "method" => "channels.sign.update_ack",
-  #         "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
-  #       } = _message,
-  #       state
-  #     ) do
-  #   {response} =
-  #     Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-  #       method: "channels.update_ack",
-  #       logstring: "responder_sign_update_ack"
-  #     )
-  #
-  #   # TODO
-  #   # double check that the call_data is the calldata we produced
-  #
-  #   {:reply, {:text, Poison.encode!(response)},
-  #    %__MODULE__{
-  #      state
-  #      | pending_update: %{
-  #          Validator.get_state_round(to_sign) => %Update{
-  #            updates: updates,
-  #            tx: to_sign,
-  #            contract_call: state.contract_call_in_flight,
-  #            round_initiator: :other
-  #          }
-  #        },
-  #        contract_call_in_flight: nil
-  #    }}
-  # end
+  def process_message(
+        %{
+          "method" => "channels.conflict" = method,
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"round" => round, "channel_id" => channel_id2}
+          }
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when channel_id == current_channel_id and channel_id == channel_id2 do
+    produce_callback(state, round + 1, method)
+    {:ok, state}
+  end
 
   def process_message(
         %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message,

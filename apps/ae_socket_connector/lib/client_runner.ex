@@ -38,11 +38,10 @@ defmodule ClientRunner do
 
               auto_approval
             end,
-            channels_update: fn round_initiator, nonce ->
+            channels_update: fn round_initiator, nonce, method ->
               Logger.debug(
                 "callback received round is: #{inspect(nonce)} round_initiator is: #{
-                  inspect(round_initiator)
-                }}",
+                  inspect(round_initiator)} method is #{inspect method}}",
                 ansi_color: color
               )
 
@@ -268,8 +267,40 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
+  # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
+  def backchannel_jobs do
+    jobs_initiator = [
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.close_connection(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      # {:local,
+      #  fn client_runner, pid_session_holder ->
+      #    SessionHolder.reconnect(pid_session_holder)
+      #    GenServer.cast(client_runner, {:process_job_lists})
+      #  end},
+      # {:sync,
+      # fn pid, from ->
+      #   SocketConnector.query_funds(pid, from)
+      # end},
+    ]
+
+    jobs_responder = [
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(3000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+    ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
   def start_helper() do
-    {jobs_initiator, jobs_responder} = reconnect_jobs()
+    {jobs_initiator, jobs_responder} = backchannel_jobs()
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
