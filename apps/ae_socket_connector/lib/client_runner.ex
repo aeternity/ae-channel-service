@@ -8,7 +8,7 @@ defmodule ClientRunner do
 
   def start_link(
         {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs,
-         _color} = params
+         _color, _name} = params
       ) do
     GenServer.start_link(__MODULE__, params)
   end
@@ -16,7 +16,7 @@ defmodule ClientRunner do
   # Server
   def init(
         {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url,
-         network_id, role, jobs, color}
+         network_id, role, jobs, color, name}
       ) do
     current_pid = self()
 
@@ -64,7 +64,8 @@ defmodule ClientRunner do
         },
         ae_url,
         network_id,
-        color
+        color,
+        name
       )
 
     {:ok,
@@ -314,12 +315,12 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow}
+       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow, :alice}
     )
 
     start_link(
       {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue}
+       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue, :bob}
     )
   end
 end

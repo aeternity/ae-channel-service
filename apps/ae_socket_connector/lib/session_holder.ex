@@ -9,8 +9,8 @@ defmodule SessionHolder do
             configuration: %SocketConnector{},
             ae_url: ""
 
-  def start_link(%SocketConnector{} = configuration, ae_url, network_id, color) do
-    GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color})
+  def start_link(%SocketConnector{} = configuration, ae_url, network_id, color, name) do
+    GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color}, name: name)
   end
 
   def kill_connection(pid) do
