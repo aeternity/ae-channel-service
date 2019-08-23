@@ -24,7 +24,8 @@ defmodule SocketConnector do
             contract_call_in_flight_round: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall,
-            connection_callbacks: nil
+            connection_callbacks: nil,
+            backchannel_sign_req_fun: nil
 
   defmodule(Update,
     do:
@@ -218,6 +219,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:transfer, amount})
   end
 
+  @spec initiate_transfer(pid, integer) :: :ok
+  def initiate_transfer(pid, amount, backchannel_sign_req_fun) do
+    WebSockex.cast(pid, {:transfer, amount, backchannel_sign_req_fun})
+  end
+
   @spec deposit(pid, integer) :: :ok
   def deposit(pid, amount) do
     WebSockex.cast(pid, {:deposit, amount})
@@ -311,6 +317,17 @@ defmodule SocketConnector do
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
+  end
+
+  def handle_cast({:transfer, amount, backchannel_sign_req_fun}, state) do
+    sync_call =
+      %SyncCall{request: request} =
+      transfer_amount(state.session.initiator, state.session.responder, amount)
+
+    Logger.info("=> transfer #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call, backchannel_sign_req_fun: backchannel_sign_req_fun}}
   end
 
   def handle_cast({:deposit, amount}, state) do
@@ -859,11 +876,25 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
+    {signed_payload} = Signer.sign_transaction_perform(pending_update, state, fn _tx, _round_initiator, _state -> :ok end)
+    # check if we have a backchannel if so request signing that way:
     {response} =
-      Signer.sign_transaction(pending_update, &Validator.inspect_transfer_request/3, state,
-        method: return_method,
-        logstring: method
-      )
+      case state.backchannel_sign_req_fun do
+        nil ->
+          Signer.generate_transaction_response(signed_payload, method: return_method)
+        _backchannel ->
+          mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
+          Signer.generate_transaction_response(mutual_signed, method: return_method)
+      end
+
+    # TODO need re-enable the validator.
+    # TODO need to remove backchannel_sign_req_fun once we are done with it.
+
+    # {response} =
+    #   Signer.sign_transaction(pending_update, &Validator.inspect_transfer_request/3, state,
+    #     method: return_method,
+    #     logstring: method
+    #   )
 
     # TODO
     # double check that the call_data is the calldata we produced

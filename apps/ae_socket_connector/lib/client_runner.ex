@@ -269,22 +269,27 @@ defmodule ClientRunner do
   end
 
   # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
-  def backchannel_jobs do
+  def backchannel_jobs(initiator, responder) do
     jobs_initiator = [
       {:local,
        fn client_runner, pid_session_holder ->
          SessionHolder.close_connection(pid_session_holder)
          GenServer.cast(client_runner, {:process_job_lists})
        end},
-      # {:local,
-      #  fn client_runner, pid_session_holder ->
-      #    SessionHolder.reconnect(pid_session_holder)
-      #    GenServer.cast(client_runner, {:process_job_lists})
-      #  end},
-      # {:sync,
-      # fn pid, from ->
-      #   SocketConnector.query_funds(pid, from)
-      # end},
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(10000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.reconnect(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:sync,
+      fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end},
     ]
 
     jobs_responder = [
@@ -293,15 +298,31 @@ defmodule ClientRunner do
          Process.sleep(3000)
          GenServer.cast(client_runner, {:process_job_lists})
        end},
+       {:sync,
+        fn pid, from ->
+          SocketConnector.query_funds(pid, from)
+        end},
        {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
        {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4,
+         fn(to_sign) ->
+           SessionHolder.backchannel_sign_request(initiator, to_sign)
+           # GenServer.call(initiator, {:sign_request, to_sign})
+           end)
+         end},
+       {:sync,
+        fn pid, from ->
+          SocketConnector.query_funds(pid, from)
+        end},
     ]
 
     {jobs_initiator, jobs_responder}
   end
 
   def start_helper() do
-    {jobs_initiator, jobs_responder} = backchannel_jobs()
+    # initiator = :alice
+    # responder = :bob
+    {jobs_initiator, jobs_responder} = backchannel_jobs(:alice, :bob)
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()

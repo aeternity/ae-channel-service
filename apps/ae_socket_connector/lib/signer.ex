@@ -10,14 +10,19 @@ defmodule Signer do
     {response}
   end
 
-  defp sign_transaction_perform(
+  def generate_transaction_response(signed_payload, method: method) do
+    response = %{jsonrpc: "2.0", method: method, params: %{signed_tx: signed_payload}}
+    {response}
+  end
+
+  def sign_transaction_perform(
          to_sign,
          state,
-         verify_hook \\ fn _tx, _state -> :unsecure end
+         verify_hook \\ fn _tx, _round_initiator, _state -> :unsecure end
        )
 
   # https://github.com/aeternity/aeternity/commit/e164fc4518263db9692c02a9b84e179d69bfcc13#diff-e14138de459cdd890333dfad3bd83f4c
-  defp sign_transaction_perform(
+  def sign_transaction_perform(
          %Update{} = pending_update,
          state,
          verify_hook
@@ -48,7 +53,7 @@ defmodule Signer do
     end
   end
 
-  defp sign_transaction_perform(
+  def sign_transaction_perform(
          to_sign,
          state,
          verify_hook
