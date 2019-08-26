@@ -37,3 +37,4 @@ git --git-dir=apps/aecore/aeminer/.git checkout 1cf2ecfd83f6ca3ec21a183f730083cf
 # git --git-dir=apps/aecore/exometer_core/.git checkout 588da231c885390a9b3c08a367949750f32d143c
 
 git apply patches/lima-aechannels.patch
+git apply patches/lima-aecore.patch
