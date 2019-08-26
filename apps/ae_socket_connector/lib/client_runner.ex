@@ -107,9 +107,6 @@ defmodule ClientRunner do
     {:noreply, %__MODULE__{state | job_list: remaining_jobs}}
   end
 
-  @ae_url "ws://localhost:3014/channel"
-  @network_id "my_test"
-
   def empty_jobs(interval) do
     Enum.map(interval, fn count ->
       {:local,
@@ -319,12 +316,13 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  def start_helper() do
-    # start_helper(:alice, :bob, &backchannel_jobs/2)
-    start_helper(:alice2, :bob2, &reconnect_jobs/2)
+  def start_helper(ae_url, network_id) do
+    start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
   end
 
-  def start_helper(name_initator, name_responder, job_builder) do
+  def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
     {jobs_initiator, jobs_responder} = job_builder.(name_initator, name_responder)
 
     initiator_pub = TestAccounts.initiatorPubkey()
@@ -339,12 +337,12 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow, name_initator}
+       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
       {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue, name_responder}
+       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end
