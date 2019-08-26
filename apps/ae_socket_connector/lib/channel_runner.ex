@@ -431,7 +431,8 @@ defmodule ChannelRunner do
         },
         ae_url,
         network_id,
-        :yellow
+        :yellow,
+        :alice
       )
 
     Logger.debug("pid_initiator #{inspect(pid_initiator)}", ansi_color: :yellow)
@@ -446,7 +447,8 @@ defmodule ChannelRunner do
         },
         ae_url,
         network_id,
-        :blue
+        :blue,
+        :bob
       )
 
     Logger.debug("pid_responder #{inspect(pid_responder)}", ansi_color: :blue)

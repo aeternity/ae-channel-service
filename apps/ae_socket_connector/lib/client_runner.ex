@@ -210,7 +210,7 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  def reconnect_jobs() do
+  def reconnect_jobs(_intiator, _responder) do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
       {:sync,
@@ -269,7 +269,7 @@ defmodule ClientRunner do
   end
 
   # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
-  def backchannel_jobs(initiator, responder) do
+  def backchannel_jobs(initiator, _responder) do
     jobs_initiator = [
       {:local,
        fn client_runner, pid_session_holder ->
@@ -320,9 +320,12 @@ defmodule ClientRunner do
   end
 
   def start_helper() do
-    # initiator = :alice
-    # responder = :bob
-    {jobs_initiator, jobs_responder} = backchannel_jobs(:alice, :bob)
+    # start_helper(:alice, :bob, &backchannel_jobs/2)
+    start_helper(:alice2, :bob2, &reconnect_jobs/2)
+  end
+
+  def start_helper(name_initator, name_responder, job_builder) do
+    {jobs_initiator, jobs_responder} = job_builder.(name_initator, name_responder)
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
@@ -336,12 +339,12 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow, :alice}
+       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
       {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue, :bob}
+       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end
