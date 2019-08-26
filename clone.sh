@@ -12,7 +12,7 @@ echo "aechannel" >> .git/info/sparse-checkout
 echo "aecontract" >> .git/info/sparse-checkout
 
 git pull origin master
-git checkout eebe7a849d2ae149899433bafa382ec4e2180cc4
+git checkout ed54d2e625fdcf7cf7b0189cd213090edbf3a565
 cd ..
 
 

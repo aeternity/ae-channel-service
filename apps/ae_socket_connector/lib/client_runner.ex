@@ -119,7 +119,7 @@ defmodule ClientRunner do
     end)
   end
 
-  def contract_jobs() do
+  def contract_jobs(_intiator, _responder) do
     initiator_contract = {TestAccounts.initiatorPubkey(), "contracts/TicTacToe.aes"}
     # responder_contract = {TestAccounts.responderPubkey(), "contracts/TicTacToe.aes"}
 

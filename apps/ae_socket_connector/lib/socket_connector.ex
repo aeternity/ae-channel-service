@@ -381,9 +381,9 @@ defmodule SocketConnector do
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
-    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data, _, _} =
+    {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
@@ -397,7 +397,7 @@ defmodule SocketConnector do
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
-    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
     owner_encoded = :aeser_api_encoder.encode(:account_pubkey, owner)
     # beware this code assumes that length(updates) == 1
     for {round,
@@ -434,7 +434,7 @@ defmodule SocketConnector do
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
-    {:ok, call_data, _, _} =
+    {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
