@@ -4,15 +4,15 @@ defmodule Signer do
   alias SocketConnector.Update
 
   def sign_transaction(update, authenticator, state, method: method, logstring: logstring) do
-    {enc_signed_create_tx} = sign_transaction_perform(update, state, authenticator)
+    enc_signed_create_tx = sign_transaction_perform(update, state, authenticator)
     response = %{jsonrpc: "2.0", method: method, params: %{signed_tx: enc_signed_create_tx}}
     Logger.debug("=>#{inspect(logstring)} : #{inspect(response)} #{inspect(self())}", state.color)
-    {response}
+    response
   end
 
   def generate_transaction_response(signed_payload, method: method) do
     response = %{jsonrpc: "2.0", method: method, params: %{signed_tx: signed_payload}}
-    {response}
+    response
   end
 
   def sign_transaction_perform(
@@ -46,10 +46,10 @@ defmodule Signer do
         # signed_create_tx = :aetx_sign.new(aetx, [result_signed])
         signed_create_tx = :aetx_sign.add_signatures(deserialized_signed_tx, [result_signed])
 
-        {:aeser_api_encoder.encode(
+        :aeser_api_encoder.encode(
            :transaction,
            :aetx_sign.serialize_to_binary(signed_create_tx)
-         )}
+         )
     end
   end
 

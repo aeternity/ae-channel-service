@@ -96,7 +96,7 @@ defmodule SessionHolder do
 
   #TODO this allows backchannel signing, either way. Should we should uppdate round in the state?
   def handle_call({:sign_request, to_sign}, _from, state) do
-    {sign_result} = Signer.sign_transaction_perform(to_sign, state.configuration, fn _tx, _round_initiator, _state -> :ok end)
+    sign_result = Signer.sign_transaction_perform(to_sign, state.configuration, fn _tx, _round_initiator, _state -> :ok end)
     Logger.debug("Backchannel sign request, result is sign_request")
     {:reply, sign_result, state}
   end

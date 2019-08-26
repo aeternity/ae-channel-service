@@ -312,10 +312,10 @@ defmodule ClientRunner do
   end
 
   def start_helper(ae_url, network_id) do
-    # start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
+    start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
-    start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
   end
 
   def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do

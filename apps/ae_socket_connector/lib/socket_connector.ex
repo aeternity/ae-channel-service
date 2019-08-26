@@ -729,7 +729,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
@@ -745,7 +745,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
@@ -761,7 +761,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.deposit_tx",
         logstring: "initiator_sign"
@@ -777,7 +777,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.deposit_ack",
         logstring: "responder_sign"
@@ -793,7 +793,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.withdraw_tx",
         logstring: "initiator_sign"
@@ -809,7 +809,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.withdraw_ack",
         logstring: "responder_sign"
@@ -830,7 +830,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.shutdown_sign",
         logstring: "initiator_sign"
@@ -846,7 +846,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.shutdown_sign_ack",
         logstring: "initiator_sign"
@@ -876,9 +876,9 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    {signed_payload} = Signer.sign_transaction_perform(pending_update, state, fn _tx, _round_initiator, _state -> :ok end)
+    signed_payload = Signer.sign_transaction_perform(pending_update, state, fn _tx, _round_initiator, _state -> :ok end)
     # check if we have a backchannel if so request signing that way:
-    {response} =
+    response =
       case state.backchannel_sign_req_fun do
         nil ->
           Signer.generate_transaction_response(signed_payload, method: return_method)
@@ -888,9 +888,8 @@ defmodule SocketConnector do
       end
 
     # TODO need re-enable the validator.
-    # TODO need to remove backchannel_sign_req_fun once we are done with it.
 
-    # {response} =
+    # response =
     #   Signer.sign_transaction(pending_update, &Validator.inspect_transfer_request/3, state,
     #     method: return_method,
     #     logstring: method
@@ -905,7 +904,8 @@ defmodule SocketConnector do
        | pending_update: %{
            Validator.get_state_round(to_sign) => pending_update
          },
-         contract_call_in_flight: nil
+         contract_call_in_flight: nil,
+         backchannel_sign_req_fun: nil
      }}
   end
 
