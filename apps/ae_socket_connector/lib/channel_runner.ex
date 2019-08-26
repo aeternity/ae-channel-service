@@ -7,7 +7,8 @@ defmodule ChannelRunner do
   @pause 2000
 
   def start_channel_helper(),
-    do: start_channel_helper(:single)
+    # do: start_channel_helper(:single)
+    do: ClientRunner.start_helper()
 
   def start_channel_helper(mode) do
     case mode do

@@ -44,7 +44,7 @@ defmodule Validator do
     apply(module, :round, [instance])
   end
 
-  def channel_create_tx(tx, state) do
+  defp channel_create_tx(tx, state) do
     # TODO make sure to verify that what we are signing matches according to the original request made.
     {module, tx_instance} = :aetx.specialize_callback(tx)
     # modeule is: aesc_create_tx
@@ -86,7 +86,23 @@ defmodule Validator do
   #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
   # end
 
-  def inspect_transfer_request(tx, state) do
+  def send_approval_request(aetx, round_initiator, auto_approval, state) do
+    case state.connection_callbacks do
+      nil ->
+        :unsecure
+
+      %SocketConnector.ConnectionCallbacks{
+        sign_approve: sign_approve,
+        channels_update: _channels_update
+      } ->
+        # TODO this is not pretty
+        {module, instance} = :aetx.specialize_callback(aetx)
+        round = apply(module, :round, [instance])
+        sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+    end
+  end
+
+  def inspect_transfer_request(aetx, round_initiator, state) do
     # sample code on how various way on how to chech context of tx message
     # {module, tx_instance} = :aetx.specialize_callback(tx)
     # gas = apply(module, :gas, [tx_instance])
@@ -103,11 +119,26 @@ defmodule Validator do
     # Logger.info "stuff is #{inspect stuff}"
     # Logger.info "for client 1 #{inspect map_for_client}"
     # Logger.info "for client 2 #{inspect :aetx.serialize_for_client(tx)}"
-    tx_client = :aetx.serialize_for_client(tx)
-    Logger.info("sign request (transfer), human readable: #{inspect(tx_client)}")
-    response = :ok
-    Logger.info("sign result: #{inspect(response)}", state.color)
-    response
+    {module, _tx_instance} = :aetx.specialize_callback(aetx)
+
+    # TODO if calls is initiated by us and contains what we submitted auto approval can be made
+    auto_approval =
+      case module do
+        :aesc_create_tx ->
+          channel_create_tx(aetx, state)
+
+        _other ->
+          Logger.debug(
+            "Sign request Missing inspection!! default approved. Module is #{inspect(module)}"
+          )
+
+          :ok
+      end
+
+    case send_approval_request(aetx, round_initiator, auto_approval, state) do
+      :ok -> :ok
+      _ -> :unsecure
+    end
   end
 
   @ae_http_url "http://localhost:3013"

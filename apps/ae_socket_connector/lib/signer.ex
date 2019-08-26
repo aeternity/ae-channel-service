@@ -1,26 +1,34 @@
 defmodule Signer do
   # TODO this is the only module which needs the pivate key, should be spawed as a seperate process.
   require Logger
+  alias SocketConnector.Update
 
-  def sign_transaction(to_sign, authenticator, state, method: method, logstring: logstring) do
-    {enc_signed_create_tx} = sign_transaction_perform(to_sign, state, authenticator)
+  def sign_transaction(update, authenticator, state, method: method, logstring: logstring) do
+    {enc_signed_create_tx} = sign_transaction_perform(update, state, authenticator)
     response = %{jsonrpc: "2.0", method: method, params: %{signed_tx: enc_signed_create_tx}}
     Logger.debug("=>#{inspect(logstring)} : #{inspect(response)} #{inspect(self())}", state.color)
     {response}
   end
 
-  # https://github.com/aeternity/aeternity/commit/e164fc4518263db9692c02a9b84e179d69bfcc13#diff-e14138de459cdd890333dfad3bd83f4c
   defp sign_transaction_perform(
          to_sign,
          state,
          verify_hook \\ fn _tx, _state -> :unsecure end
+       )
+
+  # https://github.com/aeternity/aeternity/commit/e164fc4518263db9692c02a9b84e179d69bfcc13#diff-e14138de459cdd890333dfad3bd83f4c
+  defp sign_transaction_perform(
+         %Update{} = pending_update,
+         state,
+         verify_hook
        ) do
+    %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
     # returns #aetx
     deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
     aetx = :aetx_sign.tx(deserialized_signed_tx)
 
-    case verify_hook.(aetx, state) do
+    case verify_hook.(aetx, round_initiator, state) do
       :unsecure ->
         {""}
 
@@ -38,5 +46,17 @@ defmodule Signer do
            :aetx_sign.serialize_to_binary(signed_create_tx)
          )}
     end
+  end
+
+  defp sign_transaction_perform(
+         to_sign,
+         state,
+         verify_hook
+       ) do
+    sign_transaction_perform(
+      %Update{tx: to_sign, round_initiator: :not_implemented},
+      state,
+      verify_hook
+    )
   end
 end
