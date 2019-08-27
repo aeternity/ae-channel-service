@@ -1,8 +1,8 @@
 .POSIX:
 
-mix 						:= mix
-aeminer_path 		:= apps/aecore/aeminer
-sparse_path 		:= sparse
+mix := mix
+aeminer_path := apps/aecore/aeminer
+sparse_path := sparse
 sparse_git_path := $(sparse_path)/.git/info/sparse-checkout
 
 all: help
