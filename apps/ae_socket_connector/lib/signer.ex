@@ -3,13 +3,12 @@ defmodule Signer do
   require Logger
   alias SocketConnector.Update
 
-  def sign_transaction(update, authenticator, state, method: method, logstring: logstring) do
+  def sign_transaction(update, authenticator, state, method: method, logstring: _logstring) do
     enc_signed_create_tx = sign_transaction_perform(update, state, authenticator)
-    response = %{jsonrpc: "2.0", method: method, params: %{signed_tx: enc_signed_create_tx}}
-    Logger.debug("=>#{inspect(logstring)} : #{inspect(response)} #{inspect(self())}", state.color)
-    response
+    generate_transaction_response(enc_signed_create_tx, method: method)
   end
 
+  # this should be merged with SockerConnector.build_request no rpc stuff here.
   def generate_transaction_response(signed_payload, method: method) do
     response = %{jsonrpc: "2.0", method: method, params: %{signed_tx: signed_payload}}
     response
@@ -48,7 +47,7 @@ defmodule Signer do
 
     case verify_hook.(aetx, round_initiator, state) do
       :unsecure ->
-        {""}
+        ""
 
       :ok ->
         bin = :aetx.serialize_to_binary(aetx)
