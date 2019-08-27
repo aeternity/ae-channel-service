@@ -282,6 +282,16 @@ defmodule ClientRunner do
       fn pid, from ->
         SocketConnector.query_funds(pid, from)
       end},
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(5000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+      {:sync,
+      fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end},
     ]
 
     jobs_responder = [
@@ -306,6 +316,7 @@ defmodule ClientRunner do
         fn pid, from ->
           SocketConnector.query_funds(pid, from)
         end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
     ]
 
     {jobs_initiator, jobs_responder}

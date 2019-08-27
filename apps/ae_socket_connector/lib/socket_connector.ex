@@ -859,7 +859,7 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    signed_payload = Signer.sign_transaction_perform(pending_update, state, fn _tx, _round_initiator, _state -> :ok end)
+    signed_payload = Signer.sign_transaction_perform(pending_update, state, &Validator.inspect_transfer_request/3)
     # check if we have a backchannel if so request signing that way:
     response =
       case state.backchannel_sign_req_fun do
@@ -869,14 +869,6 @@ defmodule SocketConnector do
           mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
           Signer.generate_transaction_response(mutual_signed, method: return_method)
       end
-
-    # TODO need re-enable the validator.
-
-    # response =
-    #   Signer.sign_transaction(pending_update, &Validator.inspect_transfer_request/3, state,
-    #     method: return_method,
-    #     logstring: method
-    #   )
 
     # TODO
     # double check that the call_data is the calldata we produced
