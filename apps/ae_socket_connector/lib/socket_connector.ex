@@ -143,18 +143,16 @@ defmodule SocketConnector do
         _name,
         %__MODULE__{
           pub_key: pub_key,
-          priv_key: priv_key,
           role: role,
           channel_id: channel_id,
           nonce_and_updates: nonce_and_updates,
-          network_id: network_id
         } = state_channel_context,
         :reconnect,
         color,
         ws_manager_pid
       ) do
     {nonce, %Update{state_tx: _state_tx}} = Enum.max(nonce_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id)
+    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, state_channel_context)
     session_map = init_reconnect_map(reconnect_tx)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
@@ -174,7 +172,7 @@ defmodule SocketConnector do
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
-  def create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id) do
+  def create_reconnect_tx(channel_id, nonce, role, pub_key, state) do
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
 
     {:ok, aetx} =
@@ -186,22 +184,7 @@ defmodule SocketConnector do
       })
 
     # now we just sign it.
-    # TODO reuse code from singer....
-    bin = :aetx.serialize_to_binary(aetx)
-    # bin = signed_tx
-    bin_for_network = <<network_id::binary, bin::binary>>
-    result_signed = :enacl.sign_detached(bin_for_network, priv_key)
-    # if there are signatures already make sure to preserve them.
-    # signed_create_tx = :aetx_sign.new(aetx, [result_signed])
-    signed_create_tx = :aetx_sign.new(aetx, [result_signed])
-
-    {encoded_tx} =
-      {:aeser_api_encoder.encode(
-         :transaction,
-         :aetx_sign.serialize_to_binary(signed_create_tx)
-       )}
-
-    encoded_tx
+    Signer.sign_aetx(aetx, state)
   end
 
   @spec close_connection(pid) :: :ok
