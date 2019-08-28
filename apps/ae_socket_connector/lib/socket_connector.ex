@@ -24,7 +24,8 @@ defmodule SocketConnector do
             contract_call_in_flight_round: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall,
-            connection_callbacks: nil
+            connection_callbacks: nil,
+            backchannel_sign_req_fun: nil
 
   defmodule(Update,
     do:
@@ -142,18 +143,16 @@ defmodule SocketConnector do
         _name,
         %__MODULE__{
           pub_key: pub_key,
-          priv_key: priv_key,
           role: role,
           channel_id: channel_id,
           nonce_and_updates: nonce_and_updates,
-          network_id: network_id
         } = state_channel_context,
         :reconnect,
         color,
         ws_manager_pid
       ) do
     {nonce, %Update{state_tx: _state_tx}} = Enum.max(nonce_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id)
+    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, state_channel_context)
     session_map = init_reconnect_map(reconnect_tx)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
@@ -173,7 +172,7 @@ defmodule SocketConnector do
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
-  def create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id) do
+  def create_reconnect_tx(channel_id, nonce, role, pub_key, state) do
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
 
     {:ok, aetx} =
@@ -185,22 +184,7 @@ defmodule SocketConnector do
       })
 
     # now we just sign it.
-    # TODO reuse code from singer....
-    bin = :aetx.serialize_to_binary(aetx)
-    # bin = signed_tx
-    bin_for_network = <<network_id::binary, bin::binary>>
-    result_signed = :enacl.sign_detached(bin_for_network, priv_key)
-    # if there are signatures already make sure to preserve them.
-    # signed_create_tx = :aetx_sign.new(aetx, [result_signed])
-    signed_create_tx = :aetx_sign.new(aetx, [result_signed])
-
-    {encoded_tx} =
-      {:aeser_api_encoder.encode(
-         :transaction,
-         :aetx_sign.serialize_to_binary(signed_create_tx)
-       )}
-
-    encoded_tx
+    Signer.sign_aetx(aetx, state)
   end
 
   @spec close_connection(pid) :: :ok
@@ -216,6 +200,11 @@ defmodule SocketConnector do
   @spec initiate_transfer(pid, integer) :: :ok
   def initiate_transfer(pid, amount) do
     WebSockex.cast(pid, {:transfer, amount})
+  end
+
+  @spec initiate_transfer(pid, integer, backchannel_sign_req_fun) :: :ok when backchannel_sign_req_fun: fun()
+  def initiate_transfer(pid, amount, backchannel_sign_req_fun) do
+    WebSockex.cast(pid, {:transfer, amount, backchannel_sign_req_fun})
   end
 
   @spec deposit(pid, integer) :: :ok
@@ -311,6 +300,17 @@ defmodule SocketConnector do
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
+  end
+
+  def handle_cast({:transfer, amount, backchannel_sign_req_fun}, state) do
+    sync_call =
+      %SyncCall{request: request} =
+      transfer_amount(state.session.initiator, state.session.responder, amount)
+
+    Logger.info("=> transfer #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call, backchannel_sign_req_fun: backchannel_sign_req_fun}}
   end
 
   def handle_cast({:deposit, amount}, state) do
@@ -712,7 +712,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
@@ -728,7 +728,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.responder_sign",
         logstring: "responder_sign"
@@ -744,7 +744,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.deposit_tx",
         logstring: "initiator_sign"
@@ -760,7 +760,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.deposit_ack",
         logstring: "responder_sign"
@@ -776,7 +776,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.withdraw_tx",
         logstring: "initiator_sign"
@@ -792,7 +792,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.withdraw_ack",
         logstring: "responder_sign"
@@ -813,7 +813,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.shutdown_sign",
         logstring: "initiator_sign"
@@ -829,7 +829,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    {response} =
+    response =
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.shutdown_sign_ack",
         logstring: "initiator_sign"
@@ -859,11 +859,16 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    {response} =
-      Signer.sign_transaction(pending_update, &Validator.inspect_transfer_request/3, state,
-        method: return_method,
-        logstring: method
-      )
+    signed_payload = Signer.sign_transaction_perform(pending_update, state, &Validator.inspect_transfer_request/3)
+    # check if we have a backchannel if so request signing that way:
+    response =
+      case state.backchannel_sign_req_fun do
+        nil ->
+          Signer.generate_transaction_response(signed_payload, method: return_method)
+        _backchannel ->
+          mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
+          Signer.generate_transaction_response(mutual_signed, method: return_method)
+      end
 
     # TODO
     # double check that the call_data is the calldata we produced
@@ -874,7 +879,8 @@ defmodule SocketConnector do
        | pending_update: %{
            Validator.get_state_round(to_sign) => pending_update
          },
-         contract_call_in_flight: nil
+         contract_call_in_flight: nil,
+         backchannel_sign_req_fun: nil
      }}
   end
 
@@ -984,6 +990,21 @@ defmodule SocketConnector do
     end
   end
 
+  def produce_callback(state, round, method) do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+
+      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
+
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
+        channels_update.(round_initiator, round, method)
+        :ok
+    end
+  end
+
   def process_message(
         %{
           "method" => method,
@@ -1002,19 +1023,7 @@ defmodule SocketConnector do
       state.color
     )
 
-    case state.connection_callbacks do
-      nil ->
-        :ok
-
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
-        round = Validator.get_state_round(state_tx)
-
-        %Update{round_initiator: round_initiator} =
-          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
-
-        channels_update.(round_initiator, Validator.get_state_round(state_tx))
-        :ok
-    end
+    produce_callback(state, Validator.get_state_round(state_tx), method)
 
     # TODO this quite corse, we send it all, duplicated code.....
     GenServer.cast(
@@ -1037,36 +1046,20 @@ defmodule SocketConnector do
      }}
   end
 
-  # def process_message(
-  #       %{
-  #         "method" => "channels.sign.update_ack",
-  #         "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
-  #       } = _message,
-  #       state
-  #     ) do
-  #   {response} =
-  #     Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-  #       method: "channels.update_ack",
-  #       logstring: "responder_sign_update_ack"
-  #     )
-  #
-  #   # TODO
-  #   # double check that the call_data is the calldata we produced
-  #
-  #   {:reply, {:text, Poison.encode!(response)},
-  #    %__MODULE__{
-  #      state
-  #      | pending_update: %{
-  #          Validator.get_state_round(to_sign) => %Update{
-  #            updates: updates,
-  #            tx: to_sign,
-  #            contract_call: state.contract_call_in_flight,
-  #            round_initiator: :other
-  #          }
-  #        },
-  #        contract_call_in_flight: nil
-  #    }}
-  # end
+  def process_message(
+        %{
+          "method" => "channels.conflict" = method,
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"round" => round, "channel_id" => channel_id2}
+          }
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when channel_id == current_channel_id and channel_id == channel_id2 do
+    produce_callback(state, round + 1, method)
+    {:ok, state}
+  end
 
   def process_message(
         %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message,

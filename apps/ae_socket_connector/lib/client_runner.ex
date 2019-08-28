@@ -8,7 +8,7 @@ defmodule ClientRunner do
 
   def start_link(
         {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs,
-         _color} = params
+         _color, _name} = params
       ) do
     GenServer.start_link(__MODULE__, params)
   end
@@ -16,7 +16,7 @@ defmodule ClientRunner do
   # Server
   def init(
         {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url,
-         network_id, role, jobs, color}
+         network_id, role, jobs, color, name}
       ) do
     current_pid = self()
 
@@ -38,11 +38,10 @@ defmodule ClientRunner do
 
               auto_approval
             end,
-            channels_update: fn round_initiator, nonce ->
+            channels_update: fn round_initiator, nonce, method ->
               Logger.debug(
                 "callback received round is: #{inspect(nonce)} round_initiator is: #{
-                  inspect(round_initiator)
-                }}",
+                  inspect(round_initiator)} method is #{inspect(method)}}",
                 ansi_color: color
               )
 
@@ -65,7 +64,8 @@ defmodule ClientRunner do
         },
         ae_url,
         network_id,
-        color
+        color,
+        name
       )
 
     {:ok,
@@ -106,9 +106,6 @@ defmodule ClientRunner do
 
     {:noreply, %__MODULE__{state | job_list: remaining_jobs}}
   end
-
-  @ae_url "ws://localhost:3014/channel"
-  @network_id "my_test"
 
   def empty_jobs(interval) do
     Enum.map(interval, fn count ->
@@ -163,27 +160,8 @@ defmodule ClientRunner do
          SocketConnector.query_funds(pid, from)
        end},
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end}
-      # {:async, fn pid -> SocketConnector.leave(pid) end},
-      # {:local,
-      #  fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
     ]
 
-    # [
-    #   {:async,
-    #    fn pid ->
-    #      SocketConnector.withdraw(pid, 1_000_000)
-    #    end},
-    #   {:async,
-    #    fn pid ->
-    #      SocketConnector.deposit(pid, 1_200_000)
-    #    end}
-    # ] ++
-    # [
-    #   {:local,
-    #    fn _client_runner, pid_session_holder ->
-    #      SessionHolder.reestablish(pid_session_holder)
-    #    end}
-    # ] ++
     jobs_responder =
       empty_jobs(1..7) ++
         [
@@ -210,25 +188,44 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  def reconnect_jobs() do
+  def reestablish_jobs(_initiator, _responder) do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
       {:sync,
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
        end},
-      # {:async, fn pid -> SocketConnector.leave(pid) end},
-      # {:local,
-      #  fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
+      {:async, fn pid -> SocketConnector.leave(pid) end},
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
+    ]
+    jobs_responder =
+      empty_jobs(1..2) ++
+        [
+           {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.reestablish(pid_session_holder)
+           end},
+           {:sync,
+            fn pid, from ->
+              SocketConnector.query_funds(pid, from)
+            end}
+          ]
+    {jobs_initiator, jobs_responder}
+  end
+
+  def reconnect_jobs(_intiator, _responder) do
+    jobs_initiator = [
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+      {:sync,
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end},
     ]
 
     jobs_responder =
       empty_jobs(1..1) ++
         [
-           #{:local,
-           # fn _client_runner, pid_session_holder ->
-           #   SessionHolder.reestablish(pid_session_holder)
-           # end},
            {:sync,
             fn pid, from ->
               SocketConnector.query_funds(pid, from)
@@ -239,11 +236,6 @@ defmodule ClientRunner do
              GenServer.cast(client_runner, {:process_job_lists})
            end},
 
-          # {:local,
-          #  fn client_runner, pid_session_holder ->
-          #    SessionHolder.kill_connection(pid_session_holder)
-          #    GenServer.cast(client_runner, {:process_job_lists})
-          #  end},
           {:local,
            fn client_runner, _pid_session_holder ->
              Process.sleep(3000)
@@ -268,8 +260,77 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  def start_helper() do
-    {jobs_initiator, jobs_responder} = reconnect_jobs()
+  # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
+  def backchannel_jobs(initiator, _responder) do
+    jobs_initiator = [
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.close_connection(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(10000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.reconnect(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:sync,
+      fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end},
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(5000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+      {:sync,
+      fn pid, from ->
+        SocketConnector.query_funds(pid, from)
+      end},
+    ]
+
+    jobs_responder = [
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(3000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end},
+       {:sync,
+        fn pid, from ->
+          SocketConnector.query_funds(pid, from)
+        end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4,
+         fn(to_sign) ->
+           SessionHolder.backchannel_sign_request(initiator, to_sign)
+           # GenServer.call(initiator, {:sign_request, to_sign})
+           end)
+         end},
+       {:sync,
+        fn pid, from ->
+          SocketConnector.query_funds(pid, from)
+        end},
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+    ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
+  def start_helper(ae_url, network_id) do
+    start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
+  end
+
+  def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
+    {jobs_initiator, jobs_responder} = job_builder.(name_initator, name_responder)
 
     initiator_pub = TestAccounts.initiatorPubkey()
     responder_pub = TestAccounts.responderPubkey()
@@ -283,12 +344,12 @@ defmodule ClientRunner do
 
     start_link(
       {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :initiator, jobs_initiator, :yellow}
+       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
       {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, @ae_url, @network_id, :responder, jobs_responder, :blue}
+       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end
