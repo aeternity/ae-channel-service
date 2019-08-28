@@ -98,6 +98,7 @@ defmodule SocketConnector do
           color: [ansi_color: color]
       })
 
+    Logger.debug("started link pid is #{inspect(pid)}", ansi_color: color)
     start_ping(pid)
     {:ok, pid}
 
@@ -133,6 +134,78 @@ defmodule SocketConnector do
     {:ok, pid}
 
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
+  end
+
+  # "ws://localhost:3014/channel?port=14035&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuEBxaFk2dtVESM%2BzvaLXl319O%2B3%2FKYeLKk9pTEBCQsdAxR85LmHLHuI7gh7kuDE0X0iU33CymvyZhYREohGQFTIOuFX4U4ICPwGhBhcVvJBxDP091oeKLKHW8agBzefkBFITZPJHUXayn9anAYlpbml0aWF0b3KhASLZizA%2BhxzczTNVDD0TYeYxI0%2BWU4ivbUiUdyc9vIoepDdZMA%3D%3D&role=initiator"
+  # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
+  def start_link(
+        _name,
+        %__MODULE__{
+          pub_key: pub_key,
+          priv_key: priv_key,
+          role: role,
+          channel_id: channel_id,
+          nonce_and_updates: nonce_and_updates,
+          network_id: network_id
+        } = state_channel_context,
+        :reconnect,
+        color,
+        ws_manager_pid
+      ) do
+    {nonce, %Update{state_tx: _state_tx}} = Enum.max(nonce_and_updates)
+    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id)
+    session_map = init_reconnect_map(reconnect_tx)
+    ws_url = create_link(state_channel_context.ws_base, session_map)
+    Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
+
+    {:ok, pid} =
+      WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
+        state_channel_context
+        | ws_manager_pid: ws_manager_pid,
+          timer_reference: nil,
+          color: [ansi_color: color]
+      })
+
+    start_ping(pid)
+    {:ok, pid}
+
+    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
+  end
+
+  # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
+  def create_reconnect_tx(channel_id, nonce, role, pub_key, priv_key, network_id) do
+    {tag, channel} = :aeser_api_encoder.decode(channel_id)
+
+    {:ok, aetx} =
+      :aesc_client_reconnect_tx.new(%{
+        :channel_id => :aeser_id.create(tag, channel),
+        :round => nonce,
+        :role => role,
+        :pub_key => :aeser_id.create(:account, pub_key)
+      })
+
+    # now we just sign it.
+    # TODO reuse code from singer....
+    bin = :aetx.serialize_to_binary(aetx)
+    # bin = signed_tx
+    bin_for_network = <<network_id::binary, bin::binary>>
+    result_signed = :enacl.sign_detached(bin_for_network, priv_key)
+    # if there are signatures already make sure to preserve them.
+    # signed_create_tx = :aetx_sign.new(aetx, [result_signed])
+    signed_create_tx = :aetx_sign.new(aetx, [result_signed])
+
+    {encoded_tx} =
+      {:aeser_api_encoder.encode(
+         :transaction,
+         :aetx_sign.serialize_to_binary(signed_create_tx)
+       )}
+
+    encoded_tx
+  end
+
+  @spec close_connection(pid) :: :ok
+  def close_connection(pid) do
+    WebSockex.cast(pid, {:close_connection})
   end
 
   @spec start_ping(pid) :: :ok
@@ -192,8 +265,13 @@ defmodule SocketConnector do
 
   # server side
 
-  def handle_connect(_conn, state) do
-    # Logger.info("Connected! #{inspect conn}")
+  def terminate(reason, _state) do
+    Logger.info("Socket Terminating: #{inspect(reason)}")
+    exit(:normal)
+  end
+
+  def handle_connect(conn, state) do
+    Logger.info("Connected! #{inspect(conn)}", state.color)
     {:ok, state}
   end
 
@@ -218,6 +296,10 @@ defmodule SocketConnector do
 
     timer_reference = get_timer.(state.timer_reference)
     {:reply, :ping, %__MODULE__{state | timer_reference: timer_reference}}
+  end
+
+  def handle_cast({:close_connection}, state) do
+    {:close, state}
   end
 
   def handle_cast({:transfer, amount}, state) do
@@ -299,9 +381,9 @@ defmodule SocketConnector do
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
-    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data, _, _} =
+    {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
@@ -315,7 +397,7 @@ defmodule SocketConnector do
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
-    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
     owner_encoded = :aeser_api_encoder.encode(:account_pubkey, owner)
     # beware this code assumes that length(updates) == 1
     for {round,
@@ -352,7 +434,7 @@ defmodule SocketConnector do
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
-    {:ok, call_data, _, _} =
+    {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
@@ -547,7 +629,8 @@ defmodule SocketConnector do
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnecting...", state.color)
     :timer.cancel(state.timer_reference)
-    GenServer.cast(state.ws_manager_pid, {:connection_dropped, state})
+    # TODO this is redundant.
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     super(disconnect_map, state)
   end
 
@@ -571,6 +654,13 @@ defmodule SocketConnector do
       end
 
     Map.merge(same, role_map)
+  end
+
+  def init_reconnect_map(reconnect_tx) do
+    %{
+      protocol: "json-rpc",
+      reconnect_tx: reconnect_tx
+    }
   end
 
   def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role) do
@@ -900,7 +990,8 @@ defmodule SocketConnector do
           "params" => %{"channel_id" => channel_id, "data" => %{"state" => state_tx}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
-      ) when method == "channels.leave" or method == "channels.update"
+      )
+      when method == "channels.leave" or method == "channels.update"
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
 
@@ -917,10 +1008,24 @@ defmodule SocketConnector do
 
       %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
         round = Validator.get_state_round(state_tx)
-        %Update{round_initiator: round_initiator} = Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
         channels_update.(round_initiator, Validator.get_state_round(state_tx))
         :ok
     end
+
+    # TODO this quite corse, we send it all, duplicated code.....
+    GenServer.cast(
+      state.ws_manager_pid,
+      {:state_tx_update,
+       %__MODULE__{
+         state
+         | nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
+           pending_update: %{}
+       }}
+    )
 
     # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
 
