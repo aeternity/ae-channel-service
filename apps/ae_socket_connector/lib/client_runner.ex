@@ -261,6 +261,17 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
+  def close_solo(_initiator, _responder) do
+    jobs_initiator = [
+       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+       {:async, fn pid -> SocketConnector.close_solo(pid) end},
+    ]
+    jobs_responder = [
+    ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
   # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
   def backchannel_jobs(initiator, _responder) do
     jobs_initiator = [
@@ -325,7 +336,8 @@ defmodule ClientRunner do
   end
 
   def start_helper(ae_url, network_id) do
-    start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
+    # start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
+    start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)

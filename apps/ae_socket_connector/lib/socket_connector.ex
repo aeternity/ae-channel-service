@@ -197,6 +197,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:ping})
   end
 
+  @spec close_solo(pid) :: :ok
+  def close_solo(pid) do
+    WebSockex.cast(pid, {:close_solo})
+  end
+
   @spec initiate_transfer(pid, integer) :: :ok
   def initiate_transfer(pid, amount) do
     WebSockex.cast(pid, {:transfer, amount})
@@ -252,12 +257,7 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:get_contract_reponse, {pub_key, contract_file}, fun, from})
   end
 
-  # server side
-
-  def terminate(reason, _state) do
-    Logger.info("Socket Terminating: #{inspect(reason)}")
-    exit(:normal)
-  end
+  # Server side
 
   def handle_connect(conn, state) do
     Logger.info("Connected! #{inspect(conn)}", state.color)
@@ -289,6 +289,15 @@ defmodule SocketConnector do
 
   def handle_cast({:close_connection}, state) do
     {:close, state}
+  end
+
+  def handle_cast({:close_solo}, state) do
+    request =
+      build_request("channels.close_solo", %{})
+    Logger.info("=> close_solo #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:transfer, amount}, state) do
@@ -711,6 +720,22 @@ defmodule SocketConnector do
       Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.initiator_sign",
         logstring: "initiator_sign"
+      )
+
+    {:reply, {:text, Poison.encode!(response)}, state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.sign.close_solo_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
+        state
+      ) do
+    response =
+      Signer.sign_transaction(to_sign, fn _tx,  _round_initiator,  _state -> :ok end, state,
+        method: "channels.close_solo_sign",
+        logstring: "close_solo_sign"
       )
 
     {:reply, {:text, Poison.encode!(response)}, state}
