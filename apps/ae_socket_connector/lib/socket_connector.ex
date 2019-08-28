@@ -620,7 +620,7 @@ defmodule SocketConnector do
 
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
-    # Logger.info("Received Message: #{inspect msg} #{inspect message} #{inspect self()}")
+    # Logger.info("Received Message: #{inspect msg} #{inspect message} #{inspect self()}", state.color)
     process_message(message, state)
   end
 
@@ -733,7 +733,7 @@ defmodule SocketConnector do
         state
       ) do
     response =
-      Signer.sign_transaction(to_sign, fn _tx,  _round_initiator,  _state -> :ok end, state,
+      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
         method: "channels.close_solo_sign",
         logstring: "close_solo_sign"
       )

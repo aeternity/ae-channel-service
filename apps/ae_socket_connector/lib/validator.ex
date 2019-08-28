@@ -97,8 +97,20 @@ defmodule Validator do
       } ->
         # TODO this is not pretty
         {module, instance} = :aetx.specialize_callback(aetx)
-        round = apply(module, :round, [instance])
-        sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+        # Logger.debug("CONTENT: #{inspect apply(module, :for_client, [instance])}")
+        case module do
+          :aesc_close_solo_tx ->
+            %{"payload" => payload} = apply(module, :for_client, [instance])
+            {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, payload)
+            deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
+            aetx = :aetx_sign.tx(deserialized_signed_tx)
+            {module, instance} = :aetx.specialize_callback(aetx)
+            round = apply(module, :round, [instance])
+            sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+          _ ->
+            round = apply(module, :round, [instance])
+            sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+        end
     end
   end
 
