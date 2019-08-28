@@ -41,7 +41,7 @@ defmodule ClientRunner do
             channels_update: fn round_initiator, nonce, method ->
               Logger.debug(
                 "callback received round is: #{inspect(nonce)} round_initiator is: #{
-                  inspect(round_initiator)} method is #{inspect method}}",
+                  inspect(round_initiator)} method is #{inspect(method)}}",
                 ansi_color: color
               )
 

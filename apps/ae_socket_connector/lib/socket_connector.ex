@@ -202,7 +202,7 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:transfer, amount})
   end
 
-  @spec initiate_transfer(pid, integer) :: :ok
+  @spec initiate_transfer(pid, integer, backchannel_sign_req_fun) :: :ok when backchannel_sign_req_fun: fun()
   def initiate_transfer(pid, amount, backchannel_sign_req_fun) do
     WebSockex.cast(pid, {:transfer, amount, backchannel_sign_req_fun})
   end
