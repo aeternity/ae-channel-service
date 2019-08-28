@@ -71,8 +71,8 @@ defmodule SocketConnector do
           pub_key: _pub_key,
           priv_key: _priv_key,
           session: %WsConnection{
-            initiator: initiator,
-            responder: responder,
+            initiator: initiator_id,
+            responder: responder_id,
             initiator_amount: initiator_amount,
             responder_amount: responder_amount
           },
@@ -83,8 +83,6 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    initiator_id = :aeser_api_encoder.encode(:account_pubkey, initiator)
-    responder_id = :aeser_api_encoder.encode(:account_pubkey, responder)
     session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role)
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
@@ -174,13 +172,14 @@ defmodule SocketConnector do
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
   def create_reconnect_tx(channel_id, nonce, role, pub_key, state) do
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
+    {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
 
     {:ok, aetx} =
       :aesc_client_reconnect_tx.new(%{
         :channel_id => :aeser_id.create(tag, channel),
         :round => nonce,
         :role => role,
-        :pub_key => :aeser_id.create(:account, pub_key)
+        :pub_key => :aeser_id.create(:account, puk_key_decoded)
       })
 
     # now we just sign it.
@@ -404,32 +403,30 @@ defmodule SocketConnector do
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
-    owner_encoded = :aeser_api_encoder.encode(:account_pubkey, owner)
+    {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
     # beware this code assumes that length(updates) == 1
     for {round,
          %Update{
            updates: [
              %{
                "op" => "OffChainNewContract",
-               "owner" => ^owner_encoded,
+               "owner" => ^owner,
                "code" => ^encoded_bytecode
              }
            ]
          }} <- updates,
-        do: {round, :aect_contracts.compute_contract_pubkey(owner, round)}
+        do: {round, :aeser_api_encoder.encode(:contract_pubkey, :aect_contracts.compute_contract_pubkey(contract_owner, round))}
   end
 
   def find_contract_calls(caller, contract_pubkey, updates) do
-    caller_encoded = :aeser_api_encoder.encode(:account_pubkey, caller)
-    contract_pubkey_encoded = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey)
-
+    Logger.debug "Looking for contract with #{inspect contract_pubkey} caller #{inspect caller}"
     for {round,
          %Update{
            updates: [
              %{
                "op" => "OffChainCallContract",
-               "contract_id" => ^contract_pubkey_encoded,
-               "caller_id" => ^caller_encoded
+               "contract_id" => ^contract_pubkey,
+               "caller_id" => ^caller
              }
            ]
          }} <- updates,
@@ -444,14 +441,10 @@ defmodule SocketConnector do
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
 
-    [{_max_round, contract_pubkey_not_encoded} | _t] =
+    [{_max_round, contract_pubkey} | _t] =
       Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
-    # {_rounds, contract_pubkey_not_encoded} =
-    #   calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
-
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    contract_pubkey = :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey_not_encoded)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
 
     transfer = call_contract_req(contract_pubkey, encoded_calldata)
@@ -478,8 +471,8 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_contract_response_query(
-        :aeser_api_encoder.encode(:contract_pubkey, contract_pubkey),
-        :aeser_api_encoder.encode(:account_pubkey, state.pub_key),
+        contract_pubkey,
+        state.pub_key,
         max_round,
         from_pid
       )
@@ -532,15 +525,13 @@ defmodule SocketConnector do
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state, from_pid) do
     %WsConnection{initiator: initiator, responder: responder} = state.session
-    account_initiator = :aeser_api_encoder.encode(:account_pubkey, initiator)
-    account_responder = :aeser_api_encoder.encode(:account_pubkey, responder)
 
     make_sync(
       from_pid,
       %SyncCall{
         request:
           build_request("channels.get.balances", %{
-            accounts: [account_initiator, account_responder]
+            accounts: [initiator, responder]
           }),
         response: process_response("channels.get.balances", from_pid)
       }
@@ -548,14 +539,12 @@ defmodule SocketConnector do
   end
 
   def transfer_amount(from, to, amount) do
-    account_from = :aeser_api_encoder.encode(:account_pubkey, from)
-    account_to = :aeser_api_encoder.encode(:account_pubkey, to)
 
     %SyncCall{
       request:
         build_request("channels.update.new", %{
-          from: account_from,
-          to: account_to,
+          from: from,
+          to: to,
           amount: amount
         }),
       response: nil

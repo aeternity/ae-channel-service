@@ -118,8 +118,8 @@ defmodule ClientRunner do
   end
 
   def contract_jobs(_intiator, _responder) do
-    initiator_contract = {TestAccounts.initiatorPubkey(), "contracts/TicTacToe.aes"}
-    # responder_contract = {TestAccounts.responderPubkey(), "contracts/TicTacToe.aes"}
+    initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
+    # responder_contract = {TestAccounts.responderPubkeyEncoded(), "contracts/TicTacToe.aes"}
 
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
@@ -337,17 +337,17 @@ defmodule ClientRunner do
 
   def start_helper(ae_url, network_id) do
     # start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
-    start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
+    # start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
-    # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
+    start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
   end
 
   def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
     {jobs_initiator, jobs_responder} = job_builder.(name_initator, name_responder)
 
-    initiator_pub = TestAccounts.initiatorPubkey()
-    responder_pub = TestAccounts.responderPubkey()
+    initiator_pub = TestAccounts.initiatorPubkeyEncoded()
+    responder_pub = TestAccounts.responderPubkeyEncoded()
 
     state_channel_configuration = %SocketConnector.WsConnection{
       initiator: initiator_pub,
@@ -357,13 +357,13 @@ defmodule ClientRunner do
     }
 
     start_link(
-      {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
-       network_id, :initiator, jobs_initiator, :yellow, name_initator}
+      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(),
+       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
-      {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(), state_channel_configuration, ae_url,
-       network_id, :responder, jobs_responder, :blue, name_responder}
+      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(),
+       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end

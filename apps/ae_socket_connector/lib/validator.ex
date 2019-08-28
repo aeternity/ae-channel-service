@@ -25,8 +25,8 @@ defmodule Validator do
     responder_amount = apply(module, :responder_amount, [tx_instance])
 
     case (_sign_map = %WsConnection{
-            initiator: initiator_pub_key,
-            responder: responder_pub_key,
+            initiator: :aeser_api_encoder.encode(:account_pubkey, initiator_pub_key),
+            responder: :aeser_api_encoder.encode(:account_pubkey, responder_pub_key),
             initiator_amount: initiator_amount,
             responder_amount: responder_amount
           }) == state.session do
