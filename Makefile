@@ -4,6 +4,8 @@ mix := mix
 aeminer_path := apps/aecore/aeminer
 sparse_path := sparse
 sparse_git_path := $(sparse_path)/.git/info/sparse-checkout
+aecore_git_hash := ed54d2e625fdcf7cf7b0189cd213090edbf3a565
+aeminer_git_hash := 1cf2ecfd83f6ca3ec21a183f730083cf63ae7feb
 
 all: help
 
@@ -45,7 +47,7 @@ $(sparse_path)/: ## Get dependencies from Aeternity Core and build Elixir wrappe
 	echo "aecontract" >> $(sparse_git_path)
 	cd $@ && \
 		git pull origin master && \
-		git checkout a2fdf3bfcc1a0610e9bf02a4abe7a42b28dfb4e0
+		git checkout $(aecore_git_hash)
 	cd $@apps && \
 		yes | $(mix) new aecore && \
 		yes | $(mix) new aetx && \
@@ -54,14 +56,13 @@ $(sparse_path)/: ## Get dependencies from Aeternity Core and build Elixir wrappe
 
 $(aeminer_path)/: ## Get known version of aeminer
 	git clone https://github.com/aeternity/aeminer.git $@
-	cd $@ && git checkout 1cf2ecfd83f6ca3ec21a183f730083cf63ae7feb
+	cd $@ && git checkout ${aeminer_git_hash}
 
 .PHONY: prepare
 prepare: $(sparse_path)/ $(aeminer_path)/
 prepare: ## Get and prepare additional dependencies from Aeternity Core
 	cp -r $(sparse_path)/apps .
-	git apply patches/0001-aechannel-now-builds.patch
-	git apply patches/0001-aecore-patches.patch
+	$(foreach p,$(wildcard ./patches/*.patch),git apply ${p};)
 
 .PHONY: help
 help:
