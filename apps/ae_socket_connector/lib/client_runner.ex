@@ -263,11 +263,11 @@ defmodule ClientRunner do
 
   def close_solo(_initiator, _responder) do
     jobs_initiator = [
-       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
-       {:async, fn pid -> SocketConnector.close_solo(pid) end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+      {:async, fn pid -> SocketConnector.close_solo(pid) end}
     ]
-    jobs_responder = [
-    ]
+
+    jobs_responder = []
 
     {jobs_initiator, jobs_responder}
   end
@@ -357,13 +357,13 @@ defmodule ClientRunner do
     }
 
     start_link(
-      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow, name_initator}
+      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
+       network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
-      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue, name_responder}
+      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(), state_channel_configuration, ae_url,
+       network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end

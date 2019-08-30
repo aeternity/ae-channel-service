@@ -1,5 +1,4 @@
 defmodule Validator do
-
   require Logger
   alias SocketConnector.WsConnection
 
@@ -58,6 +57,7 @@ defmodule Validator do
       } ->
         # TODO this is not pretty
         {module, instance} = :aetx.specialize_callback(aetx)
+
         case module do
           :aesc_close_solo_tx ->
             %{"payload" => payload} = apply(module, :for_client, [instance])
@@ -67,6 +67,7 @@ defmodule Validator do
             {module, instance} = :aetx.specialize_callback(aetx)
             round = apply(module, :round, [instance])
             sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+
           _ ->
             round = apply(module, :round, [instance])
             sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))

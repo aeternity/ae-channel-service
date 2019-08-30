@@ -291,12 +291,10 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:close_solo}, state) do
-    request =
-      build_request("channels.close_solo", %{})
+    request = build_request("channels.close_solo", %{})
     Logger.info("=> close_solo #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:transfer, amount}, state) do
@@ -415,11 +413,17 @@ defmodule SocketConnector do
              }
            ]
          }} <- updates,
-        do: {round, :aeser_api_encoder.encode(:contract_pubkey, :aect_contracts.compute_contract_pubkey(contract_owner, round))}
+        do:
+          {round,
+           :aeser_api_encoder.encode(
+             :contract_pubkey,
+             :aect_contracts.compute_contract_pubkey(contract_owner, round)
+           )}
   end
 
   def find_contract_calls(caller, contract_pubkey, updates) do
-    Logger.debug "Looking for contract with #{inspect contract_pubkey} caller #{inspect caller}"
+    Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
+
     for {round,
          %Update{
            updates: [
@@ -441,8 +445,7 @@ defmodule SocketConnector do
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] =
-      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
@@ -539,7 +542,6 @@ defmodule SocketConnector do
   end
 
   def transfer_amount(from, to, amount) do
-
     %SyncCall{
       request:
         build_request("channels.update.new", %{
