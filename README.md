@@ -7,8 +7,7 @@ This implementation benefits by being able calling erlang functions provided by 
 ## Build
 
 ```
-./clone.sh
-mix deps.get
+make clean deps compile
 iex -S mix
 ```
 requires OTP 20.3

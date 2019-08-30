@@ -7,16 +7,16 @@ defmodule ClientRunner do
             job_list: nil
 
   def start_link(
-        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs,
-         _color, _name} = params
+        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs, _color, _name} =
+          params
       ) do
     GenServer.start_link(__MODULE__, params)
   end
 
   # Server
   def init(
-        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url,
-         network_id, role, jobs, color, name}
+        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url, network_id,
+         role, jobs, color, name}
       ) do
     current_pid = self()
 
@@ -30,9 +30,9 @@ defmodule ClientRunner do
           connection_callbacks: %SocketConnector.ConnectionCallbacks{
             sign_approve: fn round_initiator, round, auto_approval, human ->
               Logger.debug(
-                "Sign request for round: #{inspect(round)}, initated by: #{
-                  inspect(round_initiator)
-                }. auto_approval: #{inspect(auto_approval)}, containing: #{inspect(human)}",
+                "Sign request for round: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
+                  inspect(auto_approval)
+                }, containing: #{inspect(human)}",
                 ansi_color: color
               )
 
@@ -40,8 +40,9 @@ defmodule ClientRunner do
             end,
             channels_update: fn round_initiator, nonce, method ->
               Logger.debug(
-                "callback received round is: #{inspect(nonce)} round_initiator is: #{
-                  inspect(round_initiator)} method is #{inspect(method)}}",
+                "callback received round is: #{inspect(nonce)} round_initiator is: #{inspect(round_initiator)} method is #{
+                  inspect(method)
+                }}",
                 ansi_color: color
               )
 
@@ -196,21 +197,22 @@ defmodule ClientRunner do
          SocketConnector.query_funds(pid, from)
        end},
       {:async, fn pid -> SocketConnector.leave(pid) end},
-      {:local,
-       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
+      {:local, fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end}
     ]
+
     jobs_responder =
       empty_jobs(1..2) ++
         [
-           {:local,
+          {:local,
            fn _client_runner, pid_session_holder ->
              SessionHolder.reestablish(pid_session_holder)
            end},
-           {:sync,
-            fn pid, from ->
-              SocketConnector.query_funds(pid, from)
-            end}
-          ]
+          {:sync,
+           fn pid, from ->
+             SocketConnector.query_funds(pid, from)
+           end}
+        ]
+
     {jobs_initiator, jobs_responder}
   end
 
@@ -220,22 +222,21 @@ defmodule ClientRunner do
       {:sync,
        fn pid, from ->
          SocketConnector.query_funds(pid, from)
-       end},
+       end}
     ]
 
     jobs_responder =
       empty_jobs(1..1) ++
         [
-           {:sync,
-            fn pid, from ->
-              SocketConnector.query_funds(pid, from)
-            end},
+          {:sync,
+           fn pid, from ->
+             SocketConnector.query_funds(pid, from)
+           end},
           {:local,
            fn client_runner, pid_session_holder ->
              SessionHolder.close_connection(pid_session_holder)
              GenServer.cast(client_runner, {:process_job_lists})
            end},
-
           {:local,
            fn client_runner, _pid_session_holder ->
              Process.sleep(3000)
@@ -246,10 +247,10 @@ defmodule ClientRunner do
              SessionHolder.reconnect(pid_session_holder)
              GenServer.cast(client_runner, {:process_job_lists})
            end},
-         {:sync,
-          fn pid, from ->
-            SocketConnector.query_funds(pid, from)
-          end},
+          {:sync,
+           fn pid, from ->
+             SocketConnector.query_funds(pid, from)
+           end},
           {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
           {:sync,
            fn pid, from ->
@@ -279,9 +280,9 @@ defmodule ClientRunner do
          GenServer.cast(client_runner, {:process_job_lists})
        end},
       {:sync,
-      fn pid, from ->
-        SocketConnector.query_funds(pid, from)
-      end},
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end},
       {:local,
        fn client_runner, _pid_session_holder ->
          Process.sleep(5000)
@@ -289,9 +290,9 @@ defmodule ClientRunner do
        end},
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
       {:sync,
-      fn pid, from ->
-        SocketConnector.query_funds(pid, from)
-      end},
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end}
     ]
 
     jobs_responder = [
@@ -300,23 +301,24 @@ defmodule ClientRunner do
          Process.sleep(3000)
          GenServer.cast(client_runner, {:process_job_lists})
        end},
-       {:sync,
-        fn pid, from ->
-          SocketConnector.query_funds(pid, from)
-        end},
-       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
-       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
-       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 4,
-         fn(to_sign) ->
+      {:sync,
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end},
+      {:async,
+       fn pid ->
+         SocketConnector.initiate_transfer(pid, 4, fn to_sign ->
            SessionHolder.backchannel_sign_request(initiator, to_sign)
            # GenServer.call(initiator, {:sign_request, to_sign})
-           end)
-         end},
-       {:sync,
-        fn pid, from ->
-          SocketConnector.query_funds(pid, from)
-        end},
-       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end},
+         end)
+       end},
+      {:sync,
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end},
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end}
     ]
 
     {jobs_initiator, jobs_responder}
@@ -343,13 +345,13 @@ defmodule ClientRunner do
     }
 
     start_link(
-      {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow, name_initator}
+      {TestAccounts.initiatorPubkey(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
+       network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
-      {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue, name_responder}
+      {TestAccounts.responderPubkey(), TestAccounts.responderPrivkey(), state_channel_configuration, ae_url,
+       network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end

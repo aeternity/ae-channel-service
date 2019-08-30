@@ -128,9 +128,7 @@ defmodule Validator do
           channel_create_tx(aetx, state)
 
         _other ->
-          Logger.debug(
-            "Sign request Missing inspection!! default approved. Module is #{inspect(module)}"
-          )
+          Logger.debug("Sign request Missing inspection!! default approved. Module is #{inspect(module)}")
 
           :ok
       end
