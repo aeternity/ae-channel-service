@@ -13,61 +13,63 @@ defmodule ClientRunner do
     GenServer.start_link(__MODULE__, params)
   end
 
+  def connection_callback(callback_pid, color) do
+    %SocketConnector.ConnectionCallbacks{
+      sign_approve: fn round_initiator, round, auto_approval, human ->
+        Logger.debug(
+          "Sign request for round: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
+            inspect(auto_approval)
+          }, containing: #{inspect(human)}",
+          ansi_color: color
+        )
+
+        auto_approval
+      end,
+      channels_update: fn round_initiator, round, method ->
+        Logger.debug(
+          "callback received round is: #{inspect(round)} round_initiator is: #{inspect(round_initiator)} method is #{
+            inspect(method)
+          }}",
+          ansi_color: color
+        )
+
+        case round_initiator do
+          :self ->
+            GenServer.cast(callback_pid, {:process_job_lists})
+
+          :other ->
+            GenServer.cast(callback_pid, {:process_job_lists})
+
+          :transient ->
+            # connect/reconnect allow grace period before resuming
+            spawn(fn ->
+              Process.sleep(500)
+              GenServer.cast(callback_pid, {:process_job_lists})
+            end)
+        end
+      end
+    }
+  end
+
   # Server
   def init(
         {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url, network_id,
          role, jobs, color, name}
       ) do
-    current_pid = self()
-
     {:ok, pid_session_holder} =
-      SessionHolder.start_link(
-        %SocketConnector{
+      SessionHolder.start_link(%{
+        socket_connector: %SocketConnector{
           pub_key: pub_key,
           priv_key: priv_key,
           session: state_channel_configuration,
           role: role,
-          connection_callbacks: %SocketConnector.ConnectionCallbacks{
-            sign_approve: fn round_initiator, round, auto_approval, human ->
-              Logger.debug(
-                "Sign request for round: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
-                  inspect(auto_approval)
-                }, containing: #{inspect(human)}",
-                ansi_color: color
-              )
-
-              auto_approval
-            end,
-            channels_update: fn round_initiator, nonce, method ->
-              Logger.debug(
-                "callback received round is: #{inspect(nonce)} round_initiator is: #{inspect(round_initiator)} method is #{
-                  inspect(method)
-                }}",
-                ansi_color: color
-              )
-
-              case round_initiator do
-                :self ->
-                  GenServer.cast(current_pid, {:process_job_lists})
-
-                :other ->
-                  GenServer.cast(current_pid, {:process_job_lists})
-
-                :transient ->
-                  # connect/reconnect allow grace period before resuming
-                  spawn(fn ->
-                    Process.sleep(500)
-                    GenServer.cast(current_pid, {:process_job_lists})
-                  end)
-              end
-            end
-          }
+          connection_callbacks: connection_callback(self(), color)
         },
-        ae_url,
-        network_id,
-        color,
-        name
-      )
+        ae_url: ae_url,
+        network_id: network_id,
+        color: color,
+        pid_name: name
+      })
 
     {:ok,
      %__MODULE__{
@@ -337,9 +339,9 @@ defmodule ClientRunner do
 
   def start_helper(ae_url, network_id) do
     # start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
-    start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
+    # start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
-    # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
+    start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
   end
 
