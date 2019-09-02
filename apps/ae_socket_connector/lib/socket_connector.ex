@@ -299,9 +299,18 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
+  defp transfer_from(amount, state) do
+    case state.role do
+      :initiator ->
+        transfer_amount(state.session.initiator, state.session.responder, amount)
+
+      :responder ->
+        transfer_amount(state.session.responder, state.session.initiator, amount)
+    end
+  end
+
   def handle_cast({:transfer, amount}, state) do
-    sync_call =
-      %SyncCall{request: request} = transfer_amount(state.session.initiator, state.session.responder, amount)
+    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
 
     Logger.info("=> transfer #{inspect(request)}", state.color)
 
@@ -310,8 +319,7 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:transfer, amount, backchannel_sign_req_fun}, state) do
-    sync_call =
-      %SyncCall{request: request} = transfer_amount(state.session.initiator, state.session.responder, amount)
+    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
 
     Logger.info("=> transfer #{inspect(request)}", state.color)
 
@@ -323,7 +331,7 @@ defmodule SocketConnector do
          backchannel_sign_req_fun: backchannel_sign_req_fun
      }}
   end
-
+  
   def handle_cast({:deposit, amount}, state) do
     transfer =
       build_request("channels.deposit", %{
