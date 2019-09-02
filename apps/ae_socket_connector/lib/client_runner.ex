@@ -389,11 +389,15 @@ defmodule ClientRunner do
   end
 
   def start_helper(ae_url, network_id) do
-    # start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
-    # start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
-    # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
-    # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
-    start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
+    start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
+    Process.sleep(5000)
+    start_helper(ae_url, network_id, :alice1, :bob1, &close_solo/2)
+    Process.sleep(5000)
+    start_helper(ae_url, network_id, :alice3, :bob3, &reconnect_jobs/2)
+    Process.sleep(5000)
+    start_helper(ae_url, network_id, :alice4, :bob4, &contract_jobs/2)
+    Process.sleep(5000)
+    start_helper(ae_url, network_id, :alice5, :bob5, &reestablish_jobs/2)
   end
 
   def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
