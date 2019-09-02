@@ -79,6 +79,23 @@ defmodule ClientRunner do
      }}
   end
 
+  # TODO time to move this module to ex unit
+  def expected(response, {account1, value1}, {account2, value2}) do
+    expect = Enum.sort([%{"account" => account1, "balance" => value1}, %{"account" => account2, "balance" => value2}])
+    Logger.debug "expected #{inspect Enum.sort(expect)} got #{inspect response}"
+    ^expect = Enum.sort(response)
+  end
+
+  def assert_funds_job({account1, value1}, {account2, value2}) do
+    {:sync,
+     fn pid, from ->
+       SocketConnector.query_funds(pid, from)
+     end,
+     fn result ->
+       expected(result, {account1, value1}, {account2, value2})
+     end}
+  end
+
   def handle_cast({:process_job_lists}, state) do
     remaining_jobs =
       case Enum.count(state.job_list) do
@@ -88,7 +105,7 @@ defmodule ClientRunner do
 
         remaining ->
           Logger.debug("Sequence remainin jobs #{inspect(remaining)}", state.color)
-          [{mode, fun} | rest] = state.job_list
+          [{mode, fun, assert_fun} | rest] = state.job_list
 
           case mode do
             :async ->
@@ -96,6 +113,10 @@ defmodule ClientRunner do
 
             :sync ->
               response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+              case assert_fun do
+                :empty -> :empty
+                _ -> assert_fun.(response)
+              end
               Logger.debug("sync response is: #{inspect(response)}", state.color)
               # Logger.error("sync response is: #{inspect(response)}")
               GenServer.cast(self(), {:process_job_lists})
@@ -115,7 +136,7 @@ defmodule ClientRunner do
       {:local,
        fn _client_runner, _pid_session_holder ->
          Logger.debug("doing nothing #{inspect(count)}", ansi_color: :white)
-       end}
+       end, :empty}
     end)
   end
 
@@ -218,13 +239,11 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  def reconnect_jobs(_intiator, _responder) do
+  def reconnect_jobs({intiator, intiator_account}, {responder, responder_account}) do
     jobs_initiator = [
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end}
+      assert_funds_job({intiator_account, 6999999999999}, {responder_account, 4000000000001}),
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+      assert_funds_job({intiator_account, 6999999999997}, {responder_account, 4000000000003})
     ]
 
     jobs_responder =
@@ -233,31 +252,25 @@ defmodule ClientRunner do
           {:sync,
            fn pid, from ->
              SocketConnector.query_funds(pid, from)
-           end},
+           end, :empty},
           {:local,
            fn client_runner, pid_session_holder ->
              SessionHolder.close_connection(pid_session_holder)
              GenServer.cast(client_runner, {:process_job_lists})
-           end},
+           end, :empty},
           {:local,
            fn client_runner, _pid_session_holder ->
              Process.sleep(3000)
              GenServer.cast(client_runner, {:process_job_lists})
-           end},
+           end, :empty},
           {:local,
            fn client_runner, pid_session_holder ->
              SessionHolder.reconnect(pid_session_holder)
              GenServer.cast(client_runner, {:process_job_lists})
-           end},
-          {:sync,
-           fn pid, from ->
-             SocketConnector.query_funds(pid, from)
-           end},
-          {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end},
-          {:sync,
-           fn pid, from ->
-             SocketConnector.query_funds(pid, from)
-           end}
+           end, :empty},
+          assert_funds_job({intiator_account, 6999999999997}, {responder_account, 4000000000003}),
+          {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+          assert_funds_job({intiator_account, 6999999999999}, {responder_account, 4000000000001})
         ]
 
     {jobs_initiator, jobs_responder}
@@ -340,16 +353,17 @@ defmodule ClientRunner do
   def start_helper(ae_url, network_id) do
     # start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
     # start_helper(ae_url, network_id, :alice, :bob, &close_solo/2)
-    # start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
-    start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
+    start_helper(ae_url, network_id, :alice2, :bob2, &reconnect_jobs/2)
+    # start_helper(ae_url, network_id, :alice2, :bob2, &contract_jobs/2)
     # start_helper(ae_url, network_id, :alice2, :bob2, &reestablish_jobs/2)
   end
 
   def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
-    {jobs_initiator, jobs_responder} = job_builder.(name_initator, name_responder)
-
     initiator_pub = TestAccounts.initiatorPubkeyEncoded()
     responder_pub = TestAccounts.responderPubkeyEncoded()
+
+    {jobs_initiator, jobs_responder} = job_builder.({name_initator, initiator_pub}, {name_responder, responder_pub})
+
 
     state_channel_configuration = %SocketConnector.WsConnection{
       initiator: initiator_pub,
