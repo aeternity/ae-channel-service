@@ -15,7 +15,7 @@ deps: ## Get and compile Elixir dependencies
 	$(mix) deps.get
 
 .PHONY: compile
-compile: ## BROKEN: Compile Elixir code
+compile: ## Compile Elixir code
 	$(mix) compile
 
 .PHONY: shell
