@@ -388,16 +388,27 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
+  def joblist(),
+    do: [
+      &backchannel_jobs/2,
+      &close_solo/2,
+      &reconnect_jobs/2,
+      &contract_jobs/2,
+      &reestablish_jobs/2
+    ]
+
+  def gen_name(name, suffix) do
+    String.to_atom(to_string(name) <> Integer.to_string(suffix))
+  end
+
+  # to give the FSM a fair chance to pair together the peers. We are using same two accouts for every connection
+  @grace_period_ms 5000
+
   def start_helper(ae_url, network_id) do
-    start_helper(ae_url, network_id, :alice, :bob, &backchannel_jobs/2)
-    Process.sleep(5000)
-    start_helper(ae_url, network_id, :alice1, :bob1, &close_solo/2)
-    Process.sleep(5000)
-    start_helper(ae_url, network_id, :alice3, :bob3, &reconnect_jobs/2)
-    Process.sleep(5000)
-    start_helper(ae_url, network_id, :alice4, :bob4, &contract_jobs/2)
-    Process.sleep(5000)
-    start_helper(ae_url, network_id, :alice5, :bob5, &reestablish_jobs/2)
+    Enum.each(Enum.zip(joblist(), 1..Enum.count(joblist())), fn {fun, suffix} ->
+      start_helper(ae_url, network_id, gen_name(:alice, suffix), gen_name(:bob, suffix), fun)
+      Process.sleep(@grace_period_ms)
+    end)
   end
 
   def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
