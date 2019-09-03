@@ -12,11 +12,15 @@ all: help
 .PHONY: deps
 deps: prepare
 deps: ## Get and compile Elixir dependencies
-	$(mix) do deps.get, deps.compile
+	$(mix) deps.get
 
 .PHONY: compile
 compile: ## Compile Elixir code
 	$(mix) compile
+
+.PHONY: shell
+shell: ## Launch a mix shell with all modules compiled and loaded
+	iex -S mix
 
 .PHONY: format
 format: ## Format Elixir code
@@ -48,7 +52,7 @@ $(sparse_path)/: ## Get dependencies from Aeternity Core and build Elixir wrappe
 	cd $@ && \
 		git pull origin master && \
 		git checkout $(aecore_git_hash)
-	cd $@apps && \
+	cd $@/apps && \
 		yes | $(mix) new aecore && \
 		yes | $(mix) new aetx && \
 		yes | $(mix) new aechannel && \
