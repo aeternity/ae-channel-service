@@ -331,7 +331,7 @@ defmodule SocketConnector do
          backchannel_sign_req_fun: backchannel_sign_req_fun
      }}
   end
-  
+
   def handle_cast({:deposit, amount}, state) do
     transfer =
       build_request("channels.deposit", %{
@@ -979,13 +979,10 @@ defmodule SocketConnector do
     {:ok, state_update}
   end
 
-  # @forgiving :error
-  @forgiving :ok
-
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("error")
     Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
-    {@forgiving, state}
+    {:error, state}
   end
 
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
@@ -996,7 +993,7 @@ defmodule SocketConnector do
           case response do
             nil ->
               Logger.error("Not implemented received data is: #{inspect(query_reponse)}")
-              {@forgiving, state}
+              {:error, state}
 
             _ ->
               response.(query_reponse, state)
@@ -1020,7 +1017,7 @@ defmodule SocketConnector do
       }"
     )
 
-    {@forgiving, state}
+    {:error, state}
   end
 
   def check_updated(state_tx, pending_map) do
