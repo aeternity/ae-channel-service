@@ -417,6 +417,81 @@ defmodule ClientRunner do
      end, :empty}
   end
 
+  # reconstruct https://www.pivotaltracker.com/n/projects/2124891/stories/167944617
+  def withdraw_after_reestablish(
+        {initiator, _intiator_account},
+        {responder, _responder_account},
+        runner_pid
+      ) do
+    jobs_initiator = [
+      {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end,
+       :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.withdraw(pid, 1_000_000)
+       end, :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.deposit(pid, 1_200_000)
+       end, :empty},
+      sequence_finish_job(runner_pid, initiator)
+    ]
+
+    jobs_responder =
+      empty_jobs(1..1) ++
+        [
+          {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.reestablish(pid_session_holder)
+           end, :empty},
+          sequence_finish_job(runner_pid, responder)
+        ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
+  # reconstruct https://www.pivotaltracker.com/n/projects/2124891/stories/167944617
+  def withdraw_after_reconnect(
+        {initiator, _intiator_account},
+        {responder, _responder_account},
+        runner_pid
+      ) do
+    jobs_initiator = [
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.close_connection(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      {:local,
+       fn client_runner, _pid_session_holder ->
+         Process.sleep(1000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.reconnect(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.withdraw(pid, 1_000_000)
+       end, :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.deposit(pid, 1_200_000)
+       end, :empty},
+      sequence_finish_job(runner_pid, initiator)
+    ]
+
+    jobs_responder = [
+      sequence_finish_job(runner_pid, responder)
+    ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
   # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
   def backchannel_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
     jobs_initiator = [
@@ -479,6 +554,7 @@ defmodule ClientRunner do
 
   def start_helper(ae_url, network_id) do
     Enum.each(Enum.zip(joblist(), 1..Enum.count(joblist())), fn {fun, suffix} ->
+      Logger.info("Launching next job in queue")
       start_helper(ae_url, network_id, gen_name(:alice, suffix), gen_name(:bob, suffix), fun)
       Process.sleep(@grace_period_ms)
     end)
