@@ -15,6 +15,7 @@ defmodule ClientRunner do
 
   def connection_callback(callback_pid, color) do
     %SocketConnector.ConnectionCallbacks{
+      # auto approval is the suggested response. Typically if initiated by us and matches with our request we should approve.
       sign_approve: fn round_initiator, round, auto_approval, human ->
         Logger.debug(
           "Sign request for round: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
