@@ -7,8 +7,8 @@ defmodule ClientRunner do
             job_list: nil
 
   def start_link(
-        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs,
-         _color, _name} = params
+        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs, _color, _name} =
+          params
       ) do
     GenServer.start_link(__MODULE__, params)
   end
@@ -27,9 +27,9 @@ defmodule ClientRunner do
       end,
       channels_update: fn round_initiator, round, method ->
         Logger.debug(
-          "callback received round is: #{inspect(round)} round_initiator is: #{
-            inspect(round_initiator)
-          } method is #{inspect(method)}}",
+          "callback received round is: #{inspect(round)} round_initiator is: #{inspect(round_initiator)} method is #{
+            inspect(method)
+          }}",
           ansi_color: color
         )
 
@@ -53,8 +53,8 @@ defmodule ClientRunner do
 
   # Server
   def init(
-        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url,
-         network_id, role, jobs, color, name}
+        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url, network_id,
+         role, jobs, color, name}
       ) do
     {:ok, pid_session_holder} =
       SessionHolder.start_link(%{
@@ -240,9 +240,7 @@ defmodule ClientRunner do
          SocketConnector.query_funds(pid, from)
        end, :empty},
       {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-      {:local,
-       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end,
-       :empty}
+      {:local, fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end, :empty}
     ]
 
     jobs_responder =
@@ -426,15 +424,13 @@ defmodule ClientRunner do
     }
 
     start_link(
-      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(),
-       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow,
-       name_initator}
+      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
+       network_id, :initiator, jobs_initiator, :yellow, name_initator}
     )
 
     start_link(
-      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(),
-       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue,
-       name_responder}
+      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(), state_channel_configuration, ae_url,
+       network_id, :responder, jobs_responder, :blue, name_responder}
     )
   end
 end

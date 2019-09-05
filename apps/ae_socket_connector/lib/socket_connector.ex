@@ -295,8 +295,7 @@ defmodule SocketConnector do
     request = build_request("channels.close_solo", %{})
     Logger.info("=> close_solo #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   defp transfer_from(amount, state) do
@@ -340,8 +339,7 @@ defmodule SocketConnector do
 
     Logger.info("=> deposit #{inspect(transfer)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
   def handle_cast({:withdraw, amount}, state) do
@@ -352,8 +350,7 @@ defmodule SocketConnector do
 
     Logger.info("=> withdraw #{inspect(transfer)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
   def handle_cast({:query_funds, from_pid}, state) do
@@ -386,41 +383,35 @@ defmodule SocketConnector do
     transfer = build_request("channels.shutdown")
     Logger.info("=> shutdown #{inspect(transfer)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
   def handle_cast({:leave, {}}, state) do
     transfer = build_request("channels.leave")
     Logger.info("=> leave #{inspect(transfer)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
 
-    encoded_bytecode =
-      :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     transfer = new_contract_req(encoded_bytecode, encoded_calldata, 3)
     Logger.info("=> new contract #{inspect(transfer)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)},
-     %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
   end
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
 
-    encoded_bytecode =
-      :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
     # beware this code assumes that length(updates) == 1
@@ -443,9 +434,7 @@ defmodule SocketConnector do
   end
 
   def find_contract_calls(caller, contract_pubkey, updates) do
-    Logger.debug(
-      "Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}"
-    )
+    Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
 
     for {round,
          %Update{
@@ -464,13 +453,11 @@ defmodule SocketConnector do
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
-    {:ok, call_data} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] =
-      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
@@ -490,8 +477,7 @@ defmodule SocketConnector do
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] =
-      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     rounds = find_contract_calls(state.pub_key, contract_pubkey, state.round_and_updates)
     # TODO now we per default get the last call, until we expose round to client.
@@ -1011,11 +997,7 @@ defmodule SocketConnector do
   # wrong unexpected id in response.
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id != pending_id do
-    Logger.error(
-      "<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{
-        inspect(pending_id)
-      }"
-    )
+    Logger.error("<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{inspect(pending_id)}")
 
     {:error, state}
   end
@@ -1141,9 +1123,7 @@ defmodule SocketConnector do
   end
 
   def process_message(message, state) do
-    Logger.error(
-      "<= unprocessed message recieved by #{inspect(state.role)}. message: #{inspect(message)}"
-    )
+    Logger.error("<= unprocessed message recieved by #{inspect(state.role)}. message: #{inspect(message)}")
 
     {:ok, state}
   end
