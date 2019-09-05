@@ -1,11 +1,6 @@
 defmodule TestAccounts do
   def responderPubkeyEncoded() do
-    # here you can return account in format "ak_26xYuZJn..."
-    pub_key =
-      <<145, 57, 82, 197, 159, 203, 87, 93, 38, 245, 163, 158, 237, 249, 101, 141, 158, 185, 198, 87, 190, 11, 15,
-        96, 80, 225, 138, 111, 252, 37, 59, 79>>
-
-    :aeser_api_encoder.encode(:account_pubkey, pub_key)
+    "ak_26xYuZJnxpjuBqkvXQ4EKb4Ludt8w3rGWREvEwm68qdtJLyLwq"
   end
 
   def responderPrivkey() do
@@ -15,12 +10,7 @@ defmodule TestAccounts do
   end
 
   def initiatorPubkeyEncoded do
-    # here you can return account in format "ak_26xYuZJn..."
-    pub_key =
-      <<106, 184, 29, 213, 77, 73, 184, 77, 59, 65, 33, 156, 241, 78, 239, 173, 39, 2, 126, 254, 111, 28, 73, 150,
-        6, 150, 66, 20, 47, 81, 213, 154>>
-
-    :aeser_api_encoder.encode(:account_pubkey, pub_key)
+    "ak_ozzwBYeatmuN818LjDDDwRSiBSvrqt4WU7WvbGsZGVre72LTS"
   end
 
   def initiatorPrivkey() do
