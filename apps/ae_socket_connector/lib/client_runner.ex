@@ -256,8 +256,10 @@ defmodule ClientRunner do
        end, :empty},
       {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
       {:local,
-       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end,
-       :empty},
+       fn client_runner, pid_session_holder ->
+         SessionHolder.reestablish(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
       sequence_finish_job(runner_pid, initiator)
     ]
 
@@ -265,8 +267,9 @@ defmodule ClientRunner do
       empty_jobs(1..2) ++
         [
           {:local,
-           fn _client_runner, pid_session_holder ->
+           fn client_runner, pid_session_holder ->
              SessionHolder.reestablish(pid_session_holder)
+             GenServer.cast(client_runner, {:process_job_lists})
            end, :empty},
           {:sync,
            fn pid, from ->
@@ -280,6 +283,16 @@ defmodule ClientRunner do
         ]
 
     {jobs_initiator, jobs_responder}
+  end
+
+  def pause_job(delay) do
+    {:local,
+     fn client_runner, _pid_session_holder ->
+       spawn(fn ->
+         Process.sleep(delay)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end)
+     end, :empty}
   end
 
   def reconnect_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
@@ -308,11 +321,7 @@ defmodule ClientRunner do
              SessionHolder.close_connection(pid_session_holder)
              GenServer.cast(client_runner, {:process_job_lists})
            end, :empty},
-          {:local,
-           fn client_runner, _pid_session_holder ->
-             Process.sleep(3000)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end, :empty},
+          pause_job(3000),
           {:local,
            fn client_runner, pid_session_holder ->
              SessionHolder.reconnect(pid_session_holder)
@@ -401,11 +410,7 @@ defmodule ClientRunner do
          SessionHolder.close_connection(pid_session_holder)
          GenServer.cast(client_runner, {:process_job_lists})
        end, :empty},
-      {:local,
-       fn client_runner, _pid_session_holder ->
-         Process.sleep(10000)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
+      pause_job(10000),
       {:local,
        fn client_runner, pid_session_holder ->
          SessionHolder.reconnect(pid_session_holder)
@@ -415,11 +420,7 @@ defmodule ClientRunner do
         {intiator_account, 7_000_000_000_003},
         {responder_account, 3_999_999_999_997}
       ),
-      {:local,
-       fn client_runner, _pid_session_holder ->
-         Process.sleep(5000)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
+      pause_job(5000),
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
       assert_funds_job(
         {intiator_account, 6_999_999_999_998},
@@ -429,11 +430,7 @@ defmodule ClientRunner do
     ]
 
     jobs_responder = [
-      {:local,
-       fn client_runner, _pid_session_holder ->
-         Process.sleep(3000)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
+      pause_job(3000),
       assert_funds_job(
         {intiator_account, 6_999_999_999_999},
         {responder_account, 4_000_000_000_001}
