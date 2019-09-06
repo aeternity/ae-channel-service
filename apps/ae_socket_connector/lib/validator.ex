@@ -46,7 +46,7 @@ defmodule Validator do
   #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
   # end
 
-  def send_approval_request(aetx, round_initiator, auto_approval, state) do
+  defp send_approval_request(aetx, round_initiator, auto_approval, state) do
     case state.connection_callbacks do
       nil ->
         :unsecure
@@ -59,7 +59,15 @@ defmodule Validator do
         {module, instance} = :aetx.specialize_callback(aetx)
 
         case module do
-          :aesc_close_solo_tx ->
+          # TODO we need to know at which round we are closing here...
+          :aesc_close_mutual_tx ->
+            Logger.debug("Close mutual #{inspect(instance)}", state.color)
+            round = apply(module, :nonce, [instance])
+            sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+
+          # apply(module, :for_client, [instance])
+
+          tranaction_type when tranaction_type in [:aesc_close_solo_tx] ->
             %{"payload" => payload} = apply(module, :for_client, [instance])
             {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, payload)
             deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
@@ -85,7 +93,9 @@ defmodule Validator do
           channel_create_tx(aetx, state)
 
         _other ->
-          Logger.debug("Sign request Missing inspection!! default approved. Module is #{inspect(module)}")
+          Logger.debug(
+            "Sign request Missing inspection!! default approved. Module is #{inspect(module)}"
+          )
 
           :ok
       end

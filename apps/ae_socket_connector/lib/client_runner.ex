@@ -8,13 +8,14 @@ defmodule ClientRunner do
 
   def joblist(),
     do: [
-      # &withdraw_after_reconnect/3,
-      # &withdraw_after_reestablish/3,
-      # &backchannel_jobs/3,
-      # &close_solo/3,
-      &close_mutual/3
+      &withdraw_after_reconnect/3,
+      &withdraw_after_reestablish/3,
+      &backchannel_jobs/3,
+      &close_solo/3,
+      &close_mutual/3,
+      # jobs puts, fsm in some state.
       # &reconnect_jobs/3,
-      # &contract_jobs/3,
+      &contract_jobs/3
       # keep this last, this is not returnning as expected
       # &reestablish_jobs/3
     ]
@@ -397,7 +398,6 @@ defmodule ClientRunner do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
       {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-      # {:async, fn pid -> SocketConnector.shutdown(pid) end, :empty},
       close_mutual_job(),
       sequence_finish_job(runner_pid, initiator)
     ]
