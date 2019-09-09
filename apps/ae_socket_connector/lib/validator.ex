@@ -2,16 +2,27 @@ defmodule Validator do
   require Logger
   alias SocketConnector.WsConnection
 
+  def get_state_hash(tx) do
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
+    deserialized = :aetx_sign.deserialize_from_binary(signed_tx)
+    # get aetx
+    aetx = :aetx_sign.tx(deserialized)
+    {module, instance} = :aetx.specialize_callback(aetx)
+    # module is :aesc_offchain_tx or :aesc_create_tx
+    hash = apply(module, :state_hash, [instance])
+    Logger.debug("state hash is : #{inspect(hash)}")
+  end
+
   def get_state_round(tx) do
     # signed_tx(aetx(off-chain_tx))
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
     deserialized = :aetx_sign.deserialize_from_binary(signed_tx)
     # get aetx
     aetx = :aetx_sign.tx(deserialized)
-    # :aetx.specialize_type(aetx)
     {module, instance} = :aetx.specialize_callback(aetx)
-    # module is :aesc_offchain_tx or :aesc_create_tx
-    apply(module, :round, [instance])
+    round = apply(module, :round, [instance])
+    get_state_hash(tx)
+    round
   end
 
   defp channel_create_tx(tx, state) do
