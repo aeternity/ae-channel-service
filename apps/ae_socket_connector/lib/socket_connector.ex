@@ -796,7 +796,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
 
@@ -810,7 +810,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.close_solo_sign", %{signed_tx: signed_tx})
 
@@ -824,7 +824,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.responder_sign", %{signed_tx: signed_tx})
 
@@ -838,7 +838,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.deposit_tx", %{signed_tx: signed_tx})
 
@@ -852,7 +852,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.deposit_ack", %{signed_tx: signed_tx})
 
@@ -866,7 +866,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.withdraw_tx", %{signed_tx: signed_tx})
 
@@ -880,7 +880,7 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    signed_tx = Signer.sign_transaction(to_sign, nil, state, &Validator.inspect_sign_request/3)
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.withdraw_ack", %{signed_tx: signed_tx})
 
@@ -908,12 +908,11 @@ defmodule SocketConnector do
       signed_tx =
         Signer.sign_transaction(
           to_sign,
-          poi,
           state,
-          &Validator.inspect_sign_request/3
+          Validator.inspect_sign_request_poi(poi)
         )
 
-      response = build_request(return_method, %{signed_tx: signed_tx})
+      build_request(return_method, %{signed_tx: signed_tx})
     end
 
     process_poi = fn %{"result" => result}, state ->
@@ -958,7 +957,6 @@ defmodule SocketConnector do
     signed_payload =
       Signer.sign_transaction(
         pending_update,
-        nil,
         state,
         &Validator.inspect_sign_request/3
       )

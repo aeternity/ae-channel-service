@@ -18,7 +18,6 @@ defmodule Signer do
 
   def sign_transaction(
         to_sign,
-        poi,
         state,
         verify_hook \\ fn _tx, _round_initiator, _state -> :unsecure end
       )
@@ -26,34 +25,10 @@ defmodule Signer do
   # https://github.com/aeternity/aeternity/commit/e164fc4518263db9692c02a9b84e179d69bfcc13#diff-e14138de459cdd890333dfad3bd83f4c
   def sign_transaction(
         %Update{} = pending_update,
-        poi_encoded,
         state,
         verify_hook
       ) do
     %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
-
-    case poi_encoded do
-      nil ->
-        :ok
-
-      _ ->
-        # -spec fetch_amount_from_poi(aec_trees:poi(), aec_keys:pubkey()) -> amount().
-        # we could alos consider aesc_utils:accounts_in_poi(Peers, PoI)
-        {:ok, poi_binary} = :aeser_api_encoder.safe_decode(:poi, poi_encoded)
-        poi = :aec_trees.deserialize_poi(poi_binary)
-
-        {:account_pubkey, puk_key_binary} = :aeser_api_encoder.decode(state.session.initiator)
-        {:ok, account} = :aec_trees.lookup_poi(:accounts, puk_key_binary, poi)
-
-        Logger.debug("Accounts is#{inspect(account)}")
-        balance = :aec_accounts.balance(account)
-        Logger.debug("balance is #{inspect(balance)}")
-
-        poi_hash = :aec_trees.poi_hash(poi)
-        Logger.debug("poi hash is #{inspect(poi_hash)}")
-
-        # aeu_mp_trees
-    end
 
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
     # returns #aetx
@@ -82,15 +57,48 @@ defmodule Signer do
 
   def sign_transaction(
         to_sign,
-        poi,
         state,
         verify_hook
       ) do
     sign_transaction(
       %Update{tx: to_sign, round_initiator: :not_implemented},
-      poi,
       state,
       verify_hook
     )
+  end
+
+  def extract_poi_hash(poi_encoded, accounts, _contracts) do
+    # -spec fetch_amount_from_poi(aec_trees:poi(), aec_keys:pubkey()) -> amount().
+    # we could alos consider aesc_utils:accounts_in_poi(Peers, PoI)
+    {:ok, poi_binary} = :aeser_api_encoder.safe_decode(:poi, poi_encoded)
+    poi = :aec_trees.deserialize_poi(poi_binary)
+
+    # [account | _r] =  accounts
+    # {:account_pubkey, puk_key_binary} = :aeser_api_encoder.decode(account)
+    # {:ok, account} = :aec_trees.lookup_poi(:accounts, puk_key_binary, poi)
+    #
+    # Logger.debug("Accounts is#{inspect(account)}")
+    # balance = :aec_accounts.balance(account)
+    # Logger.debug("balance is #{inspect(balance)}")
+    # aeu_mp_trees
+
+    poi_hash = :aec_trees.poi_hash(poi)
+    Logger.debug("poi hash is #{inspect(poi_hash)}")
+
+    # alternative
+    {:ok, accounts_in_poi} =
+      :aesc_utils.accounts_in_poi(
+        Enum.map(accounts, fn account ->
+          {:account_pubkey, puk_key_binary} = :aeser_api_encoder.decode(account)
+          puk_key_binary
+        end),
+        poi
+      )
+
+    Logger.debug("Accounts in poi are: #{inspect(accounts_in_poi)}")
+
+    Enum.map(accounts_in_poi, fn account ->
+      Logger.debug("Balance is #{inspect(:aec_accounts.balance(account))}")
+    end)
   end
 end

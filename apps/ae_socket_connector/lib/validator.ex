@@ -94,7 +94,11 @@ defmodule Validator do
     end
   end
 
-  def inspect_sign_request(aetx, round_initiator, state) do
+  def inspect_sign_request_poi(poi) do
+    fn a, b, c -> inspect_sign_request(a, b, c, poi) end
+  end
+
+  def inspect_sign_request(aetx, round_initiator, state, poi \\ nil) do
     {module, _tx_instance} = :aetx.specialize_callback(aetx)
 
     # TODO if calls is initiated by us and contains what we submitted auto approval can be made
