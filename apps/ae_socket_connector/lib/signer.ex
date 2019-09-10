@@ -3,6 +3,7 @@ defmodule Signer do
   require Logger
   alias SocketConnector.Update
 
+  # TODO merge this with sign_transaction
   def sign_aetx(aetx, state) do
     bin = :aetx.serialize_to_binary(aetx)
     bin_for_network = <<state.network_id::binary, bin::binary>>
@@ -30,10 +31,6 @@ defmodule Signer do
         verify_hook
       ) do
     %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
-    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
-    # returns #aetx
-    deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
-    aetx = :aetx_sign.tx(deserialized_signed_tx)
 
     case poi_encoded do
       nil ->
@@ -57,6 +54,11 @@ defmodule Signer do
 
         # aeu_mp_trees
     end
+
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
+    # returns #aetx
+    deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
+    aetx = :aetx_sign.tx(deserialized_signed_tx)
 
     case verify_hook.(aetx, round_initiator, state) do
       :unsecure ->
