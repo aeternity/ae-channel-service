@@ -257,7 +257,6 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:get_contract_reponse, {pub_key, contract_file}, fun, from})
   end
 
-  # Server side
   @spec get_poi(pid, pid) :: :ok
   def get_poi(pid, from \\ nil) do
     WebSockex.cast(pid, {:get_poi, from})
