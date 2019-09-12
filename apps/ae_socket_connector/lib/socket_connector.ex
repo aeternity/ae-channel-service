@@ -17,8 +17,8 @@ defmodule SocketConnector do
             ws_manager_pid: nil,
             network_id: nil,
             ws_base: nil,
-            # {nonce => %Update{}},
-            nonce_and_updates: %{},
+            # {round => %Update{}},
+            round_and_updates: %{},
             pending_update: %{},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
@@ -110,13 +110,13 @@ defmodule SocketConnector do
           pub_key: _pub_key,
           role: role,
           channel_id: channel_id,
-          nonce_and_updates: nonce_and_updates
+          round_and_updates: round_and_updates
         } = state_channel_context,
         :reestablish,
         color,
         ws_manager_pid
       ) do
-    {_nonce, %Update{state_tx: state_tx}} = Enum.max(nonce_and_updates)
+    {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
     session_map = init_reestablish_map(channel_id, state_tx, role)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
@@ -143,14 +143,14 @@ defmodule SocketConnector do
           pub_key: pub_key,
           role: role,
           channel_id: channel_id,
-          nonce_and_updates: nonce_and_updates
+          round_and_updates: round_and_updates
         } = state_channel_context,
         :reconnect,
         color,
         ws_manager_pid
       ) do
-    {nonce, %Update{state_tx: _state_tx}} = Enum.max(nonce_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, nonce, role, pub_key, state_channel_context)
+    {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
+    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key, state_channel_context)
     session_map = init_reconnect_map(reconnect_tx)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
@@ -170,14 +170,14 @@ defmodule SocketConnector do
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
-  def create_reconnect_tx(channel_id, nonce, role, pub_key, state) do
+  def create_reconnect_tx(channel_id, round, role, pub_key, state) do
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
 
     {:ok, aetx} =
       :aesc_client_reconnect_tx.new(%{
         :channel_id => :aeser_id.create(tag, channel),
-        :round => nonce,
+        :round => round,
         :role => role,
         :pub_key => :aeser_id.create(:account, puk_key_decoded)
       })
@@ -206,7 +206,8 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:transfer, amount})
   end
 
-  @spec initiate_transfer(pid, integer, backchannel_sign_req_fun) :: :ok when backchannel_sign_req_fun: fun()
+  @spec initiate_transfer(pid, integer, backchannel_sign_req_fun) :: :ok
+        when backchannel_sign_req_fun: fun()
   def initiate_transfer(pid, amount, backchannel_sign_req_fun) do
     WebSockex.cast(pid, {:transfer, amount, backchannel_sign_req_fun})
   end
@@ -297,9 +298,18 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
+  defp transfer_from(amount, state) do
+    case state.role do
+      :initiator ->
+        transfer_amount(state.session.initiator, state.session.responder, amount)
+
+      :responder ->
+        transfer_amount(state.session.responder, state.session.initiator, amount)
+    end
+  end
+
   def handle_cast({:transfer, amount}, state) do
-    sync_call =
-      %SyncCall{request: request} = transfer_amount(state.session.initiator, state.session.responder, amount)
+    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
 
     Logger.info("=> transfer #{inspect(request)}", state.color)
 
@@ -308,8 +318,7 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:transfer, amount, backchannel_sign_req_fun}, state) do
-    sync_call =
-      %SyncCall{request: request} = transfer_amount(state.session.initiator, state.session.responder, amount)
+    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
 
     Logger.info("=> transfer #{inspect(request)}", state.color)
 
@@ -386,6 +395,7 @@ defmodule SocketConnector do
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
+
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
@@ -400,7 +410,9 @@ defmodule SocketConnector do
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
+
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+
     {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
     # beware this code assumes that length(updates) == 1
     for {round,
@@ -443,7 +455,7 @@ defmodule SocketConnector do
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
     {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
-    contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
+    contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
     [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
@@ -463,11 +475,11 @@ defmodule SocketConnector do
 
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
-    contract_list = calculate_contract_address({pub_key, contract_file}, state.nonce_and_updates)
+    contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
     [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
-    rounds = find_contract_calls(state.pub_key, contract_pubkey, state.nonce_and_updates)
+    rounds = find_contract_calls(state.pub_key, contract_pubkey, state.round_and_updates)
     # TODO now we per default get the last call, until we expose round to client.
     max_round = Enum.max(rounds)
 
@@ -611,6 +623,7 @@ defmodule SocketConnector do
 
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
+
     # Logger.info("Received Message: #{inspect msg} #{inspect message} #{inspect self()}", state.color)
     process_message(message, state)
   end
@@ -870,7 +883,13 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    signed_payload = Signer.sign_transaction_perform(pending_update, state, &Validator.inspect_transfer_request/3)
+    signed_payload =
+      Signer.sign_transaction_perform(
+        pending_update,
+        state,
+        &Validator.inspect_transfer_request/3
+      )
+
     # check if we have a backchannel if so request signing that way:
     response =
       case state.backchannel_sign_req_fun do
@@ -903,9 +922,9 @@ defmodule SocketConnector do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
     %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, contract_file}} =
-      Map.get(state.nonce_and_updates, state.contract_call_in_flight_round)
+      Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
-    # TODO well consider using contract_id. If this user called the contract the function is in the state.nonce_and_updates
+    # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
     sophia_value =
       :aeso_compiler.to_sophia_value(
         to_charlist(File.read!(contract_file)),
@@ -946,13 +965,10 @@ defmodule SocketConnector do
     {:ok, state_update}
   end
 
-  # @forgiving :error
-  @forgiving :ok
-
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("error")
     Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
-    {@forgiving, state}
+    {:error, state}
   end
 
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
@@ -963,7 +979,7 @@ defmodule SocketConnector do
           case response do
             nil ->
               Logger.error("Not implemented received data is: #{inspect(query_reponse)}")
-              {@forgiving, state}
+              {:error, state}
 
             _ ->
               response.(query_reponse, state)
@@ -983,7 +999,7 @@ defmodule SocketConnector do
       when id != pending_id do
     Logger.error("<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{inspect(pending_id)}")
 
-    {@forgiving, state}
+    {:error, state}
   end
 
   def check_updated(state_tx, pending_map) do
@@ -1024,7 +1040,7 @@ defmodule SocketConnector do
     updates = check_updated(state_tx, state.pending_update)
 
     Logger.debug(
-      "Map length #{inspect(length(Map.to_list(state.nonce_and_updates)))} round is: #{
+      "Map length #{inspect(length(Map.to_list(state.round_and_updates)))} round is: #{
         Validator.get_state_round(state_tx)
       } update is: #{inspect(updates != %{})}",
       state.color
@@ -1038,7 +1054,7 @@ defmodule SocketConnector do
       {:state_tx_update,
        %__MODULE__{
          state
-         | nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
+         | round_and_updates: Map.merge(state.round_and_updates, updates),
            pending_update: %{}
        }}
     )
@@ -1048,7 +1064,7 @@ defmodule SocketConnector do
     {:ok,
      %__MODULE__{
        state
-       | nonce_and_updates: Map.merge(state.nonce_and_updates, updates),
+       | round_and_updates: Map.merge(state.round_and_updates, updates),
          pending_update: %{}
      }}
   end
