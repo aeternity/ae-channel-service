@@ -36,7 +36,12 @@ clean: ## Clean all artifacts
 		apps/aecore \
 		apps/aetx \
 		apps/aechannel \
-		apps/aecontract
+		apps/aecontract \
+		apps/aeutils \
+		_build \
+		deps \
+		rebar.lock \
+		rebar.config
 
 $(sparse_path)/: ## Get dependencies from Aeternity Core and build Elixir wrapper apps
 	mkdir -p $@
@@ -49,6 +54,7 @@ $(sparse_path)/: ## Get dependencies from Aeternity Core and build Elixir wrappe
 	echo "aechannel" >> $(sparse_git_path)
 	echo "aechannel" >> $(sparse_git_path)
 	echo "aecontract" >> $(sparse_git_path)
+	echo "aeutils" >> $(sparse_git_path)
 	cd $@ && \
 		git pull origin master && \
 		git checkout $(aecore_git_hash)
@@ -56,7 +62,8 @@ $(sparse_path)/: ## Get dependencies from Aeternity Core and build Elixir wrappe
 		yes | $(mix) new aecore && \
 		yes | $(mix) new aetx && \
 		yes | $(mix) new aechannel && \
-		yes | $(mix) new aecontract
+		yes | $(mix) new aecontract && \
+		yes | $(mix) new aeutils
 
 $(aeminer_path)/: ## Get known version of aeminer
 	git clone https://github.com/aeternity/aeminer.git $@
