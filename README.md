@@ -10,7 +10,6 @@ This implementation benefits by being able calling erlang functions provided by 
 make clean deps
 make shell
 ```
-requires OTP 20.3
 
 ## Configure
 
