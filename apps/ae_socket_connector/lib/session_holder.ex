@@ -6,8 +6,7 @@ defmodule SessionHolder do
 
   defstruct pid: nil,
             color: nil,
-            configuration: %SocketConnector{},
-            ae_url: ""
+            configuration: %SocketConnector{}
 
   def start_link(%{
         socket_connector: %SocketConnector{} = configuration,
@@ -33,6 +32,10 @@ defmodule SessionHolder do
 
   def reconnect(pid) do
     GenServer.cast(pid, {:reconnect})
+  end
+
+  def stop_helper(pid) do
+    run_action(pid, fn pid -> SocketConnector.leave(pid) end)
   end
 
   def run_action(pid, action) do
@@ -84,7 +87,13 @@ defmodule SessionHolder do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
     {:ok, pid} =
-      SocketConnector.start_link(:alice, state.configuration, :reestablish, state.color, self())
+      SocketConnector.start_link(
+        :alice,
+        :reestablish,
+        state.configuration,
+        state.color,
+        self()
+      )
 
     {:noreply, %__MODULE__{state | pid: pid}}
   end

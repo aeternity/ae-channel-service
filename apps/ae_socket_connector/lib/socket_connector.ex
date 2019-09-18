@@ -83,7 +83,9 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role)
+    session_map =
+      init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, ws_base)
+
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
 
@@ -106,18 +108,19 @@ defmodule SocketConnector do
 
   def start_link(
         _name,
+        :reestablish,
         %__MODULE__{
           pub_key: _pub_key,
           role: role,
           channel_id: channel_id,
-          round_and_updates: round_and_updates
+          round_and_updates: round_and_updates,
+          ws_base: ws_base
         } = state_channel_context,
-        :reestablish,
         color,
         ws_manager_pid
       ) do
     {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
-    session_map = init_reestablish_map(channel_id, state_tx, role)
+    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
 
@@ -719,10 +722,7 @@ defmodule SocketConnector do
 
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=responder
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&host=localhost&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=initiator
-  def init_reestablish_map(channel_id, offchain_tx, role) do
-    initiator = %{host: "localhost", role: "initiator"}
-    responder = %{role: "responder"}
-
+  def init_reestablish_map(channel_id, offchain_tx, role, host_url) do
     same = %{
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
@@ -732,8 +732,12 @@ defmodule SocketConnector do
 
     role_map =
       case role do
-        :initiator -> initiator
-        :responder -> responder
+        :initiator ->
+          %URI{host: host} = URI.parse(host_url)
+          %{host: host, role: "initiator"}
+
+        :responder ->
+          %{role: "responder"}
       end
 
     Map.merge(same, role_map)
@@ -746,10 +750,7 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role) do
-    initiator = %{host: "localhost", role: "initiator"}
-    responder = %{role: "responder"}
-
+  def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, host_url) do
     same = %{
       channel_reserve: "2",
       initiator_amount: initiator_amount,
@@ -764,8 +765,12 @@ defmodule SocketConnector do
 
     role_map =
       case role do
-        :initiator -> initiator
-        :responder -> responder
+        :initiator ->
+          %URI{host: host} = URI.parse(host_url)
+          %{host: host, role: "initiator", minimum_depth: 0}
+
+        :responder ->
+          %{role: "responder", minimum_depth: 0}
       end
 
     Map.merge(same, role_map)
@@ -782,9 +787,10 @@ defmodule SocketConnector do
         %{
           "method" => "channels.info",
           "params" => %{"channel_id" => channel_id, "data" => %{"event" => "funding_locked"}}
-        } = _message,
+        } = message,
         state
       ) do
+    Logger.debug("channels.info: #{inspect(message)}", state.color)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
@@ -1192,10 +1198,11 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message,
+        %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
+    Logger.debug("channels.info: #{inspect(message)}", state.color)
     {:ok, state}
   end
 
@@ -1203,12 +1210,13 @@ defmodule SocketConnector do
         %{
           "method" => "channels.on_chain_tx",
           "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
-        } = _message,
+        } = message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
     # Produces some logging output.
-    Validator.verify_on_chain(signed_tx)
+    Logger.debug("On chain #{inspect(message)}", state.color)
+    Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, state}
   end
 

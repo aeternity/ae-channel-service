@@ -127,15 +127,24 @@ defmodule Validator do
     end
   end
 
-  @ae_http_url "http://localhost:3013"
-
+  @ae_transaction_path "/v2/transactions/"
   # shot this curl to check wheater onchain is alright....
-  def verify_on_chain(tx) do
+  def verify_on_chain(tx, ws_url) do
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
     deserialized_tx = :aetx_sign.deserialize_from_binary(signed_tx)
     tx_hash = :aetx_sign.hash(deserialized_tx)
     serialized_hash = :aeser_api_encoder.encode(:tx_hash, tx_hash)
-    url_to_check = "http://localhost:3013/v2/transactions/" <> URI.encode(serialized_hash)
+
+    %URI{host: host, authority: _authority} = URI.parse(ws_url)
+
+    url_to_check =
+      URI.to_string(%URI{
+        host: host,
+        port: 3013,
+        scheme: "http",
+        path: @ae_transaction_path <> URI.encode(serialized_hash)
+      })
+
     Logger.debug("url to check: curl #{inspect(url_to_check)}")
   end
 
