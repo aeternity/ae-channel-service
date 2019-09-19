@@ -62,9 +62,13 @@ defmodule SessionHolder do
     {:noreply, %__MODULE__{state | configuration: configuration}}
   end
 
+  defp kill_connection(pid, color) do
+    Logger.debug("killing connector #{inspect(pid)}", ansi_color: color)
+    Process.exit(pid, :normal)
+  end
+
   def handle_cast({:kill_connection}, state) do
-    Logger.debug("killing connector #{inspect(state.pid)}", ansi_color: state.color)
-    Process.exit(state.pid, :normal)
+    kill_connection(state.pid, state.color)
     {:noreply, state}
   end
 
