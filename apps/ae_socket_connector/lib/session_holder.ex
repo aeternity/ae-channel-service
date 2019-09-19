@@ -18,6 +18,7 @@ defmodule SessionHolder do
     GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color}, name: name)
   end
 
+  # this is here for tesing purposes
   def kill_connection(pid) do
     GenServer.cast(pid, {:kill_connection})
   end
@@ -52,8 +53,7 @@ defmodule SessionHolder do
 
   # Server
   def init({%SocketConnector{} = configuration, ae_url, network_id, color}) do
-    {:ok, pid} =
-      SocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
+    {:ok, pid} = SocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
 
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
@@ -81,8 +81,7 @@ defmodule SessionHolder do
   def handle_cast({:reconnect}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} =
-      SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
+    {:ok, pid} = SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
 
     {:noreply, %__MODULE__{state | pid: pid}}
   end

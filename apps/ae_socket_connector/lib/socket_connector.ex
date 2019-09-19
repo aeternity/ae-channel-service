@@ -42,7 +42,8 @@ defmodule SocketConnector do
     do:
       defstruct(
         sign_approve: nil,
-        channels_update: nil
+        channels_update: nil,
+        channels_info: nil
       )
   )
 
@@ -122,6 +123,10 @@ defmodule SocketConnector do
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base)
     ws_url = create_link(state_channel_context.ws_base, session_map)
 
+    Logger.debug("start_link reestablish url: #{inspect(ws_url)}",
+      ansi_color: color
+    )
+
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
         state_channel_context
@@ -130,7 +135,7 @@ defmodule SocketConnector do
           color: [ansi_color: color]
       })
 
-    Logger.debug("start_link reestablish pid: #{inspect(pid)} url: #{inspect(ws_url)}",
+    Logger.debug("start_link reestablish pid: #{inspect(pid)}",
       ansi_color: color
     )
 
@@ -269,13 +274,22 @@ defmodule SocketConnector do
 
   # Server side
 
+  def terminate(reason, state) when reason in [{:local, :normal}, {:remote, :closed}] do
+    # silent, all good
+    exit(:normal)
+  end
+
   def terminate(reason, state) do
-    Logger.info("connection terminated #{inspect(self())} #{inspect(reason)}" , state.color)
+    Logger.warn(
+      "unexpected? termination peer role: #{state.role} pid: #{inspect(self())} reason: #{inspect(reason)}",
+      ansi_color: :red
+    )
+
     exit(:normal)
   end
 
   def handle_connect(conn, state) do
-    Logger.info("Connected! #{inspect(conn)}", state.color)
+    Logger.info("Connected! #{inspect(conn)} #{inspect(self())}", state.color)
     {:ok, state}
   end
 
@@ -787,6 +801,7 @@ defmodule SocketConnector do
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
+  # here we have the client has the first disconnect oppertunity (statement needs to be verified). Thats why state is sent to the session holder
   def process_message(
         %{
           "method" => "channels.sign.initiator_sign",
@@ -798,7 +813,21 @@ defmodule SocketConnector do
 
     response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
 
-    {:reply, {:text, Poison.encode!(response)}, state}
+    pending_update = %{
+      Validator.get_state_round(to_sign) => %Update{
+        state_tx: signed_tx
+      }
+    }
+
+    newstate = %__MODULE__{
+      state
+      | round_and_updates: Map.merge(state.round_and_updates, pending_update),
+        pending_update: %{}
+    }
+
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, newstate})
+
+    {:reply, {:text, Poison.encode!(response)}, newstate}
   end
 
   def process_message(
@@ -1116,7 +1145,7 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(state, round, method) do
+  def produce_callback(:sign_approve, state, round, method) do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1126,6 +1155,21 @@ defmodule SocketConnector do
           Map.get(state.pending_update, round, %Update{round_initiator: :transient})
 
         channels_update.(round_initiator, round, method)
+        :ok
+    end
+  end
+
+  # TODO merge with above....
+  def produce_callback(:channels_info, state, round, method) do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+
+      %ConnectionCallbacks{sign_approve: _sign_approve, channels_info: channels_info} ->
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
+        channels_info.(round_initiator, round, method)
         :ok
     end
   end
@@ -1148,27 +1192,21 @@ defmodule SocketConnector do
       state.color
     )
 
-    produce_callback(state, Validator.get_state_round(state_tx), method)
+    produce_callback(:sign_approve, state, Validator.get_state_round(state_tx), method)
+
+    new_state = %__MODULE__{
+      state
+      | round_and_updates: Map.merge(state.round_and_updates, updates),
+        pending_update: %{}
+    }
 
     # TODO this quite corse, we send it all, duplicated code.....
     GenServer.cast(
       state.ws_manager_pid,
-      {:state_tx_update,
-       %__MODULE__{
-         state
-         | round_and_updates: Map.merge(state.round_and_updates, updates),
-           pending_update: %{}
-       }}
+      {:state_tx_update, new_state}
     )
 
-    # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
-
-    {:ok,
-     %__MODULE__{
-       state
-       | round_and_updates: Map.merge(state.round_and_updates, updates),
-         pending_update: %{}
-     }}
+    {:ok, new_state}
   end
 
   def process_message(
@@ -1182,7 +1220,19 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id and channel_id == channel_id2 do
-    produce_callback(state, round + 1, method)
+    produce_callback(:sign_approve, state, round + 1, method)
+    {:ok, state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.info",
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event}}
+        } = message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when channel_id == current_channel_id do
+    produce_callback(:channels_info, state, 0, event)
     {:ok, state}
   end
 
@@ -1192,7 +1242,7 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id do
     Logger.debug("channels.info: #{inspect(message)}", state.color)
-    {:ok, state}
+    {:error, state}
   end
 
   def process_message(
@@ -1205,6 +1255,7 @@ defmodule SocketConnector do
       when channel_id == current_channel_id do
     # Produces some logging output.
     Logger.debug("On chain #{inspect(message)}", state.color)
+    Logger.debug("On chain Pending #{inspect(state.pending_update)}", state.color)
     Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, state}
   end

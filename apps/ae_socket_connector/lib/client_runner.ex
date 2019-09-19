@@ -14,11 +14,13 @@ defmodule ClientRunner do
       &close_solo/3,
       &close_mutual/3,
       # jobs puts, fsm in some state.
-      ## &reconnect_jobs/3,
-      &contract_jobs/3
-      # keep this last, this is not returnning as expected
-      ## &reestablish_jobs/3
-      # &query_after_reconnect/3
+      &reconnect_jobs/3,
+      &contract_jobs/3,
+      # # keep this last, this is not returnning as expected
+      # ## &reestablish_jobs/3
+      &query_after_reconnect/3
+      # This is unfinished, info callback needs to be refined and configurable minimg height.
+      # &teardown_on_channel_creation/3
     ]
 
   def start_link(
@@ -40,6 +42,20 @@ defmodule ClientRunner do
         )
 
         auto_approval
+      end,
+      channels_info: fn round_initiator, round, method ->
+        Logger.debug(
+          "info callback received round is: #{inspect(round)} round_initiator is: #{inspect(round_initiator)} method is #{
+            inspect(method)
+          }}",
+          ansi_color: color
+        )
+        # &teardown_on_channel_creation
+        # case method do
+        #   "funding_signed" ->
+        #     GenServer.cast(callback_pid, {:process_job_lists})
+        #   _ -> :ok
+        # end
       end,
       channels_update: fn round_initiator, round, method ->
         Logger.debug(
@@ -290,18 +306,34 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  # prague artefact probably not needed.
-  def mini_open({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
-    jobs_initiator =
-      empty_jobs(1..1) ++
-        [
-          {:sync,
-           fn pid, from ->
-             SocketConnector.query_funds(pid, from)
-           end, :empty},
-          pause_job(5000),
-          sequence_finish_job(runner_pid, responder)
-        ]
+  def teardown_on_channel_creation({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
+    # empty_jobs(1..1) ++
+    jobs_initiator = [
+      {:local,
+       fn client_runner, pid_session_holder ->
+         Logger.debug("close")
+         # SessionHolder.kill_connection(pid_session_holder)
+         SessionHolder.close_connection(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      pause_job(10000),
+      {:local,
+       fn client_runner, pid_session_holder ->
+         Logger.debug("reestablish 1")
+         SessionHolder.reestablish(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      # assert_funds_job(
+      #   {intiator_account, 6_999_999_999_997},
+      #   {responder_account, 4_000_000_000_003}
+      # ),
+      {:sync,
+       fn pid, from ->
+         SocketConnector.query_funds(pid, from)
+       end, :empty},
+      pause_job(5000),
+      sequence_finish_job(runner_pid, responder)
+    ]
 
     jobs_responder = [
       sequence_finish_job(runner_pid, initiator)
