@@ -6,15 +6,30 @@ defmodule ClientRunner do
             color: nil,
             job_list: nil
 
+  def joblist(),
+    do: [
+      &withdraw_after_reconnect/3,
+      &withdraw_after_reestablish/3,
+      &backchannel_jobs/3,
+      &close_solo/3,
+      &close_mutual/3,
+      # jobs puts, fsm in some state.
+      # &reconnect_jobs/3,
+      &contract_jobs/3
+      # keep this last, this is not returnning as expected
+      # &reestablish_jobs/3
+    ]
+
   def start_link(
-        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs, _color, _name} =
-          params
+        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs,
+         _color, _name} = params
       ) do
     GenServer.start_link(__MODULE__, params)
   end
 
   def connection_callback(callback_pid, color) do
     %SocketConnector.ConnectionCallbacks{
+      # auto approval is the suggested response. Typically if initiated by us and matches with our request we should approve.
       sign_approve: fn round_initiator, round, auto_approval, human ->
         Logger.debug(
           "Sign request for round: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
@@ -27,9 +42,9 @@ defmodule ClientRunner do
       end,
       channels_update: fn round_initiator, round, method ->
         Logger.debug(
-          "callback received round is: #{inspect(round)} round_initiator is: #{inspect(round_initiator)} method is #{
-            inspect(method)
-          }}",
+          "callback received round is: #{inspect(round)} round_initiator is: #{
+            inspect(round_initiator)
+          } method is #{inspect(method)}}",
           ansi_color: color
         )
 
@@ -53,8 +68,8 @@ defmodule ClientRunner do
 
   # Server
   def init(
-        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url, network_id,
-         role, jobs, color, name}
+        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url,
+         network_id, role, jobs, color, name}
       ) do
     {:ok, pid_session_holder} =
       SessionHolder.start_link(%{
@@ -125,7 +140,6 @@ defmodule ClientRunner do
               end
 
               Logger.debug("sync response is: #{inspect(response)}", state.color)
-              # Logger.error("sync response is: #{inspect(response)}")
               GenServer.cast(self(), {:process_job_lists})
 
             :local ->
@@ -147,7 +161,7 @@ defmodule ClientRunner do
     end)
   end
 
-  def contract_jobs({_initiator, intiator_account}, {_responder, responder_account}) do
+  def contract_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
     initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
     # responder_contract = {TestAccounts.responderPubkeyEncoded(), "contracts/TicTacToe.aes"}
 
@@ -203,7 +217,8 @@ defmodule ClientRunner do
       assert_funds_job(
         {intiator_account, 6_999_999_499_975},
         {responder_account, 4_000_000_000_015}
-      )
+      ),
+      sequence_finish_job(runner_pid, initiator)
     ]
 
     jobs_responder =
@@ -226,13 +241,15 @@ defmodule ClientRunner do
                'make_move',
                from
              )
-           end, :empty}
+           end, :empty},
+          sequence_finish_job(runner_pid, responder)
         ]
 
     {jobs_initiator, jobs_responder}
   end
 
-  def reestablish_jobs({_initiator, intiator_account}, {_responder, responder_account}) do
+  # currently broken
+  def reestablish_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
       {:sync,
@@ -240,30 +257,61 @@ defmodule ClientRunner do
          SocketConnector.query_funds(pid, from)
        end, :empty},
       {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-      {:local, fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end, :empty}
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.reestablish(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      sequence_finish_job(runner_pid, initiator)
     ]
 
     jobs_responder =
       empty_jobs(1..2) ++
         [
           {:local,
-           fn _client_runner, pid_session_holder ->
+           fn client_runner, pid_session_holder ->
+             Logger.debug("reestablish 1")
              SessionHolder.reestablish(pid_session_holder)
+             GenServer.cast(client_runner, {:process_job_lists})
            end, :empty},
-          {:sync,
-           fn pid, from ->
-             SocketConnector.query_funds(pid, from)
-           end, :empty},
+          pause_job(5000),
           assert_funds_job(
             {intiator_account, 6_999_999_999_997},
             {responder_account, 4_000_000_000_003}
-          )
+          ),
+          # pause_job(5000),
+          # # reestablish without leave
+          # {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+          pause_job(5000),
+          {:local,
+           fn client_runner, pid_session_holder ->
+             Logger.debug("reestablish 2")
+             SessionHolder.reestablish(pid_session_holder)
+             GenServer.cast(client_runner, {:process_job_lists})
+           end, :empty},
+          pause_job(5000),
+          assert_funds_job(
+            {intiator_account, 6_999_999_999_997},
+            {responder_account, 4_000_000_000_003}
+          ),
+          # pause_job(5000),
+          sequence_finish_job(runner_pid, responder)
         ]
 
     {jobs_initiator, jobs_responder}
   end
 
-  def reconnect_jobs({_initiator, intiator_account}, {_responder, responder_account}) do
+  def pause_job(delay) do
+    {:local,
+     fn client_runner, _pid_session_holder ->
+       spawn(fn ->
+         Process.sleep(delay)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end)
+     end, :empty}
+  end
+
+  def reconnect_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
     jobs_initiator = [
       assert_funds_job(
         {intiator_account, 6_999_999_999_999},
@@ -273,7 +321,8 @@ defmodule ClientRunner do
       assert_funds_job(
         {intiator_account, 6_999_999_999_997},
         {responder_account, 4_000_000_000_003}
-      )
+      ),
+      sequence_finish_job(runner_pid, initiator)
     ]
 
     jobs_responder =
@@ -288,11 +337,7 @@ defmodule ClientRunner do
              SessionHolder.close_connection(pid_session_holder)
              GenServer.cast(client_runner, {:process_job_lists})
            end, :empty},
-          {:local,
-           fn client_runner, _pid_session_holder ->
-             Process.sleep(3000)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end, :empty},
+          pause_job(3000),
           {:local,
            fn client_runner, pid_session_holder ->
              SessionHolder.reconnect(pid_session_holder)
@@ -306,25 +351,113 @@ defmodule ClientRunner do
           assert_funds_job(
             {intiator_account, 6_999_999_999_999},
             {responder_account, 4_000_000_000_001}
-          )
+          ),
+          sequence_finish_job(runner_pid, responder)
         ]
 
     {jobs_initiator, jobs_responder}
   end
 
-  def close_solo(_initiator, _responder) do
+  def close_solo_job() do
+    # special cased since this doesn't end up in an update.
+    close_solo = fn pid -> SocketConnector.close_solo(pid) end
+
+    {:local,
+     fn client_runner, pid_session_holder ->
+       SessionHolder.run_action(pid_session_holder, close_solo)
+       GenServer.cast(client_runner, {:process_job_lists})
+     end, :empty}
+  end
+
+  def close_mutual_job() do
+    # special cased since this doesn't end up in an update.
+    shutdown = fn pid -> SocketConnector.shutdown(pid) end
+
+    {:local,
+     fn client_runner, pid_session_holder ->
+       SessionHolder.run_action(pid_session_holder, shutdown)
+       GenServer.cast(client_runner, {:process_job_lists})
+     end, :empty}
+  end
+
+  def close_solo({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-      {:async, fn pid -> SocketConnector.close_solo(pid) end, :empty}
+      close_solo_job(),
+      sequence_finish_job(runner_pid, initiator)
     ]
 
-    jobs_responder = []
+    jobs_responder = [
+      sequence_finish_job(runner_pid, responder)
+    ]
 
     {jobs_initiator, jobs_responder}
   end
 
-  # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
-  def backchannel_jobs({initiator, intiator_account}, {_responder, responder_account}) do
+  def close_mutual({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
+    jobs_initiator = [
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+      {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+      close_mutual_job(),
+      sequence_finish_job(runner_pid, initiator)
+    ]
+
+    jobs_responder = [
+      sequence_finish_job(runner_pid, responder)
+    ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
+  def sequence_finish_job(runner_pid, name) do
+    {:local,
+     fn _client_runner, _pid_session_holder ->
+       Logger.info("Sending termination for #{inspect(name)}")
+       send(runner_pid, {:test_finished, name})
+     end, :empty}
+  end
+
+  # reconstruct https://www.pivotaltracker.com/n/projects/2124891/stories/167944617
+  def withdraw_after_reestablish(
+        {initiator, _intiator_account},
+        {responder, _responder_account},
+        runner_pid
+      ) do
+    jobs_initiator = [
+      {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+      {:local,
+       fn _client_runner, pid_session_holder -> SessionHolder.reestablish(pid_session_holder) end,
+       :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.withdraw(pid, 1_000_000)
+       end, :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.deposit(pid, 1_200_000)
+       end, :empty},
+      sequence_finish_job(runner_pid, initiator)
+    ]
+
+    jobs_responder =
+      empty_jobs(1..1) ++
+        [
+          {:local,
+           fn _client_runner, pid_session_holder ->
+             SessionHolder.reestablish(pid_session_holder)
+           end, :empty},
+          sequence_finish_job(runner_pid, responder)
+        ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
+  # reconstruct https://www.pivotaltracker.com/n/projects/2124891/stories/167944617
+  def withdraw_after_reconnect(
+        {initiator, _intiator_account},
+        {responder, _responder_account},
+        runner_pid
+      ) do
     jobs_initiator = [
       {:local,
        fn client_runner, pid_session_holder ->
@@ -333,9 +466,41 @@ defmodule ClientRunner do
        end, :empty},
       {:local,
        fn client_runner, _pid_session_holder ->
-         Process.sleep(10000)
+         Process.sleep(1000)
          GenServer.cast(client_runner, {:process_job_lists})
        end, :empty},
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.reconnect(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.withdraw(pid, 1_000_000)
+       end, :empty},
+      {:async,
+       fn pid ->
+         SocketConnector.deposit(pid, 1_200_000)
+       end, :empty},
+      sequence_finish_job(runner_pid, initiator)
+    ]
+
+    jobs_responder = [
+      sequence_finish_job(runner_pid, responder)
+    ]
+
+    {jobs_initiator, jobs_responder}
+  end
+
+  # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
+  def backchannel_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
+    jobs_initiator = [
+      {:local,
+       fn client_runner, pid_session_holder ->
+         SessionHolder.close_connection(pid_session_holder)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end, :empty},
+      pause_job(10000),
       {:local,
        fn client_runner, pid_session_holder ->
          SessionHolder.reconnect(pid_session_holder)
@@ -345,24 +510,17 @@ defmodule ClientRunner do
         {intiator_account, 7_000_000_000_003},
         {responder_account, 3_999_999_999_997}
       ),
-      {:local,
-       fn client_runner, _pid_session_holder ->
-         Process.sleep(5000)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
+      pause_job(5000),
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
       assert_funds_job(
         {intiator_account, 6_999_999_999_998},
         {responder_account, 4_000_000_000_002}
-      )
+      ),
+      sequence_finish_job(runner_pid, initiator)
     ]
 
     jobs_responder = [
-      {:local,
-       fn client_runner, _pid_session_holder ->
-         Process.sleep(3000)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
+      pause_job(3000),
       assert_funds_job(
         {intiator_account, 6_999_999_999_999},
         {responder_account, 4_000_000_000_001}
@@ -380,41 +538,53 @@ defmodule ClientRunner do
         {intiator_account, 7_000_000_000_003},
         {responder_account, 3_999_999_999_997}
       ),
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
+      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+      sequence_finish_job(runner_pid, responder)
     ]
 
     {jobs_initiator, jobs_responder}
   end
 
-  def joblist(),
-    do: [
-      &backchannel_jobs/2,
-      &close_solo/2,
-      &reconnect_jobs/2,
-      &contract_jobs/2,
-      &reestablish_jobs/2
-    ]
-
   def gen_name(name, suffix) do
     String.to_atom(to_string(name) <> Integer.to_string(suffix))
   end
 
-  # to give the FSM a fair chance to pair together the peers. We are using same two accouts for every connection
-  @grace_period_ms 5000
+  # elimiation overlap yields issues, need to be investigated
+  @grace_period_ms 2000
 
   def start_helper(ae_url, network_id) do
     Enum.each(Enum.zip(joblist(), 1..Enum.count(joblist())), fn {fun, suffix} ->
+      Logger.info("Launching next job in queue")
       start_helper(ae_url, network_id, gen_name(:alice, suffix), gen_name(:bob, suffix), fun)
       Process.sleep(@grace_period_ms)
     end)
+  end
+
+  def await_finish([]) do
+    Logger.debug("Scenario reached end")
+  end
+
+  def await_finish(expected_messages) do
+    receive do
+      {:test_finished, name} ->
+        reduced_list = List.delete(expected_messages, name)
+
+        Logger.debug(
+          "Received message from runner: #{inspect(name)} remaining: #{inspect(reduced_list)}"
+        )
+
+        await_finish(reduced_list)
+    end
   end
 
   def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
     initiator_pub = TestAccounts.initiatorPubkeyEncoded()
     responder_pub = TestAccounts.responderPubkeyEncoded()
 
+    Logger.debug("executing test: #{inspect(job_builder)}")
+
     {jobs_initiator, jobs_responder} =
-      job_builder.({name_initator, initiator_pub}, {name_responder, responder_pub})
+      job_builder.({name_initator, initiator_pub}, {name_responder, responder_pub}, self())
 
     state_channel_configuration = %SocketConnector.WsConnection{
       initiator: initiator_pub,
@@ -424,13 +594,17 @@ defmodule ClientRunner do
     }
 
     start_link(
-      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
-       network_id, :initiator, jobs_initiator, :yellow, name_initator}
+      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(),
+       state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator, :yellow,
+       name_initator}
     )
 
     start_link(
-      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(), state_channel_configuration, ae_url,
-       network_id, :responder, jobs_responder, :blue, name_responder}
+      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(),
+       state_channel_configuration, ae_url, network_id, :responder, jobs_responder, :blue,
+       name_responder}
     )
+
+    await_finish([name_initator, name_responder])
   end
 end

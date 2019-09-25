@@ -6,8 +6,7 @@ defmodule SessionHolder do
 
   defstruct pid: nil,
             color: nil,
-            configuration: %SocketConnector{},
-            ae_url: ""
+            configuration: %SocketConnector{}
 
   def start_link(%{
         socket_connector: %SocketConnector{} = configuration,
@@ -35,6 +34,10 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:reconnect})
   end
 
+  def stop_helper(pid) do
+    run_action(pid, fn pid -> SocketConnector.leave(pid) end)
+  end
+
   def run_action(pid, action) do
     GenServer.cast(pid, {:action, action})
   end
@@ -49,7 +52,8 @@ defmodule SessionHolder do
 
   # Server
   def init({%SocketConnector{} = configuration, ae_url, network_id, color}) do
-    {:ok, pid} = SocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
+    {:ok, pid} =
+      SocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
 
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
@@ -73,7 +77,8 @@ defmodule SessionHolder do
   def handle_cast({:reconnect}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
+    {:ok, pid} =
+      SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
 
     {:noreply, %__MODULE__{state | pid: pid}}
   end
@@ -81,7 +86,14 @@ defmodule SessionHolder do
   def handle_cast({:reestablish}, state) do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:alice, state.configuration, :reestablish, state.color, self())
+    {:ok, pid} =
+      SocketConnector.start_link(
+        :alice,
+        :reestablish,
+        state.configuration,
+        state.color,
+        self()
+      )
 
     {:noreply, %__MODULE__{state | pid: pid}}
   end
@@ -99,7 +111,9 @@ defmodule SessionHolder do
   # TODO this allows backchannel signing, either way. Should we should uppdate round in the state?
   def handle_call({:sign_request, to_sign}, _from, state) do
     sign_result =
-      Signer.sign_transaction_perform(to_sign, state.configuration, fn _tx, _round_initiator, _state -> :ok end)
+      Signer.sign_transaction(to_sign, state.configuration, fn _tx, _round_initiator, _state ->
+        :ok
+      end)
 
     {:reply, sign_result, state}
   end

@@ -10,7 +10,6 @@ This implementation benefits by being able calling erlang functions provided by 
 make clean deps
 make shell
 ```
-requires OTP 20.3
 
 ## Configure
 
@@ -25,4 +24,4 @@ Start the code (in iex shell)
 iex(1)> ChannelRunner.start_channel_helper()
 ```
 
-by default the command will start all tests (in parallel) found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L391), feel free to remove entries to get cleaner log outputs.
+by default the command will start tests one by one found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L9), feel free to remove entries to get cleaner log outputs.

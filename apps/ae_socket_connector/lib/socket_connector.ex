@@ -83,7 +83,9 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role)
+    session_map =
+      init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, ws_base)
+
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
 
@@ -106,18 +108,19 @@ defmodule SocketConnector do
 
   def start_link(
         _name,
+        :reestablish,
         %__MODULE__{
           pub_key: _pub_key,
           role: role,
           channel_id: channel_id,
-          round_and_updates: round_and_updates
+          round_and_updates: round_and_updates,
+          ws_base: ws_base
         } = state_channel_context,
-        :reestablish,
         color,
         ws_manager_pid
       ) do
     {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
-    session_map = init_reestablish_map(channel_id, state_tx, role)
+    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
 
@@ -257,6 +260,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:get_contract_reponse, {pub_key, contract_file}, fun, from})
   end
 
+  @spec get_poi(pid, pid) :: :ok
+  def get_poi(pid, from \\ nil) do
+    WebSockex.cast(pid, {:get_poi, from})
+  end
+
   # Server side
 
   def handle_connect(conn, state) do
@@ -295,7 +303,8 @@ defmodule SocketConnector do
     request = build_request("channels.close_solo", %{})
     Logger.info("=> close_solo #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   defp transfer_from(amount, state) do
@@ -325,32 +334,34 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
        state
-       | pending_id: Map.get(sync_call, :id, nil),
+       | pending_id: Map.get(request, :id, nil),
          sync_call: sync_call,
          backchannel_sign_req_fun: backchannel_sign_req_fun
      }}
   end
 
   def handle_cast({:deposit, amount}, state) do
-    transfer =
+    request =
       build_request("channels.deposit", %{
         amount: amount
       })
 
-    Logger.info("=> deposit #{inspect(transfer)}", state.color)
+    Logger.info("=> deposit #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:withdraw, amount}, state) do
-    transfer =
+    request =
       build_request("channels.withdraw", %{
         amount: amount
       })
 
-    Logger.info("=> withdraw #{inspect(transfer)}", state.color)
+    Logger.info("=> withdraw #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:query_funds, from_pid}, state) do
@@ -380,38 +391,44 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:shutdown, {}}, state) do
-    transfer = build_request("channels.shutdown")
-    Logger.info("=> shutdown #{inspect(transfer)}", state.color)
+    request = build_request("channels.shutdown")
+    Logger.info("=> shutdown #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:leave, {}}, state) do
-    transfer = build_request("channels.leave")
-    Logger.info("=> leave #{inspect(transfer)}", state.color)
+    request = build_request("channels.leave")
+    Logger.info("=> leave #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
 
-    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+    encoded_bytecode =
+      :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
+    {:ok, call_data} =
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    transfer = new_contract_req(encoded_bytecode, encoded_calldata, 3)
-    Logger.info("=> new contract #{inspect(transfer)}", state.color)
+    request = new_contract_req(encoded_bytecode, encoded_calldata, 3)
+    Logger.info("=> new contract #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)}, %__MODULE__{state | pending_id: Map.get(transfer, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
 
-    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+    encoded_bytecode =
+      :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
     # beware this code assumes that length(updates) == 1
@@ -434,7 +451,9 @@ defmodule SocketConnector do
   end
 
   def find_contract_calls(caller, contract_pubkey, updates) do
-    Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
+    Logger.debug(
+      "Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}"
+    )
 
     for {round,
          %Update{
@@ -453,22 +472,24 @@ defmodule SocketConnector do
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
-    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
+    {:ok, call_data} =
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
 
-    transfer = call_contract_req(contract_pubkey, encoded_calldata)
-    Logger.info("=> call contract #{inspect(transfer)}", state.color)
+    request = call_contract_req(contract_pubkey, encoded_calldata)
+    Logger.info("=> call contract #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(transfer)},
+    {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
        state
-       | pending_id: Map.get(transfer, :id, nil),
+       | pending_id: Map.get(request, :id, nil),
          contract_call_in_flight: contract_call_in_flight
      }}
   end
@@ -477,7 +498,8 @@ defmodule SocketConnector do
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     rounds = find_contract_calls(state.pub_key, contract_pubkey, state.round_and_updates)
     # TODO now we per default get the last call, until we expose round to client.
@@ -503,6 +525,27 @@ defmodule SocketConnector do
      }}
   end
 
+  def handle_cast({:get_poi, from_pid}, state) do
+    # contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
+
+    sync_call =
+      %SyncCall{request: request} =
+      get_poi_response_query(
+        [state.session.initiator, state.session.responder],
+        [],
+        from_pid
+      )
+
+    Logger.info("=> get poi #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
+  end
+
   def build_request(method, params \\ %{}) do
     default_params =
       case method do
@@ -519,6 +562,13 @@ defmodule SocketConnector do
       "channels.get.contract_call" ->
         fn %{"result" => result}, state ->
           {result, state_updated} = process_get_contract_reponse(result, state)
+          GenServer.reply(from_pid, result)
+          {result, state_updated}
+        end
+
+      "channels.get.poi.reply" ->
+        fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_poi_response(result, state)
           GenServer.reply(from_pid, result)
           {result, state_updated}
         end
@@ -606,6 +656,34 @@ defmodule SocketConnector do
     end
   end
 
+  def get_poi_response_query(accounts, contracts, fun) when is_function(fun) do
+    make_sync(
+      true,
+      %SyncCall{
+        request:
+          build_request("channels.get.poi", %{
+            accounts: accounts,
+            contracts: contracts
+          }),
+        response: fun
+      }
+    )
+  end
+
+  def get_poi_response_query(accounts, contracts, from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request:
+          build_request("channels.get.poi", %{
+            accounts: accounts,
+            contracts: contracts
+          }),
+        response: process_response("channels.get.poi.reply", from_pid)
+      }
+    )
+  end
+
   def get_contract_response_query(address, caller, round, from_pid) do
     make_sync(
       from_pid,
@@ -644,10 +722,7 @@ defmodule SocketConnector do
 
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=responder
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&host=localhost&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=initiator
-  def init_reestablish_map(channel_id, offchain_tx, role) do
-    initiator = %{host: "localhost", role: "initiator"}
-    responder = %{role: "responder"}
-
+  def init_reestablish_map(channel_id, offchain_tx, role, host_url) do
     same = %{
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
@@ -657,8 +732,12 @@ defmodule SocketConnector do
 
     role_map =
       case role do
-        :initiator -> initiator
-        :responder -> responder
+        :initiator ->
+          %URI{host: host} = URI.parse(host_url)
+          %{host: host, role: "initiator"}
+
+        :responder ->
+          %{role: "responder"}
       end
 
     Map.merge(same, role_map)
@@ -671,10 +750,7 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role) do
-    initiator = %{host: "localhost", role: "initiator"}
-    responder = %{role: "responder"}
-
+  def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, host_url) do
     same = %{
       channel_reserve: "2",
       initiator_amount: initiator_amount,
@@ -689,8 +765,12 @@ defmodule SocketConnector do
 
     role_map =
       case role do
-        :initiator -> initiator
-        :responder -> responder
+        :initiator ->
+          %URI{host: host} = URI.parse(host_url)
+          %{host: host, role: "initiator", minimum_depth: 0}
+
+        :responder ->
+          %{role: "responder", minimum_depth: 0}
       end
 
     Map.merge(same, role_map)
@@ -707,9 +787,10 @@ defmodule SocketConnector do
         %{
           "method" => "channels.info",
           "params" => %{"channel_id" => channel_id, "data" => %{"event" => "funding_locked"}}
-        } = _message,
+        } = message,
         state
       ) do
+    Logger.debug("channels.info: #{inspect(message)}", state.color)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
@@ -720,11 +801,9 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.initiator_sign",
-        logstring: "initiator_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -736,11 +815,9 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.close_solo_sign",
-        logstring: "close_solo_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.close_solo_sign", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -752,11 +829,9 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.responder_sign",
-        logstring: "responder_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.responder_sign", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -768,11 +843,9 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.deposit_tx",
-        logstring: "initiator_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.deposit_tx", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -784,11 +857,9 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.deposit_ack",
-        logstring: "responder_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.deposit_ack", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -800,11 +871,9 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.withdraw_tx",
-        logstring: "initiator_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.withdraw_tx", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -816,50 +885,57 @@ defmodule SocketConnector do
         } = _message,
         state
       ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.withdraw_ack",
-        logstring: "responder_sign"
-      )
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  # def process_message(%{"method" => "channels.sign.responder_sign", "params" => %{"data" => %{"signed_tx" => to_sign}}} = _message, state) do
-  #   {response"])
-  #   {:reply, {:text, Poison.encode!(response)}, state}
-  # end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.shutdown_sign",
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.shutdown_sign",
-        logstring: "initiator_sign"
-      )
+    response = build_request("channels.withdraw_ack", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.shutdown_sign_ack",
+          "method" => method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
-      ) do
-    response =
-      Signer.sign_transaction(to_sign, &Validator.inspect_transfer_request/3, state,
-        method: "channels.shutdown_sign_ack",
-        logstring: "initiator_sign"
       )
+      when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
+    return_method =
+      case method do
+        "channels.sign.shutdown_sign" -> "channels.shutdown_sign"
+        _ -> "channels.shutdown_sign_ack"
+      end
 
-    {:reply, {:text, Poison.encode!(response)}, state}
+    pending_sign_attempt = fn poi ->
+      # TODO need to check that PoI makes any sense to us
+      Logger.debug("POI is: #{inspect(poi)}", state.color)
+
+      signed_tx =
+        Signer.sign_transaction(
+          to_sign,
+          state,
+          Validator.inspect_sign_request_poi(poi)
+        )
+
+      build_request(return_method, %{signed_tx: signed_tx})
+    end
+
+    process_poi = fn %{"result" => result}, state ->
+      {result, state_updated} = process_get_poi_response(result, state)
+      response = pending_sign_attempt.(result)
+      {:reply, {:text, Poison.encode!(response)}, state_updated}
+    end
+
+    sync_call =
+      %SyncCall{request: request} =
+      get_poi_response_query([state.session.initiator, state.session.responder], [], process_poi)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
   end
 
   def process_message(
@@ -869,7 +945,7 @@ defmodule SocketConnector do
         } = _message,
         state
       )
-      when method == "channels.sign.update_ack" or method == "channels.sign.update" do
+      when method in ["channels.sign.update_ack", "channels.sign.update"] do
     {round_initiator, return_method} =
       case method do
         "channels.sign.update" -> {:self, "channels.update"}
@@ -884,21 +960,21 @@ defmodule SocketConnector do
     }
 
     signed_payload =
-      Signer.sign_transaction_perform(
+      Signer.sign_transaction(
         pending_update,
         state,
-        &Validator.inspect_transfer_request/3
+        &Validator.inspect_sign_request/3
       )
 
     # check if we have a backchannel if so request signing that way:
     response =
       case state.backchannel_sign_req_fun do
         nil ->
-          Signer.generate_transaction_response(signed_payload, method: return_method)
+          build_request(return_method, %{signed_tx: signed_payload})
 
         _backchannel ->
           mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
-          Signer.generate_transaction_response(mutual_signed, method: return_method)
+          build_request(return_method, %{signed_tx: mutual_signed})
       end
 
     # TODO
@@ -965,15 +1041,43 @@ defmodule SocketConnector do
     {:ok, state_update}
   end
 
+  def process_message(
+        %{
+          "method" => "channels.get.poi.reply",
+          "params" => %{
+            # "data" => %{"return_value" => return_value, "return_type" => _return_type}
+            "data" => data
+          }
+        } = _message,
+        state
+      ) do
+    {return, state_update} = process_get_poi_response(data, state)
+
+    Logger.debug(
+      "poi call async reply : #{inspect(return)}",
+      state.color
+    )
+
+    {:ok, state_update}
+  end
+
+  def process_get_poi_response(
+        %{"poi" => poi} = _data,
+        state
+      ) do
+    {poi, state}
+  end
+
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("error")
     Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
     {:error, state}
   end
 
+  # This is where we get syncrouns responses back
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id == pending_id do
-    {_result, updated_state} =
+    return =
       case state.sync_call do
         %SyncCall{response: response} ->
           case response do
@@ -990,14 +1094,23 @@ defmodule SocketConnector do
           {:ok, state}
       end
 
-    # TODO is this where sync_call should be modified or in responce.?
-    {:ok, %__MODULE__{updated_state | sync_call: %{}}}
+    case return do
+      {:reply, {:text, reply}, state} ->
+        {:reply, {:text, reply}, %__MODULE__{state | sync_call: %{}}}
+
+      {_result, updated_state} ->
+        {:ok, %__MODULE__{updated_state | sync_call: %{}}}
+    end
   end
 
   # wrong unexpected id in response.
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id != pending_id do
-    Logger.error("<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{inspect(pending_id)}")
+    Logger.error(
+      "<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{
+        inspect(pending_id)
+      }"
+    )
 
     {:error, state}
   end
@@ -1035,7 +1148,7 @@ defmodule SocketConnector do
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when method == "channels.leave" or method == "channels.update"
+      when method in ["channels.leave", "channels.update"]
       when channel_id == current_channel_id do
     updates = check_updated(state_tx, state.pending_update)
 
@@ -1085,10 +1198,11 @@ defmodule SocketConnector do
   end
 
   def process_message(
-        %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = _message,
+        %{"method" => "channels.info", "params" => %{"channel_id" => channel_id}} = message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
+    Logger.debug("channels.info: #{inspect(message)}", state.color)
     {:ok, state}
   end
 
@@ -1096,12 +1210,13 @@ defmodule SocketConnector do
         %{
           "method" => "channels.on_chain_tx",
           "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
-        } = _message,
+        } = message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
     # Produces some logging output.
-    Validator.verify_on_chain(signed_tx)
+    Logger.debug("On chain #{inspect(message)}", state.color)
+    Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, state}
   end
 
@@ -1123,7 +1238,9 @@ defmodule SocketConnector do
   end
 
   def process_message(message, state) do
-    Logger.error("<= unprocessed message recieved by #{inspect(state.role)}. message: #{inspect(message)}")
+    Logger.error(
+      "<= unprocessed message recieved by #{inspect(state.role)}. message: #{inspect(message)}"
+    )
 
     {:ok, state}
   end
