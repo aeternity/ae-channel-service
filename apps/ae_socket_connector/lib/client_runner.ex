@@ -13,11 +13,9 @@ defmodule ClientRunner do
       &backchannel_jobs/3,
       &close_solo/3,
       &close_mutual/3,
-      # jobs puts, fsm in some state.
       &reconnect_jobs/3,
       &contract_jobs/3,
-      # # keep this last, this is not returnning as expected
-      # ## &reestablish_jobs/3
+      &reestablish_jobs/3,
       &query_after_reconnect/3
       # This is unfinished, info callback needs to be refined and configurable minimg height.
       # &teardown_on_channel_creation/3
@@ -666,7 +664,6 @@ defmodule ClientRunner do
   end
 
   def await_finish([]) do
-    Process.sleep(@grace_period_ms)
     Logger.debug("Scenario reached end")
   end
 
