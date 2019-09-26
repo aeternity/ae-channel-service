@@ -17,6 +17,25 @@ add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_so
 
 add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/lib/channel_runner.ex](apps/ae_socket_connector/lib/channel_runner.ex#L4)
 
+## Local node optional configuration
+
+If you host your own node make sure to bump `counter`
+```json
+"sc_ws_handlers" : {
+                    "description" : "State channel websocket 
+                    ...
+                    "properties" : {
+                        ...
+                        "counter" : {
+                            "type" : "integer",
+                            "default" : 100
+                        },
+                        ...
+                    }
+                },
+```
+in apps/aeutils/priv/aeternity_config_schema.json
+
 ## Run
 
 Start the code (in iex shell)
