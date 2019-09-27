@@ -699,9 +699,9 @@ defmodule ClientRunner do
       job_builder.({name_initator, initiator_pub}, {name_responder, responder_pub}, self())
 
     state_channel_configuration = %SocketConnector.WsConnection{
-      initiator: initiator_pub,
+      initiator_id: initiator_pub,
       initiator_amount: 7_000_000_000_000,
-      responder: responder_pub,
+      responder_id: responder_pub,
       responder_amount: 4_000_000_000_000
     }
 

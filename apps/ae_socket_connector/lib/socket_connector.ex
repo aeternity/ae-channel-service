@@ -50,8 +50,8 @@ defmodule SocketConnector do
   defmodule(WsConnection,
     do:
       defstruct(
-        initiator: nil,
-        responder: nil,
+        initiator_id: nil,
+        responder_id: nil,
         initiator_amount: nil,
         responder_amount: nil
       )
@@ -71,12 +71,7 @@ defmodule SocketConnector do
         %__MODULE__{
           pub_key: _pub_key,
           priv_key: _priv_key,
-          session: %WsConnection{
-            initiator: initiator_id,
-            responder: responder_id,
-            initiator_amount: initiator_amount,
-            responder_amount: responder_amount
-          },
+          session: %WsConnection{} = session,
           role: role
         } = state_channel_context,
         ws_base,
@@ -84,7 +79,7 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, ws_base)
+    session_map = init_map(session, role, ws_base)
 
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
@@ -330,10 +325,10 @@ defmodule SocketConnector do
   defp transfer_from(amount, state) do
     case state.role do
       :initiator ->
-        transfer_amount(state.session.initiator, state.session.responder, amount)
+        transfer_amount(state.session.initiator_id, state.session.responder_id, amount)
 
       :responder ->
-        transfer_amount(state.session.responder, state.session.initiator, amount)
+        transfer_amount(state.session.responder_id, state.session.initiator_id, amount)
     end
   end
 
@@ -538,7 +533,7 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.initiator, state.session.responder],
+        [state.session.initiator_id, state.session.responder_id],
         [],
         from_pid
       )
@@ -596,7 +591,7 @@ defmodule SocketConnector do
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state, from_pid) do
-    %WsConnection{initiator: initiator, responder: responder} = state.session
+    %WsConnection{initiator_id: initiator, responder_id: responder} = state.session
 
     make_sync(
       from_pid,
@@ -757,18 +752,18 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, host_url) do
-    same = %{
-      channel_reserve: "2",
-      initiator_amount: initiator_amount,
-      initiator_id: initiator_id,
-      lock_period: "10",
-      port: "12340",
-      protocol: "json-rpc",
-      push_amount: "1",
-      responder_amount: responder_amount,
-      responder_id: responder_id
-    }
+  def init_map(session, role, host_url) do
+    same =
+      Map.merge(
+        Map.from_struct(session),
+        %{
+          channel_reserve: "2",
+          lock_period: "10",
+          port: "12340",
+          protocol: "json-rpc",
+          push_amount: "1"
+        }
+      )
 
     role_map =
       case role do
@@ -950,7 +945,7 @@ defmodule SocketConnector do
 
     sync_call =
       %SyncCall{request: request} =
-      get_poi_response_query([state.session.initiator, state.session.responder], [], process_poi)
+      get_poi_response_query([state.session.initiator_id, state.session.responder_id], [], process_poi)
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
