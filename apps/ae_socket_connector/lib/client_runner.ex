@@ -8,6 +8,7 @@ defmodule ClientRunner do
 
   def joblist(),
     do: [
+      &hello_fsm/3,
       &withdraw_after_reconnect/3,
       &withdraw_after_reestablish/3,
       &backchannel_jobs/3,
@@ -48,6 +49,7 @@ defmodule ClientRunner do
           }}",
           ansi_color: color
         )
+
         # &teardown_on_channel_creation
         # case method do
         #   "funding_signed" ->
@@ -174,6 +176,15 @@ defmodule ClientRunner do
          Logger.debug("doing nothing #{inspect(count)}", ansi_color: :white)
        end, :empty}
     end)
+  end
+
+  def hello_fsm({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
+    jobs_initiator = [
+      {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+      sequence_finish_job(runner_pid, initiator)
+    ]
+
+    {jobs_initiator, [sequence_finish_job(runner_pid, responder)]}
   end
 
   def contract_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do

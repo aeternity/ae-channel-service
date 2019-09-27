@@ -15,6 +15,8 @@ make shell
 
 add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_socket_connector/lib/test_accounts.ex)
 
+These account must exist on the node.
+
 add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/lib/channel_runner.ex](apps/ae_socket_connector/lib/channel_runner.ex#L4)
 
 ## Local node optional configuration
@@ -36,8 +38,12 @@ more documentation on node configuration can be found [here](https://github.com/
 ## Run
 
 Start the code (in iex shell)
-```
+```elixir
 iex(1)> ChannelRunner.start_channel_helper()
+```
+alternativly at you prompt
+```bash
+mix test
 ```
 
 by default the command will start tests one by one found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L9), feel free to remove entries to get cleaner log outputs.

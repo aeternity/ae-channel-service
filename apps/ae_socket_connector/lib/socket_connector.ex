@@ -274,19 +274,19 @@ defmodule SocketConnector do
 
   # Server side
 
-  def terminate(reason, state) when reason in [{:local, :normal}, {:remote, :closed}] do
+  def terminate(reason, _state) when reason in [{:local, :normal}, {:remote, :closed}, {:remote, 1000, ""}] do
     # silent, all good
     exit(:normal)
   end
 
-  def terminate(reason, state) do
-    Logger.warn(
-      "unexpected? termination peer role: #{state.role} pid: #{inspect(self())} reason: #{inspect(reason)}",
-      ansi_color: :red
-    )
+  # def terminate(reason, state) do
+  #   Logger.warn(
+  #     "unexpected? termination peer role: #{state.role} pid: #{inspect(self())} reason: #{inspect(reason)}",
+  #     ansi_color: :red
+  #   )
 
-    exit(:normal)
-  end
+  #   exit(:normal)
+  # end
 
   def handle_connect(conn, state) do
     Logger.info("Connected! #{inspect(conn)} #{inspect(self())}", state.color)
