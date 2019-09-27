@@ -20,21 +20,18 @@ add the address to your [æternity](https://github.com/aeternity/aeternity) node
 ## Local node optional configuration
 
 If you host your own node make sure to bump `counter`
-```json
-"sc_ws_handlers" : {
-                    "description" : "State channel websocket 
-                    ...
-                    "properties" : {
-                        ...
-                        "counter" : {
-                            "type" : "integer",
-                            "default" : 100
-                        },
-                        ...
-                    }
-                },
+by adding the following to your aeternity.yaml
+
+```yaml
+regulators:
+    sc_ws_handlers:
+        counter: 100
+        max_size: 5
 ```
-in apps/aeutils/priv/aeternity_config_schema.json
+
+default can be found in you node config [here](https://github.com/aeternity/aeternity/blob/master/apps/aeutils/priv/aeternity_config_schema.json)
+
+more documentation on node configuration can be found [here](https://github.com/aeternity/aeternity/blob/master/docs/configuration.md)
 
 ## Run
 
