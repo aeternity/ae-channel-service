@@ -18,6 +18,7 @@ defmodule ClientRunner do
       &contract_jobs/3,
       &reestablish_jobs/3,
       &query_after_reconnect/3
+      # TODO missing "get state"
       # This is unfinished, info callback needs to be refined and configurable minimg height.
       # &teardown_on_channel_creation/3
     ]

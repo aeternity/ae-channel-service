@@ -752,7 +752,7 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(session, role, host_url) do
+  def init_map(session, role, _host_url) do
     same =
       Map.merge(
         Map.from_struct(session),
@@ -1225,7 +1225,7 @@ defmodule SocketConnector do
         %{
           "method" => "channels.info",
           "params" => %{"channel_id" => channel_id, "data" => %{"event" => event}}
-        } = message,
+        } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
@@ -1254,18 +1254,6 @@ defmodule SocketConnector do
     Logger.debug("On chain #{inspect(message)}", state.color)
     Logger.debug("On chain Pending #{inspect(state.pending_update)}", state.color)
     Validator.verify_on_chain(signed_tx, state.ws_base)
-    {:ok, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "open"}}
-        } = _message,
-        %__MODULE__{channel_id: current_channel_id} = state
-      )
-      when channel_id == current_channel_id do
-    Logger.debug("= CHANNEL OPEN/READY", state.color)
     {:ok, state}
   end
 
