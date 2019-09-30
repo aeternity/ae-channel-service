@@ -72,6 +72,7 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :close
   test "close mutual", context do
     {alice, bob} = gen_names(context.test)
 

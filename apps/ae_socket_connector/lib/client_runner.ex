@@ -471,7 +471,10 @@ defmodule ClientRunner do
     {:local,
      fn client_runner, pid_session_holder ->
        SessionHolder.run_action(pid_session_holder, close_solo)
-       GenServer.cast(client_runner, {:process_job_lists})
+       spawn(fn ->
+         Process.sleep(2000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end)
      end, :empty}
   end
 
@@ -482,7 +485,10 @@ defmodule ClientRunner do
     {:local,
      fn client_runner, pid_session_holder ->
        SessionHolder.run_action(pid_session_holder, shutdown)
-       GenServer.cast(client_runner, {:process_job_lists})
+       spawn(fn ->
+         Process.sleep(2000)
+         GenServer.cast(client_runner, {:process_job_lists})
+       end)
      end, :empty}
   end
 
