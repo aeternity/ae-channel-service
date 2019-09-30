@@ -269,7 +269,8 @@ defmodule SocketConnector do
 
   # Server side
 
-  def terminate(reason, _state) when reason in [{:local, :normal}, {:remote, :closed}, {:remote, 1000, ""}] do
+  def terminate(reason, _state)
+      when reason in [{:local, :normal}, {:remote, :closed}, {:remote, 1000, ""}] do
     # silent, all good
     exit(:normal)
   end
@@ -947,7 +948,11 @@ defmodule SocketConnector do
 
     sync_call =
       %SyncCall{request: request} =
-      get_poi_response_query([state.session.initiator_id, state.session.responder_id], [], process_poi)
+      get_poi_response_query(
+        [state.session.initiator_id, state.session.responder_id],
+        [],
+        process_poi
+      )
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
@@ -1142,31 +1147,17 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(:sign_approve, state, round, method) do
+  def produce_callback(type, state, round, method) when type in [:channels_update, :channels_info] do
     case state.connection_callbacks do
       nil ->
         :ok
 
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
+      _ ->
         %Update{round_initiator: round_initiator} =
           Map.get(state.pending_update, round, %Update{round_initiator: :transient})
 
-        channels_update.(round_initiator, round, method)
-        :ok
-    end
-  end
-
-  # TODO merge with above....
-  def produce_callback(:channels_info, state, round, method) do
-    case state.connection_callbacks do
-      nil ->
-        :ok
-
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_info: channels_info} ->
-        %Update{round_initiator: round_initiator} =
-          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
-
-        channels_info.(round_initiator, round, method)
+        callback = Map.get(state.connection_callbacks, type)
+        callback.(round_initiator, round, method)
         :ok
     end
   end
@@ -1189,7 +1180,7 @@ defmodule SocketConnector do
       state.color
     )
 
-    produce_callback(:sign_approve, state, Validator.get_state_round(state_tx), method)
+    produce_callback(:channels_update, state, Validator.get_state_round(state_tx), method)
 
     new_state = %__MODULE__{
       state
@@ -1217,7 +1208,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id and channel_id == channel_id2 do
-    produce_callback(:sign_approve, state, round + 1, method)
+    produce_callback(:channels_update, state, round + 1, method)
     {:ok, state}
   end
 
