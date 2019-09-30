@@ -10,11 +10,11 @@ use Mix.Config
 
 # You can configure your application as:
 #
-#     config :socket_connector, key: :value
+#     config :ae_socket_connector, key: :value
 #
 # and access this configuration in your application as:
 #
-#     Application.get_env(:socket_connector, :key)
+#     Application.get_env(:ae_socket_connector, :key)
 #
 # You can also configure a 3rd-party app:
 #
