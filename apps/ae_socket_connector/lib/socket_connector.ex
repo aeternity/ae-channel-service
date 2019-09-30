@@ -7,7 +7,6 @@ defmodule SocketConnector do
   defstruct pub_key: nil,
             priv_key: nil,
             role: nil,
-            # WsConnection{},
             session: %{},
             color: nil,
             channel_id: nil,
@@ -53,7 +52,8 @@ defmodule SocketConnector do
         initiator_id: nil,
         responder_id: nil,
         initiator_amount: nil,
-        responder_amount: nil
+        responder_amount: nil,
+        custom_param_fun: nil
       )
   )
 
@@ -71,7 +71,7 @@ defmodule SocketConnector do
         %__MODULE__{
           pub_key: _pub_key,
           priv_key: _priv_key,
-          session: %WsConnection{} = session,
+          session: session,
           role: role
         } = state_channel_context,
         ws_base,
@@ -275,14 +275,9 @@ defmodule SocketConnector do
     exit(:normal)
   end
 
-  # def terminate(reason, state) do
-  #   Logger.warn(
-  #     "unexpected? termination peer role: #{state.role} pid: #{inspect(self())} reason: #{inspect(reason)}",
-  #     ansi_color: :red
-  #   )
-
-  #   exit(:normal)
-  # end
+  def terminate(reason, state) do
+    super(reason, state)
+  end
 
   def handle_connect(conn, state) do
     Logger.info("Connected! #{inspect(conn)} #{inspect(self())}", state.color)
@@ -326,10 +321,10 @@ defmodule SocketConnector do
   defp transfer_from(amount, state) do
     case state.role do
       :initiator ->
-        transfer_amount(state.session.initiator_id, state.session.responder_id, amount)
+        transfer_amount(state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id, amount)
 
       :responder ->
-        transfer_amount(state.session.responder_id, state.session.initiator_id, amount)
+        transfer_amount(state.session.basic_configuration.responder_id, state.session.basic_configuration.initiator_id, amount)
     end
   end
 
@@ -534,7 +529,7 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.initiator_id, state.session.responder_id],
+        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
         [],
         from_pid
       )
@@ -592,7 +587,7 @@ defmodule SocketConnector do
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state, from_pid) do
-    %WsConnection{initiator_id: initiator, responder_id: responder} = state.session
+    %WsConnection{initiator_id: initiator, responder_id: responder} = state.session.basic_configuration
 
     make_sync(
       from_pid,
@@ -753,32 +748,10 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(session, role, _host_url) do
-    same =
-      Map.merge(
-        Map.from_struct(session),
-        %{
-          channel_reserve: "2",
-          lock_period: "10",
-          port: "12340",
-          protocol: "json-rpc",
-          push_amount: "1"
-        }
-      )
-
-    role_map =
-      case role do
-        :initiator ->
-          # %URI{host: host} = URI.parse(host_url)
-          # TODO Worksound to be able to connect to testnet
-          # %{host: host, role: "initiator", minimum_depth: 0}
-          %{host: "localhost", role: "initiator", minimum_depth: 0}
-
-        :responder ->
-          %{role: "responder", minimum_depth: 0}
-      end
-
-    Map.merge(same, role_map)
+  def init_map(%{basic_configuration: basic_configuration, custom_param_fun: custom_param_fun}, role, host_url) do
+    custom = custom_param_fun.(role, host_url)
+    same = Map.from_struct(basic_configuration)
+    Map.merge(same, custom)
   end
 
   def create_link(base_url, params) do
@@ -949,7 +922,7 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.initiator_id, state.session.responder_id],
+        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
         [],
         process_poi
       )

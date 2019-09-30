@@ -3,8 +3,8 @@ defmodule SocketConnectorTest do
   # doctest SocketConnectxor
   require ChannelRunner
 
-  @ae_url ChannelRunner.ae_url
-  @network_id ChannelRunner.network_id
+  @ae_url ChannelRunner.ae_url()
+  @network_id ChannelRunner.network_id()
 
   def gen_names(id) do
     clean_id = Atom.to_string(id)
@@ -20,7 +20,8 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.hello_fsm/3
+      &ClientRunner.hello_fsm/3,
+      &ClientRunner.default_configuration/2
     )
   end
 

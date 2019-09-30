@@ -24,7 +24,7 @@ defmodule ClientRunner do
     ]
 
   def start_link(
-        {_pub_key, _priv_key, %SocketConnector.WsConnection{}, _ae_url, _network_id, _role, _jobs, _color, _name} =
+        {_pub_key, _priv_key, _state_channel_configuration, _ae_url, _network_id, _role, _jobs, _color, _name} =
           params
       ) do
     GenServer.start_link(__MODULE__, params)
@@ -86,7 +86,7 @@ defmodule ClientRunner do
 
   # Server
   def init(
-        {pub_key, priv_key, %SocketConnector.WsConnection{} = state_channel_configuration, ae_url, network_id,
+        {pub_key, priv_key, state_channel_configuration, ae_url, network_id,
          role, jobs, color, name}
       ) do
     {:ok, pid_session_holder} =
@@ -193,7 +193,6 @@ defmodule ClientRunner do
     # correct path if started in shell...
     # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
     # responder_contract = {TestAccounts.responderPubkeyEncoded(), "contracts/TicTacToe.aes"}
-
 
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
@@ -472,6 +471,7 @@ defmodule ClientRunner do
     {:local,
      fn client_runner, pid_session_holder ->
        SessionHolder.run_action(pid_session_holder, close_solo)
+
        spawn(fn ->
          Process.sleep(2000)
          GenServer.cast(client_runner, {:process_job_lists})
@@ -486,6 +486,7 @@ defmodule ClientRunner do
     {:local,
      fn client_runner, pid_session_holder ->
        SessionHolder.run_action(pid_session_holder, shutdown)
+
        spawn(fn ->
          Process.sleep(2000)
          GenServer.cast(client_runner, {:process_job_lists})
@@ -699,7 +700,44 @@ defmodule ClientRunner do
     end
   end
 
-  def start_helper(ae_url, network_id, name_initator, name_responder, job_builder) do
+  def custom_connection_setting(role, _host_url) do
+    same = %{
+      channel_reserve: "2",
+      lock_period: "10",
+      port: "12340",
+      protocol: "json-rpc",
+      push_amount: "1",
+      minimum_depth: 0
+    }
+
+    role_map =
+      case role do
+        :initiator ->
+          # %URI{host: host} = URI.parse(host_url)
+          # TODO Worksound to be able to connect to testnet
+          # %{host: host, role: "initiator"}
+          %{host: "localhost", role: "initiator"}
+
+        :responder ->
+          %{role: "responder"}
+      end
+
+    Map.merge(same, role_map)
+  end
+
+  def default_configuration(initiator_pub, responder_pub) do
+    state_channel_configuration = %{
+      basic_configuration: %SocketConnector.WsConnection{
+        initiator_id: initiator_pub,
+        initiator_amount: 7_000_000_000_000,
+        responder_id: responder_pub,
+        responder_amount: 4_000_000_000_000
+      },
+      custom_param_fun: &custom_connection_setting/2
+    }
+  end
+
+  def start_helper(ae_url, network_id, name_initator, name_responder, job_builder, configuration \\ &default_configuration/2) do
     initiator_pub = TestAccounts.initiatorPubkeyEncoded()
     responder_pub = TestAccounts.responderPubkeyEncoded()
 
@@ -708,12 +746,7 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder} =
       job_builder.({name_initator, initiator_pub}, {name_responder, responder_pub}, self())
 
-    state_channel_configuration = %SocketConnector.WsConnection{
-      initiator_id: initiator_pub,
-      initiator_amount: 7_000_000_000_000,
-      responder_id: responder_pub,
-      responder_amount: 4_000_000_000_000
-    }
+    state_channel_configuration = configuration.(initiator_pub, responder_pub)
 
     start_link(
       {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
