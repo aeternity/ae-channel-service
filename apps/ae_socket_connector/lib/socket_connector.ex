@@ -768,8 +768,10 @@ defmodule SocketConnector do
     role_map =
       case role do
         :initiator ->
-          %URI{host: host} = URI.parse(host_url)
-          %{host: host, role: "initiator", minimum_depth: 0}
+          # %URI{host: host} = URI.parse(host_url)
+          # TODO Worksound to be able to connect to testnet
+          # %{host: host, role: "initiator", minimum_depth: 0}
+          %{host: "localhost", role: "initiator", minimum_depth: 0}
 
         :responder ->
           %{role: "responder", minimum_depth: 0}
