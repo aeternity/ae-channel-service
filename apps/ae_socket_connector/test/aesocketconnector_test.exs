@@ -48,7 +48,6 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :this
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
 
@@ -98,19 +97,19 @@ defmodule SocketConnectorTest do
   end
 
   # relocate contact files to get this working.
-  # test "contract jobs", context do
-  #   {alice, bob} = gen_names(context.test)
+  @tag :contract
+  test "contract jobs", context do
+    {alice, bob} = gen_names(context.test)
 
-  #   ClientRunner.start_helper(
-  #     @ae_url,
-  #     @network_id,
-  #     alice,
-  #     bob,
-  #     &ClientRunner.contract_jobs/3
-  #   )
-  # end
+    ClientRunner.start_helper(
+      @ae_url,
+      @network_id,
+      alice,
+      bob,
+      &ClientRunner.contract_jobs/3
+    )
+  end
 
-  @tag :crash
   test "reestablish jobs", context do
     {alice, bob} = gen_names(context.test)
 
@@ -123,7 +122,6 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :crash
   test "query after reconnect", context do
     {alice, bob} = gen_names(context.test)
 

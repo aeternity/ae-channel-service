@@ -178,7 +178,7 @@ defmodule ClientRunner do
     end)
   end
 
-  def hello_fsm({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
+  def hello_fsm({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
       sequence_finish_job(runner_pid, initiator)
@@ -188,8 +188,11 @@ defmodule ClientRunner do
   end
 
   def contract_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
-    initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
+    initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+    # correct path if started in shell...
+    # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
     # responder_contract = {TestAccounts.responderPubkeyEncoded(), "contracts/TicTacToe.aes"}
+
 
     jobs_initiator = [
       {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
