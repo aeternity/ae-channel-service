@@ -42,7 +42,8 @@ defmodule SocketConnector do
     do:
       defstruct(
         sign_approve: nil,
-        channels_update: nil
+        channels_update: nil,
+        channels_info: nil
       )
   )
 
@@ -83,8 +84,7 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    session_map =
-      init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, ws_base)
+    session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, ws_base)
 
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
@@ -122,7 +122,10 @@ defmodule SocketConnector do
     {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base)
     ws_url = create_link(state_channel_context.ws_base, session_map)
-    Logger.debug("start_link reestablish #{inspect(ws_url)}", ansi_color: color)
+
+    Logger.debug("start_link reestablish url: #{inspect(ws_url)}",
+      ansi_color: color
+    )
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
@@ -131,6 +134,10 @@ defmodule SocketConnector do
           timer_reference: nil,
           color: [ansi_color: color]
       })
+
+    Logger.debug("start_link reestablish pid: #{inspect(pid)}",
+      ansi_color: color
+    )
 
     start_ping(pid)
     {:ok, pid}
@@ -267,8 +274,22 @@ defmodule SocketConnector do
 
   # Server side
 
+  def terminate(reason, state) when reason in [{:local, :normal}, {:remote, :closed}] do
+    # silent, all good
+    exit(:normal)
+  end
+
+  def terminate(reason, state) do
+    Logger.warn(
+      "unexpected? termination peer role: #{state.role} pid: #{inspect(self())} reason: #{inspect(reason)}",
+      ansi_color: :red
+    )
+
+    exit(:normal)
+  end
+
   def handle_connect(conn, state) do
-    Logger.info("Connected! #{inspect(conn)}", state.color)
+    Logger.info("Connected! #{inspect(conn)} #{inspect(self())}", state.color)
     {:ok, state}
   end
 
@@ -303,8 +324,7 @@ defmodule SocketConnector do
     request = build_request("channels.close_solo", %{})
     Logger.info("=> close_solo #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   defp transfer_from(amount, state) do
@@ -348,8 +368,7 @@ defmodule SocketConnector do
 
     Logger.info("=> deposit #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:withdraw, amount}, state) do
@@ -360,8 +379,7 @@ defmodule SocketConnector do
 
     Logger.info("=> withdraw #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:query_funds, from_pid}, state) do
@@ -394,41 +412,35 @@ defmodule SocketConnector do
     request = build_request("channels.shutdown")
     Logger.info("=> shutdown #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:leave, {}}, state) do
     request = build_request("channels.leave")
     Logger.info("=> leave #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
 
-    encoded_bytecode =
-      :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     request = new_contract_req(encoded_bytecode, encoded_calldata, 3)
     Logger.info("=> new contract #{inspect(request)}", state.color)
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
     {:ok, map} = :aeso_compiler.file(contract_file)
 
-    encoded_bytecode =
-      :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
+    encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
     # beware this code assumes that length(updates) == 1
@@ -451,9 +463,7 @@ defmodule SocketConnector do
   end
 
   def find_contract_calls(caller, contract_pubkey, updates) do
-    Logger.debug(
-      "Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}"
-    )
+    Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
 
     for {round,
          %Update{
@@ -472,13 +482,11 @@ defmodule SocketConnector do
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
-    {:ok, call_data} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] =
-      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
@@ -498,8 +506,7 @@ defmodule SocketConnector do
   def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] =
-      Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
     rounds = find_contract_calls(state.pub_key, contract_pubkey, state.round_and_updates)
     # TODO now we per default get the last call, until we expose round to client.
@@ -713,7 +720,7 @@ defmodule SocketConnector do
   end
 
   def handle_disconnect(disconnect_map, state) do
-    Logger.info("disconnecting...", state.color)
+    Logger.info("disconnecting... #{inspect(self())}", state.color)
     :timer.cancel(state.timer_reference)
     # TODO this is redundant.
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
@@ -794,6 +801,7 @@ defmodule SocketConnector do
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
+  # here we have the client has the first disconnect oppertunity (statement needs to be verified). Thats why state is sent to the session holder
   def process_message(
         %{
           "method" => "channels.sign.initiator_sign",
@@ -805,7 +813,21 @@ defmodule SocketConnector do
 
     response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
 
-    {:reply, {:text, Poison.encode!(response)}, state}
+    pending_update = %{
+      Validator.get_state_round(to_sign) => %Update{
+        state_tx: signed_tx
+      }
+    }
+
+    newstate = %__MODULE__{
+      state
+      | round_and_updates: Map.merge(state.round_and_updates, pending_update),
+        pending_update: %{}
+    }
+
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, newstate})
+
+    {:reply, {:text, Poison.encode!(response)}, newstate}
   end
 
   def process_message(
@@ -1106,11 +1128,7 @@ defmodule SocketConnector do
   # wrong unexpected id in response.
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id != pending_id do
-    Logger.error(
-      "<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{
-        inspect(pending_id)
-      }"
-    )
+    Logger.error("<= Failed match id, response: #{inspect(query_reponse)} pending id is: #{inspect(pending_id)}")
 
     {:error, state}
   end
@@ -1127,7 +1145,7 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(state, round, method) do
+  def produce_callback(:sign_approve, state, round, method) do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1137,6 +1155,21 @@ defmodule SocketConnector do
           Map.get(state.pending_update, round, %Update{round_initiator: :transient})
 
         channels_update.(round_initiator, round, method)
+        :ok
+    end
+  end
+
+  # TODO merge with above....
+  def produce_callback(:channels_info, state, round, method) do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+
+      %ConnectionCallbacks{sign_approve: _sign_approve, channels_info: channels_info} ->
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+
+        channels_info.(round_initiator, round, method)
         :ok
     end
   end
@@ -1159,27 +1192,21 @@ defmodule SocketConnector do
       state.color
     )
 
-    produce_callback(state, Validator.get_state_round(state_tx), method)
+    produce_callback(:sign_approve, state, Validator.get_state_round(state_tx), method)
+
+    new_state = %__MODULE__{
+      state
+      | round_and_updates: Map.merge(state.round_and_updates, updates),
+        pending_update: %{}
+    }
 
     # TODO this quite corse, we send it all, duplicated code.....
     GenServer.cast(
       state.ws_manager_pid,
-      {:state_tx_update,
-       %__MODULE__{
-         state
-         | round_and_updates: Map.merge(state.round_and_updates, updates),
-           pending_update: %{}
-       }}
+      {:state_tx_update, new_state}
     )
 
-    # Logger.debug("Update to be added is: #{inspect(updates)}", state.color)
-
-    {:ok,
-     %__MODULE__{
-       state
-       | round_and_updates: Map.merge(state.round_and_updates, updates),
-         pending_update: %{}
-     }}
+    {:ok, new_state}
   end
 
   def process_message(
@@ -1193,7 +1220,19 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id and channel_id == channel_id2 do
-    produce_callback(state, round + 1, method)
+    produce_callback(:sign_approve, state, round + 1, method)
+    {:ok, state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.info",
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event}}
+        } = message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when channel_id == current_channel_id do
+    produce_callback(:channels_info, state, 0, event)
     {:ok, state}
   end
 
@@ -1203,7 +1242,7 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id do
     Logger.debug("channels.info: #{inspect(message)}", state.color)
-    {:ok, state}
+    {:error, state}
   end
 
   def process_message(
@@ -1216,6 +1255,7 @@ defmodule SocketConnector do
       when channel_id == current_channel_id do
     # Produces some logging output.
     Logger.debug("On chain #{inspect(message)}", state.color)
+    Logger.debug("On chain Pending #{inspect(state.pending_update)}", state.color)
     Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, state}
   end
@@ -1238,9 +1278,7 @@ defmodule SocketConnector do
   end
 
   def process_message(message, state) do
-    Logger.error(
-      "<= unprocessed message recieved by #{inspect(state.role)}. message: #{inspect(message)}"
-    )
+    Logger.error("<= unprocessed message recieved by #{inspect(state.role)}. message: #{inspect(message)}")
 
     {:ok, state}
   end

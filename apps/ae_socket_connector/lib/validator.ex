@@ -114,9 +114,7 @@ defmodule Validator do
           )
 
         _other ->
-          Logger.debug(
-            "Sign request Missing inspection!! default approved. Module is #{inspect(module)}"
-          )
+          Logger.debug("Sign request Missing inspection!! default approved. Module is #{inspect(module)}")
 
           :ok
       end
@@ -185,9 +183,9 @@ defmodule Validator do
 
               _ ->
                 Logger.error(
-                  "Poi missmatch, lets go slashing, #{inspect(fee_initiator)} #{
-                    inspect(fee_responder)
-                  } #{inspect(apply(module, :fee, [instance]))}"
+                  "Poi missmatch, lets go slashing, #{inspect(fee_initiator)} #{inspect(fee_responder)} #{
+                    inspect(apply(module, :fee, [instance]))
+                  }"
                 )
 
                 :unsecure
@@ -227,8 +225,7 @@ defmodule Validator do
 
     accounts_with_values =
       Enum.reduce(accounts_in_poi, %{}, fn account, acc ->
-        serialized_pubkey =
-          :aeser_api_encoder.encode(:account_pubkey, :aec_accounts.pubkey(account))
+        serialized_pubkey = :aeser_api_encoder.encode(:account_pubkey, :aec_accounts.pubkey(account))
 
         Map.put(acc, serialized_pubkey, :aec_accounts.balance(account))
       end)

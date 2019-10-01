@@ -17,6 +17,22 @@ add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_so
 
 add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/lib/channel_runner.ex](apps/ae_socket_connector/lib/channel_runner.ex#L4)
 
+## Local node optional configuration
+
+If you host your own node make sure to bump `counter`
+by adding the following to your aeternity.yaml
+
+```yaml
+regulators:
+    sc_ws_handlers:
+        counter: 100
+        max_size: 5
+```
+
+default can be found in you node config [here](https://github.com/aeternity/aeternity/blob/master/apps/aeutils/priv/aeternity_config_schema.json)
+
+more documentation on node configuration can be found [here](https://github.com/aeternity/aeternity/blob/master/docs/configuration.md)
+
 ## Run
 
 Start the code (in iex shell)
