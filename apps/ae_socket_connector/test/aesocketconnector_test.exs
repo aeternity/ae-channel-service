@@ -11,6 +11,20 @@ defmodule SocketConnectorTest do
     {String.to_atom("alice " <> clean_id), String.to_atom("bob " <> clean_id)}
   end
 
+  def custom_config(overide_basic_param, override_custom) do
+    fn initator_pub, responder_pub ->
+      %{basic_configuration: basic_configuration} =
+        Map.merge(ClientRunner.default_configuration(initator_pub, responder_pub), overide_basic_param)
+
+      %{
+        basic_configuration: basic_configuration,
+        custom_param_fun: fn role, host_url ->
+          Map.merge(ClientRunner.custom_connection_setting(role, host_url), override_custom)
+        end
+      }
+    end
+  end
+
   @tag :hello_world
   test "hello fsm", context do
     {alice, bob} = gen_names(context.test)
@@ -21,7 +35,7 @@ defmodule SocketConnectorTest do
       alice,
       bob,
       &ClientRunner.hello_fsm/3,
-      &ClientRunner.default_configuration/2
+      custom_config(%{}, %{minimum_depth: 5})
     )
   end
 
@@ -133,6 +147,19 @@ defmodule SocketConnectorTest do
       alice,
       bob,
       &ClientRunner.query_after_reconnect/3
+    )
+  end
+
+  test "teardown on channel creation", context do
+    {alice, bob} = gen_names(context.test)
+    assert "false positve, this test needs to disconnect on info message" = "code need to be added in framwork"
+    ClientRunner.start_helper(
+      @ae_url,
+      @network_id,
+      alice,
+      bob,
+      &ClientRunner.teardown_on_channel_creation/3,
+      custom_config(%{}, %{minimum_depth: 50})
     )
   end
 end

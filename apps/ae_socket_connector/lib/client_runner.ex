@@ -17,10 +17,10 @@ defmodule ClientRunner do
       &reconnect_jobs/3,
       &contract_jobs/3,
       &reestablish_jobs/3,
-      &query_after_reconnect/3
+      &query_after_reconnect/3,
       # TODO missing "get state"
       # This is unfinished, info callback needs to be refined and configurable minimg height.
-      # &teardown_on_channel_creation/3
+      &teardown_on_channel_creation/3
     ]
 
   def start_link(
@@ -85,10 +85,7 @@ defmodule ClientRunner do
   end
 
   # Server
-  def init(
-        {pub_key, priv_key, state_channel_configuration, ae_url, network_id,
-         role, jobs, color, name}
-      ) do
+  def init({pub_key, priv_key, state_channel_configuration, ae_url, network_id, role, jobs, color, name}) do
     {:ok, pid_session_holder} =
       SessionHolder.start_link(%{
         socket_connector: %SocketConnector{
@@ -707,7 +704,8 @@ defmodule ClientRunner do
       port: "12340",
       protocol: "json-rpc",
       push_amount: "1",
-      minimum_depth: 0
+      minimum_depth: 0,
+      role: role
     }
 
     role_map =
@@ -716,17 +714,17 @@ defmodule ClientRunner do
           # %URI{host: host} = URI.parse(host_url)
           # TODO Worksound to be able to connect to testnet
           # %{host: host, role: "initiator"}
-          %{host: "localhost", role: "initiator"}
+          %{host: "localhost"}
 
-        :responder ->
-          %{role: "responder"}
+        _ ->
+          %{}
       end
 
     Map.merge(same, role_map)
   end
 
   def default_configuration(initiator_pub, responder_pub) do
-    state_channel_configuration = %{
+    %{
       basic_configuration: %SocketConnector.WsConnection{
         initiator_id: initiator_pub,
         initiator_amount: 7_000_000_000_000,
@@ -737,7 +735,14 @@ defmodule ClientRunner do
     }
   end
 
-  def start_helper(ae_url, network_id, name_initator, name_responder, job_builder, configuration \\ &default_configuration/2) do
+  def start_helper(
+        ae_url,
+        network_id,
+        name_initator,
+        name_responder,
+        job_builder,
+        configuration \\ &default_configuration/2
+      ) do
     initiator_pub = TestAccounts.initiatorPubkeyEncoded()
     responder_pub = TestAccounts.responderPubkeyEncoded()
 
