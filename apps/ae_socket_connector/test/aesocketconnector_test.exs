@@ -1,10 +1,10 @@
 defmodule SocketConnectorTest do
   use ExUnit.Case
   # doctest SocketConnectxor
-  require ChannelRunner
+  require ClientRunner
 
-  @ae_url ChannelRunner.ae_url()
-  @network_id ChannelRunner.network_id()
+  @ae_url ClientRunner.ae_url()
+  @network_id ClientRunner.network_id()
 
   def gen_names(id) do
     clean_id = Atom.to_string(id)

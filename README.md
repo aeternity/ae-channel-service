@@ -17,7 +17,7 @@ add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_so
 
 These account must exist on the node.
 
-add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/lib/channel_runner.ex](apps/ae_socket_connector/lib/channel_runner.ex#L4)
+add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/lib/client_runner.ex](apps/ae_socket_connector/lib/client_runner.ex#L8)
 
 ## Configure - test net
 
@@ -28,7 +28,7 @@ add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_so
 Your account needs to exist on chain. To make it happen, just top up your accounts
 [here](https://testnet.faucet.aepps.com/) and then you should be able to follow your on chain transactions [here](https://testnet.explorer.aepps.com)
 
-enable testnet by referencing testnet (remove comments) [apps/ae_socket_connector/lib/channel_runner.ex](apps/ae_socket_connector/lib/channel_runner.ex#L7-L8)
+enable testnet by referencing testnet (remove comments) [apps/ae_socket_connector/lib/client_runner.ex](apps/ae_socket_connector/lib/client_runner.ex#L7-L8)
 
 ## Local node optional configuration
 
@@ -55,7 +55,7 @@ mix test
 
 alternatively (in iex shell)
 ```elixir
-iex(1)> ChannelRunner.start_channel_helper()
+iex(1)> ClientRunner.start_channel_helper()
 ```
 
-by default the command will start tests one by one found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L9), feel free to remove entries to get cleaner log outputs.
+by default the command will start tests one by one found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L21), feel free to remove entries to get cleaner log outputs.
