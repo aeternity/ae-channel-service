@@ -35,7 +35,7 @@ defmodule SocketConnectorTest do
       alice,
       bob,
       &ClientRunner.hello_fsm/3,
-      custom_config(%{}, %{minimum_depth: 5})
+      custom_config(%{}, %{minimum_depth: 0, port: 1400})
     )
   end
 

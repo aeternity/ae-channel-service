@@ -701,7 +701,7 @@ defmodule ClientRunner do
     same = %{
       channel_reserve: "2",
       lock_period: "10",
-      port: "12340",
+      port: "1500",
       protocol: "json-rpc",
       push_amount: "1",
       minimum_depth: 0,
