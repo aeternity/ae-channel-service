@@ -2,11 +2,11 @@ defmodule ClientRunner do
   use GenServer
   require Logger
 
-  # @ae_url "ws://localhost:3014/channel"
-  # @network_id "my_test"
+  @ae_url "ws://localhost:3014/channel"
+  @network_id "my_test"
 
-  @ae_url "wss://testnet.demo.aeternity.io/channel"
-  @network_id "ae_uat"
+  # @ae_url "wss://testnet.demo.aeternity.io/channel"
+  # @network_id "ae_uat"
 
   defmacro ae_url, do: @ae_url
   defmacro network_id, do: @network_id
@@ -22,17 +22,17 @@ defmodule ClientRunner do
     do: [
       &hello_fsm/3,
       &withdraw_after_reconnect/3,
-      &withdraw_after_reestablish/3,
-      &backchannel_jobs/3,
-      &close_solo/3,
-      &close_mutual/3,
-      &reconnect_jobs/3,
-      &contract_jobs/3,
-      &reestablish_jobs/3,
-      &query_after_reconnect/3,
-      # TODO missing "get state"
-      # This is unfinished, info callback needs to be refined and configurable minimg height.
-      &teardown_on_channel_creation/3
+      # &withdraw_after_reestablish/3,
+      # &backchannel_jobs/3,
+      # &close_solo/3,
+      # &close_mutual/3,
+      # &reconnect_jobs/3,
+      # &contract_jobs/3,
+      # &reestablish_jobs/3,
+      # &query_after_reconnect/3,
+      # # TODO missing "get state"
+      # # This is unfinished, info callback needs to be refined and configurable minimg height.
+      # &teardown_on_channel_creation/3
     ]
 
   def start_link(
@@ -40,6 +40,55 @@ defmodule ClientRunner do
           params
       ) do
     GenServer.start_link(__MODULE__, params)
+  end
+
+#   responder
+#   {channels_info, :transient, 0, channel_open}
+#   {channels_info, :transient, 0, funding_created}
+#   {sign_approve, :not_implemented, 1}
+#   channels info: %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => "ch_26pWwTnMqSSi4FUNarYGkfMK6VLD5tRH8oHepDTQcy1
+# NdP31Rt", "data" => %{"event" => "own_funding_locked"}}, "version" => 1}
+
+# 12:18:53.610 [debug] channels.info: %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => "ch_26pWwTnMqSSi4FUNarYGkfMK6VLD5tRH8oHepDTQcy1N$
+# P31Rt", "data" => %{"event" => "funding_locked"}}, "version" => 1}
+
+
+#   initator
+#   {channels_info, :transient, 0, channel_accept}
+#   {sign_approve, :not_implemented, 1}
+#   channels_info received round is: 0, initated by: :transient method is "funding_signed"}
+#   channels info: %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => "ch_26pWwTnMqSSi4FUNarYGkfMK6VLD5tRH8oHepDTQcy1
+# NdP31Rt", "data" => %{"event" => "own_funding_locked"}}, "version" => 1}
+
+  def connection_callback_in_details(callback_pid, color) do
+    %SocketConnector.ConnectionCallbacks{
+      sign_approve: fn round_initiator, round, auto_approval, human ->
+        Logger.debug(
+          "sign_approve received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
+            inspect(auto_approval)
+          }, containing: #{inspect(human)}",
+          ansi_color: color
+        )
+
+        auto_approval
+      end,
+      channels_info: fn round_initiator, round, method ->
+        Logger.debug(
+          "channels_info received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)} method is #{
+            inspect(method)
+          }}",
+          ansi_color: color
+        )
+      end,
+      channels_update: fn round_initiator, round, method ->
+        Logger.debug(
+          "channels_update received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)} method is #{
+            inspect(method)
+          }}",
+          ansi_color: color
+        )
+      end
+    }
   end
 
   def connection_callback(callback_pid, color) do
@@ -105,6 +154,7 @@ defmodule ClientRunner do
           priv_key: priv_key,
           session: state_channel_configuration,
           role: role,
+          # connection_callbacks: connection_callback_in_details(self(), color)
           connection_callbacks: connection_callback(self(), color)
         },
         ae_url: ae_url,

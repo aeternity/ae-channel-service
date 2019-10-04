@@ -321,10 +321,18 @@ defmodule SocketConnector do
   defp transfer_from(amount, state) do
     case state.role do
       :initiator ->
-        transfer_amount(state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id, amount)
+        transfer_amount(
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id,
+          amount
+        )
 
       :responder ->
-        transfer_amount(state.session.basic_configuration.responder_id, state.session.basic_configuration.initiator_id, amount)
+        transfer_amount(
+          state.session.basic_configuration.responder_id,
+          state.session.basic_configuration.initiator_id,
+          amount
+        )
     end
   end
 
@@ -725,6 +733,7 @@ defmodule SocketConnector do
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
+      # TODO this should not be hardcoded.
       port: "12341"
     }
 
@@ -761,18 +770,6 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  def process_message(
-        %{
-          "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "funding_locked"}}
-        } = message,
-        state
-      ) do
-    Logger.debug("channels.info: #{inspect(message)}", state.color)
-    {:ok, %__MODULE__{state | channel_id: channel_id}}
-  end
-
-  # here we have the client has the first disconnect oppertunity (statement needs to be verified). Thats why state is sent to the session holder
   def process_message(
         %{
           "method" => "channels.sign.initiator_sign",
@@ -1181,8 +1178,15 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id and channel_id == channel_id2 do
+    # The conflist arised on the upcoming round which is + 1
     produce_callback(:channels_update, state, round + 1, method)
     {:ok, state}
+  end
+
+  defmacro is_first_update(stored_id, new_id) do
+    quote do
+      unquote(stored_id) == nil and (unquote(new_id) != nil)
+    end
   end
 
   def process_message(
@@ -1192,9 +1196,10 @@ defmodule SocketConnector do
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when channel_id == current_channel_id do
+      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+
     produce_callback(:channels_info, state, 0, event)
-    {:ok, state}
+    {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
   def process_message(
@@ -1210,19 +1215,12 @@ defmodule SocketConnector do
         %{
           "method" => "channels.on_chain_tx",
           "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
-        } = message,
+        } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
     # Produces some logging output.
-    Logger.debug("On chain #{inspect(message)}", state.color)
-    Logger.debug("On chain Pending #{inspect(state.pending_update)}", state.color)
     Validator.verify_on_chain(signed_tx, state.ws_base)
-    {:ok, state}
-  end
-
-  def process_message(%{"method" => "channels.info"} = message, state) do
-    Logger.debug("= channels info: #{inspect(message)}", state.color)
     {:ok, state}
   end
 
