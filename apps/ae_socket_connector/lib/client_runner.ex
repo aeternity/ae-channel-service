@@ -43,36 +43,30 @@ defmodule ClientRunner do
     GenServer.start_link(__MODULE__, params)
   end
 
-  # responder: channels_info received round is: 0, initated by: :transient method is "channel_open"}
-  # initiator: channels_info received round is: 0, initated by: :transient method is "channel_accept"}
-  # responder: channels_info received round is: 0, initated by: :transient method is "funding_created"}
-  # responder: sign_approve received round is: 1, initated by: :not_implemented. auto_approval: :ok, containing: %{"channel_reserve" => 2,
-  # initiator: channels_info received round is: 0, initated by: :transient method is "funding_signed"}
-  # responder: channels_info received round is: 0, initated by: :transient method is "own_funding_locked"}
-  # initiator: channels_info received round is: 0, initated by: :transient method is "own_funding_locked"}
-  # initiator: channels_info received round is: 0, initated by: :transient method is "funding_locked"}
-  # responder: channels_info received round is: 0, initated by: :transient method is "funding_locked"}
-  # initiator: channels_info received round is: 0, initated by: :transient method is "open"}
-  # initiator: channels_update received round is: 1, initated by: :transient method is "channels.update"}
-  # responder: channels_info received round is: 0, initated by: :transient method is "open"}
-  # responder: channels_update received round is: 1, initated by: :transient method is "channels.update"}
-
-  def match_list(), do: [
-    {:responder, :channels_info, 0, :transient, "channel_open"},
-    {:initiator, :channels_info, 0, :transient, "channel_accept"},
-    {:initiator, :sign_approve, 1},
-    {:responder, :channels_info, 0, :transient, "funding_created"},
-    {:responder, :sign_approve, 1},
-    {:initiator, :channels_info, 0, :transient, "funding_signed"},
-    {:responder, :channels_info, 0, :transient, "own_funding_locked"},
-    {:initiator, :channels_info, 0, :transient, "own_funding_locked"},
-    {:initiator, :channels_info, 0, :transient, "funding_locked"},
-    {:responder, :channels_info, 0, :transient, "funding_locked"},
-    {:initiator, :channels_info, 0, :transient, "open"},
-    {:initiator, :channels_update, 1, :transient, "channels.update"},
-    {:responder, :channels_info, 0, :transient, "open"},
-    {:responder, :channels_update, 1, :transient, "channels.update"}
-  ]
+  def match_list(),
+    do: [
+      # opening channel
+      {:responder, {:channels_info, 0, :transient, "channel_open"}, {}},
+      {:initiator, {:channels_info, 0, :transient, "channel_accept"}, {}},
+      {:initiator, {:sign_approve, 1}, {}},
+      {:responder, {:channels_info, 0, :transient, "funding_created"}, {}},
+      {:responder, {:sign_approve, 1}, {}},
+      {:initiator, {:channels_info, 0, :transient, "funding_signed"}, {}},
+      {:responder, {:channels_info, 0, :transient, "own_funding_locked"}, {}},
+      {:initiator, {:channels_info, 0, :transient, "own_funding_locked"}, {}},
+      {:initiator, {:channels_info, 0, :transient, "funding_locked"}, {}},
+      {:responder, {:channels_info, 0, :transient, "funding_locked"}, {}},
+      {:initiator, {:channels_info, 0, :transient, "open"}, {}},
+      {:initiator, {:channels_update, 1, :transient, "channels.update"}, {:run_job}},
+      {:responder, {:channels_info, 0, :transient, "open"}, {}},
+      {:responder, {:channels_update, 1, :transient, "channels.update"}, {}},
+      # end of opening sequence
+      # leaving
+      {:responder, {:channels_update, 1, :transient, "channels.leave"}, {}},
+      {:initiator, {:channels_update, 1, :transient, "channels.leave"}, {}},
+      {:initiator, {:channels_info, 0, :transient, "died"}, {}},
+      {:initiator, {:channels_info, 0, :transient, "channels_info"}, {}}
+    ]
 
   def connection_callback_in_details(callback_pid, color) do
     %SocketConnector.ConnectionCallbacks{
@@ -94,6 +88,7 @@ defmodule ClientRunner do
           }}",
           ansi_color: color
         )
+
         GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}})
       end,
       channels_update: fn round_initiator, round, method ->
@@ -103,6 +98,7 @@ defmodule ClientRunner do
           }}",
           ansi_color: color
         )
+
         GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}})
       end
     }
@@ -184,13 +180,14 @@ defmodule ClientRunner do
      %__MODULE__{
        pid_session_holder: pid_session_holder,
        job_list: jobs,
-      #  match_list: Enum.filter(match_list(), fn (entry) -> elem(entry, 0) == role end),
-       match_list: Enum.reduce(match_list(), [], fn(entry, acc) ->
-        case elem(entry, 0) == role do
-          true -> acc ++ [Tuple.delete_at(entry, 0)]
-          false -> acc
-        end
-       end),
+       #  match_list: Enum.filter(match_list(), fn (entry) -> elem(entry, 0) == role end),
+       match_list:
+         Enum.reduce(match_list(), [], fn {runner, event, next}, acc ->
+           case runner == role do
+             true -> acc ++ [{event, next}]
+             false -> acc
+           end
+         end),
        color: [ansi_color: color]
      }}
   end
@@ -219,10 +216,30 @@ defmodule ClientRunner do
 
   # {:responder, :channels_info, 0, :transient, "channel_open"}
   def handle_cast({:match_jobs, message}, state) do
-    [expected | rest] = state.match_list
-    Logger.error("expected #{inspect expected} received #{inspect message}", state.color)
-    ^expected = message
-    {:noreply, %__MODULE__{state | match_list: rest}}
+    case state.match_list do
+      [{expected, next} | rest] ->
+        Logger.error(
+          "expected #{inspect(expected)} received #{inspect(message)} next is: #{inspect(next)}",
+          state.color
+        )
+
+        ^expected = message
+
+        case next == {:run_job} do
+          true ->
+            Logger.debug("running next")
+            GenServer.cast(self(), {:process_job_lists})
+
+          _ ->
+            :ok
+        end
+
+        {:noreply, %__MODULE__{state | match_list: rest}}
+
+      [] ->
+        Logger.error("end of list")
+        {:noreply, state}
+    end
   end
 
   def handle_cast({:process_job_lists}, state) do
