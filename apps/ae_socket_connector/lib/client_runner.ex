@@ -14,7 +14,8 @@ defmodule ClientRunner do
   defstruct pid_session_holder: nil,
             color: nil,
             job_list: nil,
-            match_list: nil
+            match_list: nil,
+            fuzzy_counter: 0
 
   def start_channel_helper(),
     do: ClientRunner.start_helper(@ae_url, @network_id)
@@ -43,29 +44,34 @@ defmodule ClientRunner do
     GenServer.start_link(__MODULE__, params)
   end
 
+  # example
+  # %{
+  # {:initiator, %{message: {:channels_update, 1, :transient, "channels.update"}, next: {:run_job}, fuzzy: 3}},
+  # }
+
   def match_list(),
     do: [
       # opening channel
-      {:responder, {:channels_info, 0, :transient, "channel_open"}, {}},
-      {:initiator, {:channels_info, 0, :transient, "channel_accept"}, {}},
-      {:initiator, {:sign_approve, 1}, {}},
-      {:responder, {:channels_info, 0, :transient, "funding_created"}, {}},
-      {:responder, {:sign_approve, 1}, {}},
-      {:initiator, {:channels_info, 0, :transient, "funding_signed"}, {}},
-      {:responder, {:channels_info, 0, :transient, "own_funding_locked"}, {}},
-      {:initiator, {:channels_info, 0, :transient, "own_funding_locked"}, {}},
-      {:initiator, {:channels_info, 0, :transient, "funding_locked"}, {}},
-      {:responder, {:channels_info, 0, :transient, "funding_locked"}, {}},
-      {:initiator, {:channels_info, 0, :transient, "open"}, {}},
-      {:initiator, {:channels_update, 1, :transient, "channels.update"}, {:run_job}},
-      {:responder, {:channels_info, 0, :transient, "open"}, {}},
-      {:responder, {:channels_update, 1, :transient, "channels.update"}, {}},
+      {:responder, %{message: {:channels_info, 0, :transient, "channel_open"}}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "channel_accept"}}},
+      {:initiator, %{message: {:sign_approve, 1}}},
+      {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
+      {:responder, %{message: {:sign_approve, 1}}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "funding_signed"}}},
+      {:responder, %{message: {:channels_info, 0, :transient, "own_funding_locked"}}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "own_funding_locked"}}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "funding_locked"}}},
+      {:responder, %{message: {:channels_info, 0, :transient, "funding_locked"}}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "open"}}},
+      {:initiator, %{message: {:channels_update, 1, :transient, "channels.update"}, next: {:run_job}, fuzzy: 3}},
+      {:responder, %{message: {:channels_info, 0, :transient, "open"}}},
+      {:responder, %{message: {:channels_update, 1, :transient, "channels.update"}}},
       # end of opening sequence
       # leaving
-      {:responder, {:channels_update, 1, :transient, "channels.leave"}, {}},
-      {:initiator, {:channels_update, 1, :transient, "channels.leave"}, {}},
-      {:initiator, {:channels_info, 0, :transient, "died"}, {}},
-      {:initiator, {:channels_info, 0, :transient, "channels_info"}, {}}
+      {:responder, %{message: {:channels_update, 1, :transient, "channels.leave"}, next: {}, fuzzy: 0}},
+      {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, next: {}, fuzzy: 0}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "died"}, next: {}, fuzzy: 0}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "channels_info"}, next: {}, fuzzy: 0}}
     ]
 
   def connection_callback_in_details(callback_pid, color) do
@@ -182,9 +188,9 @@ defmodule ClientRunner do
        job_list: jobs,
        #  match_list: Enum.filter(match_list(), fn (entry) -> elem(entry, 0) == role end),
        match_list:
-         Enum.reduce(match_list(), [], fn {runner, event, next}, acc ->
+         Enum.reduce(match_list(), [], fn {runner, event}, acc ->
            case runner == role do
-             true -> acc ++ [{event, next}]
+             true -> acc ++ [event]
              false -> acc
            end
          end),
@@ -217,24 +223,45 @@ defmodule ClientRunner do
   # {:responder, :channels_info, 0, :transient, "channel_open"}
   def handle_cast({:match_jobs, message}, state) do
     case state.match_list do
-      [{expected, next} | rest] ->
+      [%{message: expected} = match | rest] ->
         Logger.error(
-          "expected #{inspect(expected)} received #{inspect(message)} next is: #{inspect(next)}",
+          "expected #{inspect(expected)} received #{inspect(message)}",
           state.color
         )
 
-        ^expected = message
-
-        case next == {:run_job} do
+        case expected == message do
           true ->
-            Logger.debug("running next")
-            GenServer.cast(self(), {:process_job_lists})
+            case Map.get(match, :next, false) do
+              false ->
+                :ok
 
-          _ ->
-            :ok
+              _job ->
+                Logger.debug("running next")
+                GenServer.cast(self(), {:process_job_lists})
+            end
+
+            {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
+
+          false ->
+            case Map.get(match, :fuzzy, 0) do
+              0 ->
+                throw("message not matching")
+
+              value ->
+                case state.fuzzy_counter >= value do
+                  true ->
+                    throw(
+                      "message has not arrived, waited for #{inspect(state.fuzzy_counter)} max wait #{
+                        inspect(value)
+                      }"
+                    )
+
+                  false ->
+                    Logger.debug("adding to counter... #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}")
+                    {:noreply, %__MODULE__{state | fuzzy_counter: state.fuzzy_counter + 1}}
+                end
+            end
         end
-
-        {:noreply, %__MODULE__{state | match_list: rest}}
 
       [] ->
         Logger.error("end of list")
