@@ -16,13 +16,16 @@ defmodule ClientRunner do
             job_list: nil,
             match_list: nil,
             fuzzy_counter: 0
+            # socket_holder_name: nil,
+            # runner_pid: nil
 
   def start_channel_helper(),
     do: ClientRunner.start_helper(@ae_url, @network_id)
 
   def joblist(),
     do: [
-      &hello_fsm_v2/0
+      &hello_fsm_v3/3,
+      &hello_fsm_v2/3
       # &withdraw_after_reconnect/3,
       # &withdraw_after_reestablish/3,
       # &backchannel_jobs/3,
@@ -49,7 +52,7 @@ defmodule ClientRunner do
   # {:initiator, %{message: {:channels_update, 1, :transient, "channels.update"}, next: {:run_job}, fuzzy: 3}},
   # }
 
-  def hello_fsm_v2(),
+  def hello_fsm_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
     do: [
       # opening channel
       {:responder, %{message: {:channels_info, 0, :transient, "channel_open"}}},
@@ -73,10 +76,21 @@ defmodule ClientRunner do
       {:responder, %{message: {:channels_update, 1, :transient, "channels.update"}}},
       # end of opening sequence
       # leaving
-      {:responder, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0}},
+      {:responder, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0, next: sequence_finish_job(runner_pid, responder)}},
       {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0}},
-      {:initiator, %{message: {:channels_info, 0, :transient, "died"}, fuzzy: 0}},
-      {:initiator, %{message: {:channels_info, 0, :transient, "channels_info"}, fuzzy: 0}}
+      {:initiator, %{message: {:channels_info, 0, :transient, "died"}, fuzzy: 0, next: sequence_finish_job(runner_pid, initiator)}}
+    ]
+
+  def hello_fsm_v3({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+         fuzzy: 10
+       }},
+      {:responder, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 20, next: sequence_finish_job(runner_pid, responder)}},
+      {:initiator, %{message: {:channels_info, 0, :transient, "died"}, fuzzy: 20, next: sequence_finish_job(runner_pid, initiator)}}
     ]
 
   def connection_callback_in_details(callback_pid, color) do
@@ -212,6 +226,8 @@ defmodule ClientRunner do
        #      false -> acc
        #    end
        #  end),
+      #  runner_pid: runner_pid,
+      #  socket_holder_name: name,
        color: [ansi_color: color]
      }}
   end
@@ -254,7 +270,7 @@ defmodule ClientRunner do
                 :ok
 
               job ->
-                Logger.debug("running next")
+                Logger.debug("running next", state.color)
                 GenServer.cast(self(), {:process_job_lists, job})
             end
 
@@ -275,14 +291,16 @@ defmodule ClientRunner do
                     )
 
                   false ->
-                    Logger.debug("adding to counter... #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}")
+                    Logger.debug("adding to counter... #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}", state.color)
                     {:noreply, %__MODULE__{state | fuzzy_counter: state.fuzzy_counter + 1}}
                 end
             end
         end
 
       [] ->
-        Logger.error("end of list")
+        Logger.debug("list empty", state.color)
+        # Logger.info("Sending termination for #{inspect(state.socket_holder_name)}")
+        # send(state.runner_pid, {:test_finished, state.socket_holder_name})
         {:noreply, state}
     end
   end
@@ -308,6 +326,7 @@ defmodule ClientRunner do
       :local ->
         fun.(self(), state.pid_session_holder)
     end
+
     {:noreply, state}
   end
 
@@ -928,7 +947,7 @@ defmodule ClientRunner do
 
     Logger.debug("executing test: #{inspect(job_builder)}")
 
-    {jobs_initiator, jobs_responder} = seperate_jobs(job_builder.())
+    {jobs_initiator, jobs_responder} = seperate_jobs(job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self()))
     # job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self())
 
     state_channel_configuration = configuration.(initiator_pub, responder_pub)
