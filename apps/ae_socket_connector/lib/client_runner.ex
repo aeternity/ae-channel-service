@@ -16,8 +16,9 @@ defmodule ClientRunner do
             job_list: nil,
             match_list: nil,
             fuzzy_counter: 0
-            # socket_holder_name: nil,
-            # runner_pid: nil
+
+  # socket_holder_name: nil,
+  # runner_pid: nil
 
   def start_channel_helper(),
     do: ClientRunner.start_helper(@ae_url, @network_id)
@@ -25,8 +26,8 @@ defmodule ClientRunner do
   def joblist(),
     do: [
       &hello_fsm_v3/3,
-      &hello_fsm_v2/3
-      # &withdraw_after_reconnect/3,
+      &hello_fsm_v2/3,
+      &withdraw_after_reconnect_v2/3
       # &withdraw_after_reestablish/3,
       # &backchannel_jobs/3,
       # &close_solo/3,
@@ -76,9 +77,19 @@ defmodule ClientRunner do
       {:responder, %{message: {:channels_update, 1, :transient, "channels.update"}}},
       # end of opening sequence
       # leaving
-      {:responder, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0, next: sequence_finish_job(runner_pid, responder)}},
+      {:responder,
+       %{
+         message: {:channels_update, 1, :transient, "channels.leave"},
+         fuzzy: 0,
+         next: sequence_finish_job(runner_pid, responder)
+       }},
       {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0}},
-      {:initiator, %{message: {:channels_info, 0, :transient, "died"}, fuzzy: 0, next: sequence_finish_job(runner_pid, initiator)}}
+      {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "died"},
+         fuzzy: 0,
+         next: sequence_finish_job(runner_pid, initiator)
+       }}
     ]
 
   def hello_fsm_v3({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
@@ -89,8 +100,65 @@ defmodule ClientRunner do
          next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
          fuzzy: 10
        }},
-      {:responder, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 20, next: sequence_finish_job(runner_pid, responder)}},
-      {:initiator, %{message: {:channels_info, 0, :transient, "died"}, fuzzy: 20, next: sequence_finish_job(runner_pid, initiator)}}
+      {:responder,
+       %{
+         message: {:channels_update, 1, :transient, "channels.leave"},
+         fuzzy: 20,
+         next: sequence_finish_job(runner_pid, responder)
+       }},
+      {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "died"},
+         fuzzy: 20,
+         next: sequence_finish_job(runner_pid, initiator)
+       }}
+    ]
+
+  def withdraw_after_reconnect_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.close_connection(pid_session_holder)
+              GenServer.cast(client_runner, {:match_jobs, {}})
+            end, :empty},
+         fuzzy: 10
+       }},
+      {:initiator, %{next: pause_job(1000)}},
+      {:initiator,
+       %{
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.reconnect(pid_session_holder)
+              GenServer.cast(client_runner, {:match_jobs, {}})
+            end, :empty},
+         fuzzy: 0
+       }},
+      {:initiator,
+       %{
+         next:
+           {:async,
+            fn pid ->
+              SocketConnector.withdraw(pid, 1_000_000)
+            end, :empty},
+         fuzzy: 0
+       }},
+      {:responder,
+       %{
+         message: {:channels_update, 2, :transient, "channels.update"},
+         fuzzy: 20,
+         next: sequence_finish_job(runner_pid, responder)
+       }},
+      {:initiator,
+       %{
+         message: {:channels_update, 2, :transient, "channels.update"},
+         fuzzy: 20,
+         next: sequence_finish_job(runner_pid, initiator)
+       }}
     ]
 
   def connection_callback_in_details(callback_pid, color) do
@@ -226,8 +294,8 @@ defmodule ClientRunner do
        #      false -> acc
        #    end
        #  end),
-      #  runner_pid: runner_pid,
-      #  socket_holder_name: name,
+       #  runner_pid: runner_pid,
+       #  socket_holder_name: name,
        color: [ansi_color: color]
      }}
   end
@@ -254,6 +322,17 @@ defmodule ClientRunner do
      end}
   end
 
+  def run_next(match) do
+    case Map.get(match, :next, false) do
+      false ->
+        :ok
+
+      job ->
+        # Logger.debug("running next", state.color)
+        GenServer.cast(self(), {:process_job_lists, job})
+    end
+  end
+
   # {:responder, :channels_info, 0, :transient, "channel_open"}
   def handle_cast({:match_jobs, message}, state) do
     case state.match_list do
@@ -265,15 +344,7 @@ defmodule ClientRunner do
 
         case expected == message do
           true ->
-            case Map.get(match, :next, false) do
-              false ->
-                :ok
-
-              job ->
-                Logger.debug("running next", state.color)
-                GenServer.cast(self(), {:process_job_lists, job})
-            end
-
+            run_next(match)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
           false ->
@@ -291,11 +362,19 @@ defmodule ClientRunner do
                     )
 
                   false ->
-                    Logger.debug("adding to counter... #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}", state.color)
+                    Logger.debug(
+                      "adding to counter... #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}",
+                      state.color
+                    )
+
                     {:noreply, %__MODULE__{state | fuzzy_counter: state.fuzzy_counter + 1}}
                 end
             end
         end
+
+      [%{next: _next} = match | rest] ->
+        run_next(match)
+        {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
       [] ->
         Logger.debug("list empty", state.color)
@@ -330,41 +409,41 @@ defmodule ClientRunner do
     {:noreply, state}
   end
 
-  def handle_cast({:process_job_lists}, state) do
-    remaining_jobs =
-      case Enum.count(state.job_list) do
-        0 ->
-          Logger.debug("End of sequence", state.color)
-          []
+  # def handle_cast({:process_job_lists}, state) do
+  #   remaining_jobs =
+  #     case Enum.count(state.job_list) do
+  #       0 ->
+  #         Logger.debug("End of sequence", state.color)
+  #         []
 
-        remaining ->
-          Logger.debug("Sequence remainin jobs #{inspect(remaining)}", state.color)
-          [{mode, fun, assert_fun} | rest] = state.job_list
+  #       remaining ->
+  #         Logger.debug("Sequence remainin jobs #{inspect(remaining)}", state.color)
+  #         [{mode, fun, assert_fun} | rest] = state.job_list
 
-          case mode do
-            :async ->
-              SessionHolder.run_action(state.pid_session_holder, fun)
+  #         case mode do
+  #           :async ->
+  #             SessionHolder.run_action(state.pid_session_holder, fun)
 
-            :sync ->
-              response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+  #           :sync ->
+  #             response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
 
-              case assert_fun do
-                :empty -> :empty
-                _ -> assert_fun.(response)
-              end
+  #             case assert_fun do
+  #               :empty -> :empty
+  #               _ -> assert_fun.(response)
+  #             end
 
-              Logger.debug("sync response is: #{inspect(response)}", state.color)
-              GenServer.cast(self(), {:process_job_lists})
+  #             Logger.debug("sync response is: #{inspect(response)}", state.color)
+  #             GenServer.cast(self(), {:process_job_lists})
 
-            :local ->
-              fun.(self(), state.pid_session_holder)
-          end
+  #           :local ->
+  #             fun.(self(), state.pid_session_holder)
+  #         end
 
-          rest
-      end
+  #         rest
+  #     end
 
-    {:noreply, %__MODULE__{state | job_list: remaining_jobs}}
-  end
+  #   {:noreply, %__MODULE__{state | job_list: remaining_jobs}}
+  # end
 
   def empty_jobs(interval) do
     Enum.map(interval, fn count ->
@@ -608,7 +687,7 @@ defmodule ClientRunner do
      fn client_runner, _pid_session_holder ->
        spawn(fn ->
          Process.sleep(delay)
-         GenServer.cast(client_runner, {:process_job_lists})
+         GenServer.cast(client_runner, {:match_jobs, {}})
        end)
      end, :empty}
   end
@@ -947,7 +1026,9 @@ defmodule ClientRunner do
 
     Logger.debug("executing test: #{inspect(job_builder)}")
 
-    {jobs_initiator, jobs_responder} = seperate_jobs(job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self()))
+    {jobs_initiator, jobs_responder} =
+      seperate_jobs(job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self()))
+
     # job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self())
 
     state_channel_configuration = configuration.(initiator_pub, responder_pub)
