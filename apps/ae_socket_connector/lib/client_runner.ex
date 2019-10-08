@@ -8,6 +8,8 @@ defmodule ClientRunner do
   # @ae_url "wss://testnet.demo.aeternity.io/channel"
   # @network_id "ae_uat"
 
+  # TODO :local always? produces a cast, could we move this to :local runner
+
   defmacro ae_url, do: @ae_url
   defmacro network_id, do: @network_id
 
@@ -27,9 +29,9 @@ defmodule ClientRunner do
     do: [
       &hello_fsm_v3/3,
       &hello_fsm_v2/3,
-      &withdraw_after_reconnect_v2/3
+      &withdraw_after_reconnect_v2/3,
       # &withdraw_after_reestablish/3,
-      # &backchannel_jobs/3,
+      &backchannel_jobs_v2/3
       # &close_solo/3,
       # &close_mutual/3,
       # &reconnect_jobs/3,
@@ -157,6 +159,98 @@ defmodule ClientRunner do
        %{
          message: {:channels_update, 2, :transient, "channels.update"},
          fuzzy: 20,
+         next: sequence_finish_job(runner_pid, initiator)
+       }}
+    ]
+
+  def backchannel_jobs_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.close_connection(pid_session_holder)
+              GenServer.cast(client_runner, {:match_jobs, {}})
+            end, :empty},
+         fuzzy: 20
+       }},
+      {:responder,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_999},
+             {responder_account, 4_000_000_000_001}
+           )
+       }},
+      {:responder,
+       %{message: {:channels_update, 1, :transient, "channels.update"}, next: pause_job(3000), fuzzy: 10}},
+      # this updates should fail, since other end is gone.
+      {:responder,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty}
+       }},
+      {:responder,
+       %{
+         message: {:channels_update, 2, :self, "channels.conflict"},
+         fuzzy: 2,
+         next:
+           {:async,
+            fn pid ->
+              SocketConnector.initiate_transfer(pid, 4, fn to_sign ->
+                SessionHolder.backchannel_sign_request(initiator, to_sign)
+              end)
+            end, :empty}
+       }},
+      {:responder,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 7_000_000_000_003},
+             {responder_account, 3_999_999_999_997}
+           )
+       }},
+      {:responder,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
+       }},
+      {:initiator, %{next: pause_job(10000)}},
+      {:initiator,
+       %{
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.reconnect(pid_session_holder)
+              GenServer.cast(client_runner, {:match_jobs, {}})
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 7_000_000_000_003},
+             {responder_account, 3_999_999_999_997}
+           )
+       }},
+      {:initiator,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
+       }},
+      {:initiator,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_998},
+             {responder_account, 4_000_000_000_002}
+           )
+       }},
+      {:responder,
+       %{
+         next: sequence_finish_job(runner_pid, responder)
+       }},
+      {:initiator,
+       %{
          next: sequence_finish_job(runner_pid, initiator)
        }}
     ]
@@ -308,7 +402,8 @@ defmodule ClientRunner do
         %{"account" => account2, "balance" => value2}
       ])
 
-    Logger.debug("expected #{inspect(Enum.sort(expect))} got #{inspect(response)}")
+    Logger.debug("expected #{inspect(Enum.sort(expect))}")
+    Logger.debug("got      #{inspect(response)}")
     ^expect = Enum.sort(response)
   end
 
@@ -400,7 +495,7 @@ defmodule ClientRunner do
         end
 
         Logger.debug("sync response is: #{inspect(response)}", state.color)
-        GenServer.cast(self(), {:process_job_lists})
+        GenServer.cast(self(), {:match_jobs, {}})
 
       :local ->
         fun.(self(), state.pid_session_holder)
@@ -685,6 +780,7 @@ defmodule ClientRunner do
   def pause_job(delay) do
     {:local,
      fn client_runner, _pid_session_holder ->
+       Logger.debug("requested pause for: #{inspect delay}ms")
        spawn(fn ->
          Process.sleep(delay)
          GenServer.cast(client_runner, {:match_jobs, {}})
@@ -893,57 +989,57 @@ defmodule ClientRunner do
   end
 
   # https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md#example
-  def backchannel_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
-    jobs_initiator = [
-      {:local,
-       fn client_runner, pid_session_holder ->
-         SessionHolder.close_connection(pid_session_holder)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
-      pause_job(10000),
-      {:local,
-       fn client_runner, pid_session_holder ->
-         SessionHolder.reconnect(pid_session_holder)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
-      assert_funds_job(
-        {intiator_account, 7_000_000_000_003},
-        {responder_account, 3_999_999_999_997}
-      ),
-      pause_job(5000),
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-      assert_funds_job(
-        {intiator_account, 6_999_999_999_998},
-        {responder_account, 4_000_000_000_002}
-      ),
-      sequence_finish_job(runner_pid, initiator)
-    ]
+  # def backchannel_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
+  #   jobs_initiator = [
+  #     {:local,
+  #      fn client_runner, pid_session_holder ->
+  #        SessionHolder.close_connection(pid_session_holder)
+  #        GenServer.cast(client_runner, {:process_job_lists})
+  #      end, :empty},
+  #     pause_job(10000),
+  #     {:local,
+  #      fn client_runner, pid_session_holder ->
+  #        SessionHolder.reconnect(pid_session_holder)
+  #        GenServer.cast(client_runner, {:process_job_lists})
+  #      end, :empty},
+  #     assert_funds_job(
+  #       {intiator_account, 7_000_000_000_003},
+  #       {responder_account, 3_999_999_999_997}
+  #     ),
+  #     pause_job(5000),
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+  #     assert_funds_job(
+  #       {intiator_account, 6_999_999_999_998},
+  #       {responder_account, 4_000_000_000_002}
+  #     ),
+  #     sequence_finish_job(runner_pid, initiator)
+  #   ]
 
-    jobs_responder = [
-      pause_job(3000),
-      assert_funds_job(
-        {intiator_account, 6_999_999_999_999},
-        {responder_account, 4_000_000_000_001}
-      ),
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end, :empty},
-      {:async,
-       fn pid ->
-         SocketConnector.initiate_transfer(pid, 4, fn to_sign ->
-           SessionHolder.backchannel_sign_request(initiator, to_sign)
-           # GenServer.call(initiator, {:sign_request, to_sign})
-         end)
-       end, :empty},
-      assert_funds_job(
-        {intiator_account, 7_000_000_000_003},
-        {responder_account, 3_999_999_999_997}
-      ),
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-      sequence_finish_job(runner_pid, responder)
-    ]
+  #   jobs_responder = [
+  #     pause_job(3000),
+  #     assert_funds_job(
+  #       {intiator_account, 6_999_999_999_999},
+  #       {responder_account, 4_000_000_000_001}
+  #     ),
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end, :empty},
+  #     {:async,
+  #      fn pid ->
+  #        SocketConnector.initiate_transfer(pid, 4, fn to_sign ->
+  #          SessionHolder.backchannel_sign_request(initiator, to_sign)
+  #          # GenServer.call(initiator, {:sign_request, to_sign})
+  #        end)
+  #      end, :empty},
+  #     assert_funds_job(
+  #       {intiator_account, 7_000_000_000_003},
+  #       {responder_account, 3_999_999_999_997}
+  #     ),
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+  #     sequence_finish_job(runner_pid, responder)
+  #   ]
 
-    {jobs_initiator, jobs_responder}
-  end
+  #   {jobs_initiator, jobs_responder}
+  # end
 
   def gen_name(name, suffix) do
     String.to_atom(to_string(name) <> Integer.to_string(suffix))
