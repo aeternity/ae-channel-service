@@ -27,13 +27,13 @@ defmodule ClientRunner do
 
   def joblist(),
     do: [
-      &hello_fsm_v3/3,
-      &hello_fsm_v2/3,
-      &withdraw_after_reconnect_v2/3,
-      # # &withdraw_after_reestablish/3,
-      &backchannel_jobs_v2/3,
-      &close_solo_v2/3,
-      # &close_mutual/3,
+      # &hello_fsm_v3/3,
+      # &hello_fsm_v2/3,
+      # &withdraw_after_reconnect_v2/3,
+      # # # &withdraw_after_reestablish/3,
+      # &backchannel_jobs_v2/3,
+      # &close_solo_v2/3,
+      &close_mutual_v2/3
       # &reconnect_jobs/3,
       # &contract_jobs/3,
       # &reestablish_jobs/3,
@@ -784,7 +784,8 @@ defmodule ClientRunner do
   def pause_job(delay) do
     {:local,
      fn client_runner, _pid_session_holder ->
-       Logger.debug("requested pause for: #{inspect delay}ms")
+       Logger.debug("requested pause for: #{inspect(delay)}ms")
+
        spawn(fn ->
          Process.sleep(delay)
          resume_runner(client_runner)
@@ -864,7 +865,7 @@ defmodule ClientRunner do
 
        spawn(fn ->
          Process.sleep(2000)
-         GenServer.cast(client_runner, {:process_job_lists})
+         resume_runner(client_runner)
        end)
      end, :empty}
   end
@@ -882,19 +883,19 @@ defmodule ClientRunner do
     {jobs_initiator, jobs_responder}
   end
 
-  def close_solo({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
-    jobs_initiator = [
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-      close_solo_job(),
-      sequence_finish_job(runner_pid, initiator)
-    ]
+  # def close_solo({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
+  #   jobs_initiator = [
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+  #     close_solo_job(),
+  #     sequence_finish_job(runner_pid, initiator)
+  #   ]
 
-    jobs_responder = [
-      sequence_finish_job(runner_pid, responder)
-    ]
+  #   jobs_responder = [
+  #     sequence_finish_job(runner_pid, responder)
+  #   ]
 
-    {jobs_initiator, jobs_responder}
-  end
+  #   {jobs_initiator, jobs_responder}
+  # end
 
   def close_solo_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
     do: [
@@ -904,40 +905,75 @@ defmodule ClientRunner do
          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
          fuzzy: 8
        }},
-       {:initiator,
+      {:initiator,
        %{
          message: {:channels_update, 2, :self, "channels.update"},
          next: close_solo_job(),
          fuzzy: 8
        }},
-       {:initiator,
+      {:initiator,
        %{
          message: {:channels_info, 0, :transient, "closing"},
          fuzzy: 10,
          next: sequence_finish_job(runner_pid, initiator)
        }},
-       {:responder,
+      {:responder,
        %{
          message: {:channels_info, 0, :transient, "closing"},
          fuzzy: 10,
-         next: sequence_finish_job(runner_pid, responder),
+         next: sequence_finish_job(runner_pid, responder)
+       }}
+    ]
+
+  # def close_mutual({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
+  #   jobs_initiator = [
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+  #     {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+  #     close_mutual_job(),
+  #     sequence_finish_job(runner_pid, initiator)
+  #   ]
+
+  #   jobs_responder = [
+  #     sequence_finish_job(runner_pid, responder)
+  #   ]
+
+  #   {jobs_initiator, jobs_responder}
+  # end
+
+  def close_mutual_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+         fuzzy: 8
        }},
+      #  get poi is done under the hood, but this call tests additional code
+      {:initiator,
+       %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+         fuzzy: 8
+       }},
+      {:initiator,
+       %{
+        #  message: {:channels_update, 2, :self, "channels.update"},
+         next: close_mutual_job(),
+         fuzzy: 8
+       }},
+      {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "closed_confirmed"},
+         fuzzy: 10,
+         next: sequence_finish_job(runner_pid, initiator)
+       }},
+      {:responder,
+       %{
+         message: {:channels_info, 0, :transient, "closed_confirmed"},
+         fuzzy: 14,
+         next: sequence_finish_job(runner_pid, responder)
+       }}
     ]
-
-  def close_mutual({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
-    jobs_initiator = [
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-      {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-      close_mutual_job(),
-      sequence_finish_job(runner_pid, initiator)
-    ]
-
-    jobs_responder = [
-      sequence_finish_job(runner_pid, responder)
-    ]
-
-    {jobs_initiator, jobs_responder}
-  end
 
   def sequence_finish_job(runner_pid, name) do
     {:local,
