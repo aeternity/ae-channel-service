@@ -27,14 +27,14 @@ defmodule ClientRunner do
 
   def joblist(),
     do: [
-      # &hello_fsm_v3/3,
-      # &hello_fsm_v2/3,
-      # &withdraw_after_reconnect_v2/3,
-      # # # &withdraw_after_reestablish/3,
-      # &backchannel_jobs_v2/3,
-      # &close_solo_v2/3,
-      &close_mutual_v2/3
-      # &reconnect_jobs/3,
+      &hello_fsm_v3/3,
+      &hello_fsm_v2/3,
+      &withdraw_after_reconnect_v2/3,
+      # # # # &withdraw_after_reestablish/3,
+      &backchannel_jobs_v2/3,
+      &close_solo_v2/3,
+      &close_mutual_v2/3,
+      &reconnect_jobs_v2/3,
       # &contract_jobs/3,
       # &reestablish_jobs/3,
       # &query_after_reconnect/3,
@@ -793,52 +793,134 @@ defmodule ClientRunner do
      end, :empty}
   end
 
-  def reconnect_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
-    jobs_initiator = [
-      assert_funds_job(
-        {intiator_account, 6_999_999_999_999},
-        {responder_account, 4_000_000_000_001}
-      ),
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
-      assert_funds_job(
-        {intiator_account, 6_999_999_999_997},
-        {responder_account, 4_000_000_000_003}
-      ),
-      sequence_finish_job(runner_pid, initiator)
+  # def reconnect_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
+  #   jobs_initiator = [
+  #     assert_funds_job(
+  #       {intiator_account, 6_999_999_999_999},
+  #       {responder_account, 4_000_000_000_001}
+  #     ),
+  #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+  #     assert_funds_job(
+  #       {intiator_account, 6_999_999_999_997},
+  #       {responder_account, 4_000_000_000_003}
+  #     ),
+  #     sequence_finish_job(runner_pid, initiator)
+  #   ]
+
+  #   jobs_responder =
+  #     empty_jobs(1..1) ++
+  #       [
+  #         {:sync,
+  #          fn pid, from ->
+  #            SocketConnector.query_funds(pid, from)
+  #          end, :empty},
+  #         {:local,
+  #          fn client_runner, pid_session_holder ->
+  #            SessionHolder.close_connection(pid_session_holder)
+  #            GenServer.cast(client_runner, {:process_job_lists})
+  #          end, :empty},
+  #         pause_job(3000),
+  #         {:local,
+  #          fn client_runner, pid_session_holder ->
+  #            SessionHolder.reconnect(pid_session_holder)
+  #            GenServer.cast(client_runner, {:process_job_lists})
+  #          end, :empty},
+  #         assert_funds_job(
+  #           {intiator_account, 6_999_999_999_997},
+  #           {responder_account, 4_000_000_000_003}
+  #         ),
+  #         {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+  #         assert_funds_job(
+  #           {intiator_account, 6_999_999_999_999},
+  #           {responder_account, 4_000_000_000_001}
+  #         ),
+  #         sequence_finish_job(runner_pid, responder)
+  #       ]
+
+  #   {jobs_initiator, jobs_responder}
+  # end
+
+  def reconnect_jobs_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_999},
+             {responder_account, 4_000_000_000_001}
+           ),
+         fuzzy: 10
+       }},
+      {:initiator,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty}
+       }},
+      {:initiator,
+       %{
+         message: {:channels_update, 3, :other, "channels.update"},
+         fuzzy: 10,
+         next: sequence_finish_job(runner_pid, initiator)
+       }},
+      {:responder,
+       %{
+         message: {:channels_update, 2, :other, "channels.update"},
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_997},
+             {responder_account, 4_000_000_000_003}
+           ),
+         fuzzy: 10
+       }},
+      {:responder,
+       %{
+         #  message: {:channels_update, 1, :transient, "channels.update"},
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.close_connection(pid_session_holder)
+              resume_runner(client_runner)
+            end, :empty},
+         fuzzy: 10
+       }},
+      {:responder, %{next: pause_job(1000)}},
+      {:responder,
+       %{
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.reconnect(pid_session_holder)
+              resume_runner(client_runner)
+            end, :empty},
+         fuzzy: 0
+       }},
+      {:responder,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_997},
+             {responder_account, 4_000_000_000_003}
+           ),
+         fuzzy: 10
+       }},
+      {:responder,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty}
+       }},
+      {:responder,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_999},
+             {responder_account, 4_000_000_000_001}
+           ),
+         fuzzy: 10
+       }},
+      {:responder,
+       %{
+         next: sequence_finish_job(runner_pid, responder)
+       }}
     ]
-
-    jobs_responder =
-      empty_jobs(1..1) ++
-        [
-          {:sync,
-           fn pid, from ->
-             SocketConnector.query_funds(pid, from)
-           end, :empty},
-          {:local,
-           fn client_runner, pid_session_holder ->
-             SessionHolder.close_connection(pid_session_holder)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end, :empty},
-          pause_job(3000),
-          {:local,
-           fn client_runner, pid_session_holder ->
-             SessionHolder.reconnect(pid_session_holder)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end, :empty},
-          assert_funds_job(
-            {intiator_account, 6_999_999_999_997},
-            {responder_account, 4_000_000_000_003}
-          ),
-          {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
-          assert_funds_job(
-            {intiator_account, 6_999_999_999_999},
-            {responder_account, 4_000_000_000_001}
-          ),
-          sequence_finish_job(runner_pid, responder)
-        ]
-
-    {jobs_initiator, jobs_responder}
-  end
 
   def close_solo_job() do
     # special cased since this doesn't end up in an update.
@@ -957,7 +1039,7 @@ defmodule ClientRunner do
        }},
       {:initiator,
        %{
-        #  message: {:channels_update, 2, :self, "channels.update"},
+         #  message: {:channels_update, 2, :self, "channels.update"},
          next: close_mutual_job(),
          fuzzy: 8
        }},
