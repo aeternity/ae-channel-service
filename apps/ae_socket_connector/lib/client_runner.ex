@@ -27,15 +27,15 @@ defmodule ClientRunner do
 
   def joblist(),
     do: [
-      &hello_fsm_v3/3,
-      &hello_fsm_v2/3,
-      &withdraw_after_reconnect_v2/3,
-      # # # # &withdraw_after_reestablish/3,
-      &backchannel_jobs_v2/3,
-      &close_solo_v2/3,
-      &close_mutual_v2/3,
-      &reconnect_jobs_v2/3,
-      # &contract_jobs/3,
+      # &hello_fsm_v3/3,
+      # &hello_fsm_v2/3,
+      # &withdraw_after_reconnect_v2/3,
+      # # # # # &withdraw_after_reestablish/3,
+      # &backchannel_jobs_v2/3,
+      # &close_solo_v2/3,
+      # &close_mutual_v2/3,
+      # &reconnect_jobs_v2/3,
+      &contract_jobs_v2/3
       # &reestablish_jobs/3,
       # &query_after_reconnect/3,
       # # TODO missing "get state"
@@ -649,6 +649,156 @@ defmodule ClientRunner do
         ]
 
     {jobs_initiator, jobs_responder}
+  end
+
+  def contract_jobs_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
+    # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+    # correct path if started in shell...
+    initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
+
+    [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+         fuzzy: 10
+       }},
+      {:initiator,
+       %{
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_997},
+             {responder_account, 4_000_000_000_003}
+           )
+       }},
+      {:initiator, %{next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}}},
+      {:initiator,
+       %{
+         fuzzy: 10,
+         message: {:channels_update, 3, :self, "channels.update"},
+         next:
+           {:async,
+            fn pid ->
+              SocketConnector.call_contract(
+                pid,
+                initiator_contract,
+                'make_move',
+                ['11', '1']
+              )
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         fuzzy: 10,
+         message: {:channels_update, 4, :self, "channels.update"},
+         next:
+           {:sync,
+            fn pid, from ->
+              SocketConnector.get_contract_reponse(
+                pid,
+                initiator_contract,
+                'make_move',
+                from
+              )
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 3) end, :empty}
+       }},
+      {:initiator,
+       %{
+         fuzzy: 10,
+         message: {:channels_update, 5, :self, "channels.update"},
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_984},
+             {responder_account, 4_000_000_000_006}
+           )
+       }},
+      {:initiator,
+       %{
+         next:
+           {:async,
+            fn pid ->
+              SocketConnector.withdraw(pid, 1_000_000)
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         fuzzy: 10,
+         #  TODO bug somewhere, why do we go for transient here?
+         message: {:channels_update, 6, :transient, "channels.update"},
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_998_999_984},
+             {responder_account, 4_000_000_000_006}
+           )
+       }},
+      {:initiator,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 9) end, :empty}
+       }},
+      {:initiator,
+       %{
+         message: {:channels_update, 7, :self, "channels.update"},
+         fuzzy: 10,
+         next:
+           {:async,
+            fn pid ->
+              SocketConnector.deposit(pid, 500_000)
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         #  TODO bug somewhere, why do we go for transient here?
+         message: {:channels_update, 8, :transient, "channels.update"},
+         fuzzy: 10,
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_499_975},
+             {responder_account, 4_000_000_000_015}
+           )
+       }},
+      {:responder,
+       %{
+         fuzzy: 50,
+         message: {:channels_update, 8, :transient, "channels.update"},
+         next:
+           {:async,
+            fn pid ->
+              SocketConnector.call_contract(
+                pid,
+                initiator_contract,
+                'make_move',
+                ['11', '2']
+              )
+            end, :empty}
+       }},
+       {:responder,
+       %{
+         fuzzy: 10,
+         message: {:channels_update, 9, :self, "channels.update"},
+         next:
+           {:sync,
+            fn pid, from ->
+              SocketConnector.get_contract_reponse(
+                pid,
+                initiator_contract,
+                'make_move',
+                from
+              )
+            end, :empty}
+       }},
+       {:responder,
+       %{
+         next: sequence_finish_job(runner_pid, responder)
+       }},
+      {:initiator,
+       %{
+         next: sequence_finish_job(runner_pid, initiator)
+       }}
+    ]
   end
 
   # query after violent reestablish
