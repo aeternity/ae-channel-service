@@ -2,6 +2,7 @@ defmodule SocketConnectorTest do
   use ExUnit.Case
   # doctest SocketConnectxor
   require ClientRunner
+  require TestScenarios
 
   @ae_url ClientRunner.ae_url()
   @network_id ClientRunner.network_id()
@@ -34,7 +35,7 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.hello_fsm/3,
+      &TestScenarios.hello_fsm_v2/3,
       custom_config(%{}, %{minimum_depth: 0, port: 1400})
     )
   end
@@ -47,21 +48,21 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.withdraw_after_reconnect/3
+      &TestScenarios.withdraw_after_reconnect_v2/3
     )
   end
 
-  test "withdraw after reestablish", context do
-    {alice, bob} = gen_names(context.test)
+  # test "withdraw after reestablish", context do
+  #   {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
-      @ae_url,
-      @network_id,
-      alice,
-      bob,
-      &ClientRunner.withdraw_after_reestablish/3
-    )
-  end
+  #   ClientRunner.start_helper(
+  #     @ae_url,
+  #     @network_id,
+  #     alice,
+  #     bob,
+  #     &TestScenarios.withdraw_after_reestablish_v2/3
+  #   )
+  # end
 
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
@@ -71,7 +72,7 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.backchannel_jobs/3
+      &TestScenarios.backchannel_jobs_v2/3
     )
   end
 
@@ -83,7 +84,7 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.close_solo/3
+      &TestScenarios.close_solo_v2/3
     )
   end
 
@@ -96,7 +97,7 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.close_mutual/3
+      &TestScenarios.close_mutual_v2/3
     )
   end
 
@@ -108,7 +109,7 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.reconnect_jobs/3
+      &TestScenarios.reconnect_jobs_v2/3
     )
   end
 
@@ -122,44 +123,44 @@ defmodule SocketConnectorTest do
       @network_id,
       alice,
       bob,
-      &ClientRunner.contract_jobs/3
+      &TestScenarios.contract_jobs_v2/3
     )
   end
 
-  test "reestablish jobs", context do
-    {alice, bob} = gen_names(context.test)
+  # test "reestablish jobs", context do
+  #   {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
-      @ae_url,
-      @network_id,
-      alice,
-      bob,
-      &ClientRunner.reestablish_jobs/3
-    )
-  end
+  #   ClientRunner.start_helper(
+  #     @ae_url,
+  #     @network_id,
+  #     alice,
+  #     bob,
+  #     &TestScenarios.reestablish_jobs_v2/3
+  #   )
+  # end
 
-  test "query after reconnect", context do
-    {alice, bob} = gen_names(context.test)
+  # test "query after reconnect", context do
+  #   {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
-      @ae_url,
-      @network_id,
-      alice,
-      bob,
-      &ClientRunner.query_after_reconnect/3
-    )
-  end
+  #   ClientRunner.start_helper(
+  #     @ae_url,
+  #     @network_id,
+  #     alice,
+  #     bob,
+  #     &TestScenarios.query_after_reconnect_v2/3
+  #   )
+  # end
 
-  test "teardown on channel creation", context do
-    {alice, bob} = gen_names(context.test)
-    assert "false positve, this test needs to disconnect on info message" = "code need to be added in framwork"
-    ClientRunner.start_helper(
-      @ae_url,
-      @network_id,
-      alice,
-      bob,
-      &ClientRunner.teardown_on_channel_creation/3,
-      custom_config(%{}, %{minimum_depth: 50})
-    )
-  end
+  # test "teardown on channel creation", context do
+  #   {alice, bob} = gen_names(context.test)
+  #   assert "false positve, this test needs to disconnect on info message" = "code need to be added in framwork"
+  #   ClientRunner.start_helper(
+  #     @ae_url,
+  #     @network_id,
+  #     alice,
+  #     bob,
+  #     &TestScenarios.teardown_on_channel_creation_v2/3,
+  #     custom_config(%{}, %{minimum_depth: 50})
+  #   )
+  # end
 end

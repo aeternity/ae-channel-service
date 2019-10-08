@@ -232,9 +232,9 @@ defmodule TestScenarios do
     ]
 
   def contract_jobs_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
-    # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+    initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
     # correct path if started in shell...
-    initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
+    # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
 
     [
       {:initiator,
