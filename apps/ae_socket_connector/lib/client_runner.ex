@@ -30,9 +30,9 @@ defmodule ClientRunner do
       &hello_fsm_v3/3,
       &hello_fsm_v2/3,
       &withdraw_after_reconnect_v2/3,
-      # &withdraw_after_reestablish/3,
-      &backchannel_jobs_v2/3
-      # &close_solo/3,
+      # # &withdraw_after_reestablish/3,
+      &backchannel_jobs_v2/3,
+      &close_solo_v2/3,
       # &close_mutual/3,
       # &reconnect_jobs/3,
       # &contract_jobs/3,
@@ -54,6 +54,10 @@ defmodule ClientRunner do
   # %{
   # {:initiator, %{message: {:channels_update, 1, :transient, "channels.update"}, next: {:run_job}, fuzzy: 3}},
   # }
+
+  def resume_runner(client_runner) do
+    GenServer.cast(client_runner, {:match_jobs, {}})
+  end
 
   def hello_fsm_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
     do: [
@@ -125,7 +129,7 @@ defmodule ClientRunner do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
-              GenServer.cast(client_runner, {:match_jobs, {}})
+              resume_runner(client_runner)
             end, :empty},
          fuzzy: 10
        }},
@@ -136,7 +140,7 @@ defmodule ClientRunner do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.reconnect(pid_session_holder)
-              GenServer.cast(client_runner, {:match_jobs, {}})
+              resume_runner(client_runner)
             end, :empty},
          fuzzy: 0
        }},
@@ -172,7 +176,7 @@ defmodule ClientRunner do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
-              GenServer.cast(client_runner, {:match_jobs, {}})
+              resume_runner(client_runner)
             end, :empty},
          fuzzy: 20
        }},
@@ -222,7 +226,7 @@ defmodule ClientRunner do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.reconnect(pid_session_holder)
-              GenServer.cast(client_runner, {:match_jobs, {}})
+              resume_runner(client_runner)
             end, :empty}
        }},
       {:initiator,
@@ -783,7 +787,7 @@ defmodule ClientRunner do
        Logger.debug("requested pause for: #{inspect delay}ms")
        spawn(fn ->
          Process.sleep(delay)
-         GenServer.cast(client_runner, {:match_jobs, {}})
+         resume_runner(client_runner)
        end)
      end, :empty}
   end
@@ -845,7 +849,7 @@ defmodule ClientRunner do
 
        spawn(fn ->
          Process.sleep(2000)
-         GenServer.cast(client_runner, {:process_job_lists})
+         resume_runner(client_runner)
        end)
      end, :empty}
   end
@@ -891,6 +895,34 @@ defmodule ClientRunner do
 
     {jobs_initiator, jobs_responder}
   end
+
+  def close_solo_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+         fuzzy: 8
+       }},
+       {:initiator,
+       %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         next: close_solo_job(),
+         fuzzy: 8
+       }},
+       {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "closing"},
+         fuzzy: 10,
+         next: sequence_finish_job(runner_pid, initiator)
+       }},
+       {:responder,
+       %{
+         message: {:channels_info, 0, :transient, "closing"},
+         fuzzy: 10,
+         next: sequence_finish_job(runner_pid, responder),
+       }},
+    ]
 
   def close_mutual({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
     jobs_initiator = [
