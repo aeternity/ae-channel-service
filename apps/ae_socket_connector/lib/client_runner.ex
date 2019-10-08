@@ -454,14 +454,14 @@ defmodule ClientRunner do
     end)
   end
 
-  def hello_fsm({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
-    jobs_initiator = [
-      {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-      sequence_finish_job(runner_pid, initiator)
-    ]
+  # def hello_fsm({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
+  #   jobs_initiator = [
+  #     {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+  #     sequence_finish_job(runner_pid, initiator)
+  #   ]
 
-    {jobs_initiator, [sequence_finish_job(runner_pid, responder)]}
-  end
+  #   {jobs_initiator, [sequence_finish_job(runner_pid, responder)]}
+  # end
 
   def contract_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
     initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
@@ -1028,8 +1028,6 @@ defmodule ClientRunner do
 
     {jobs_initiator, jobs_responder} =
       seperate_jobs(job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self()))
-
-    # job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self())
 
     state_channel_configuration = configuration.(initiator_pub, responder_pub)
 
