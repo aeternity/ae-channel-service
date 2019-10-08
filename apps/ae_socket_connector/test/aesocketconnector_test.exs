@@ -76,6 +76,7 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :close
   test "close solo", context do
     {alice, bob} = gen_names(context.test)
 

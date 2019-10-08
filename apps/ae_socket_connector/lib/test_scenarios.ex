@@ -1,35 +1,10 @@
 defmodule TestScenarios do
   import ClientRunnerHelper
 
-  def close_solo_job() do
-    # special cased since this doesn't end up in an update.
-    close_solo = fn pid -> SocketConnector.close_solo(pid) end
-
-    {:local,
-     fn client_runner, pid_session_holder ->
-       SessionHolder.run_action(pid_session_holder, close_solo)
-
-       spawn(fn ->
-         Process.sleep(2000)
-         resume_runner(client_runner)
-       end)
-     end, :empty}
-  end
-
-  def close_mutual_job() do
-    # special cased since this doesn't end up in an update.
-    shutdown = fn pid -> SocketConnector.shutdown(pid) end
-
-    {:local,
-     fn client_runner, pid_session_holder ->
-       SessionHolder.run_action(pid_session_holder, shutdown)
-
-       spawn(fn ->
-         Process.sleep(2000)
-         resume_runner(client_runner)
-       end)
-     end, :empty}
-  end
+  # example
+  # %{
+  # {:initiator, %{message: {:channels_update, 1, :transient, "channels.update"}, next: {:run_job}, fuzzy: 3}},
+  # }
 
   def hello_fsm_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
     do: [
@@ -463,6 +438,17 @@ defmodule TestScenarios do
        }}
     ]
 
+  def close_solo_job() do
+    # special cased since this doesn't end up in an update.
+    close_solo = fn pid -> SocketConnector.close_solo(pid) end
+
+    {:local,
+     fn client_runner, pid_session_holder ->
+       SessionHolder.run_action(pid_session_holder, close_solo)
+       resume_runner(client_runner)
+     end, :empty}
+  end
+
   def close_solo_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
     do: [
       {:initiator,
@@ -490,6 +476,17 @@ defmodule TestScenarios do
          next: sequence_finish_job(runner_pid, responder)
        }}
     ]
+
+  def close_mutual_job() do
+    # special cased since this doesn't end up in an update.
+    shutdown = fn pid -> SocketConnector.shutdown(pid) end
+
+    {:local,
+     fn client_runner, pid_session_holder ->
+       SessionHolder.run_action(pid_session_holder, shutdown)
+       resume_runner(client_runner)
+     end, :empty}
+  end
 
   def close_mutual_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
     do: [

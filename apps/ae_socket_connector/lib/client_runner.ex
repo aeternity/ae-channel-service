@@ -9,7 +9,6 @@ defmodule ClientRunner do
   # @ae_url "wss://testnet.demo.aeternity.io/channel"
   # @network_id "ae_uat"
 
-  import ClientRunnerHelper
   import TestScenarios
   # TODO :local always? produces a cast, could we move this to :local runner
 
@@ -18,12 +17,8 @@ defmodule ClientRunner do
 
   defstruct pid_session_holder: nil,
             color: nil,
-            job_list: nil,
             match_list: nil,
             fuzzy_counter: 0
-
-  # socket_holder_name: nil,
-  # runner_pid: nil
 
   def start_channel_helper(),
     do: ClientRunner.start_helper(@ae_url, @network_id)
@@ -52,12 +47,6 @@ defmodule ClientRunner do
       ) do
     GenServer.start_link(__MODULE__, params)
   end
-
-  # example
-  # %{
-  # {:initiator, %{message: {:channels_update, 1, :transient, "channels.update"}, next: {:run_job}, fuzzy: 3}},
-  # }
-
 
   def connection_callback(callback_pid, color) do
     %SocketConnector.ConnectionCallbacks{
@@ -118,7 +107,6 @@ defmodule ClientRunner do
           session: state_channel_configuration,
           role: role,
           connection_callbacks: connection_callback(self(), color)
-          # connection_callbacks: connection_callback(self(), color)
         },
         ae_url: ae_url,
         network_id: network_id,
@@ -129,17 +117,7 @@ defmodule ClientRunner do
     {:ok,
      %__MODULE__{
        pid_session_holder: pid_session_holder,
-       job_list: jobs,
-       #  match_list: Enum.filter(match_list(), fn (entry) -> elem(entry, 0) == role end),
        match_list: jobs,
-       #  Enum.reduce(match_list.(), [], fn {runner, event}, acc ->
-       #    case runner == role do
-       #      true -> acc ++ [event]
-       #      false -> acc
-       #    end
-       #  end),
-       #  runner_pid: runner_pid,
-       #  socket_holder_name: name,
        color: [ansi_color: color]
      }}
   end
