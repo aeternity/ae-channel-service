@@ -9,9 +9,6 @@ defmodule ClientRunner do
   # @ae_url "wss://testnet.demo.aeternity.io/channel"
   # @network_id "ae_uat"
 
-  # import TestScenarios
-  # TODO :local always? produces a cast, could we move this to :local runner
-
   defmacro ae_url, do: @ae_url
   defmacro network_id, do: @network_id
 
@@ -19,27 +16,6 @@ defmodule ClientRunner do
             color: nil,
             match_list: nil,
             fuzzy_counter: 0
-
-  # def start_channel_helper(),
-  #   do: ClientRunner.start_helper(@ae_url, @network_id, {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()}, {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}, joblist())
-
-  # def joblist(),
-  #   do: [
-  #     &hello_fsm_v3/3,
-  #     &hello_fsm_v2/3,
-  #     &withdraw_after_reconnect_v2/3,
-  #     # &withdraw_after_reestablish/3,
-  #     &backchannel_jobs_v2/3,
-  #     &close_solo_v2/3,
-  #     &close_mutual_v2/3,
-  #     &reconnect_jobs_v2/3,
-  #     &contract_jobs_v2/3,
-  #     # &reestablish_jobs/3,
-  #     # &query_after_reconnect/3,
-  #     # # TODO missing "get state"
-  #     # # This is unfinished, info callback needs to be refined and configurable minimg height.
-  #     &teardown_on_channel_creation_v2/3
-  #   ]
 
   def start_link(
         {_pub_key, _priv_key, _state_channel_configuration, _ae_url, _network_id, _role, _jobs, _color, _name} =
@@ -285,8 +261,6 @@ defmodule ClientRunner do
         job_builder,
         configuration \\ &default_configuration/2
       ) do
-    # initiator_pub = TestAccounts.initiatorPubkeyEncoded()
-    # responder_pub = TestAccounts.responderPubkeyEncoded()
 
     Logger.debug("executing test: #{inspect(job_builder)}")
 
