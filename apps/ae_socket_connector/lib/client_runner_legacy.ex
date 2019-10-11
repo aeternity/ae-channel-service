@@ -137,40 +137,4 @@ defmodule ClientRunnerLegacy do
 
     {jobs_initiator, jobs_responder}
   end
-
-  def teardown_on_channel_creation({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
-    # empty_jobs(1..1) ++
-    jobs_initiator = [
-      {:local,
-       fn client_runner, pid_session_holder ->
-         Logger.debug("close")
-         # SessionHolder.kill_connection(pid_session_holder)
-         SessionHolder.close_connection(pid_session_holder)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
-      pause_job(10000),
-      {:local,
-       fn client_runner, pid_session_holder ->
-         Logger.debug("reestablish 1")
-         SessionHolder.reestablish(pid_session_holder)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
-      # assert_funds_job(
-      #   {intiator_account, 6_999_999_999_997},
-      #   {responder_account, 4_000_000_000_003}
-      # ),
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end, :empty},
-      pause_job(5000),
-      sequence_finish_job(runner_pid, responder)
-    ]
-
-    jobs_responder = [
-      sequence_finish_job(runner_pid, initiator)
-    ]
-
-    {jobs_initiator, jobs_responder}
-  end
 end

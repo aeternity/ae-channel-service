@@ -152,16 +152,16 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  # test "teardown on channel creation", context do
-  #   {alice, bob} = gen_names(context.test)
-  #   assert "false positve, this test needs to disconnect on info message" = "code need to be added in framwork"
-  #   ClientRunner.start_helper(
-  #     @ae_url,
-  #     @network_id,
-  #     alice,
-  #     bob,
-  #     &TestScenarios.teardown_on_channel_creation_v2/3,
-  #     custom_config(%{}, %{minimum_depth: 50})
-  #   )
-  # end
+  @tag :open_channel_passive
+  test "teardown on channel creation", context do
+    {alice, bob} = gen_names(context.test)
+    ClientRunner.start_helper(
+      @ae_url,
+      @network_id,
+      alice,
+      bob,
+      &TestScenarios.teardown_on_channel_creation_v2/3,
+      custom_config(%{}, %{minimum_depth: 50})
+    )
+  end
 end

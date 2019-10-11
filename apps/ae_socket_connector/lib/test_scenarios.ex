@@ -530,6 +530,53 @@ defmodule TestScenarios do
        }}
     ]
 
+  def teardown_on_channel_creation_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "funding_signed"},
+         fuzzy: 10,
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.close_connection(pid_session_holder)
+              resume_runner(client_runner)
+            end, :empty}
+       }},
+      {:initiator, %{next: pause_job(10000)}},
+      {:initiator,
+       %{
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              SessionHolder.reestablish(pid_session_holder)
+              resume_runner(client_runner)
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         fuzzy: 3,
+         next:
+           assert_funds_job(
+             {intiator_account, 6_999_999_999_997},
+             {responder_account, 4_000_000_000_003}
+           )
+       }},
+      {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "open"},
+         fuzzy: 10,
+         next: sequence_finish_job(runner_pid, initiator)
+       }},
+      {:responder,
+       %{
+         message: {:channels_info, 0, :transient, "open"},
+         fuzzy: 14,
+         next: sequence_finish_job(runner_pid, responder)
+       }}
+    ]
+
   # def just_connect({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
   #   jobs_initiator = [
   #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
