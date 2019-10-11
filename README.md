@@ -1,8 +1,10 @@
 # ae-channel-service
 
-The [channel_runner](apps/ae_socket_connector/lib/channel_runner.ex) is to be considered as a `state-channel` client, which will execute several state channel operations, as token transfers and off-chain contract calls.
+The channel service is to be considered as a `state-channel` client implementation, which will execute several state channel operations, as token transfers and off-chain contract calls.
 
 This implementation benefits by being able calling erlang functions provided by the core team.
+
+Read up on state channels [here](https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md)
 
 ## Build
 
@@ -13,7 +15,7 @@ make shell
 
 ## Configure - local node
 
-add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_socket_connector/lib/test_accounts.ex)
+add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_socket_connector/test/accounts_test.exs)
 
 These account must exist on the node.
 
@@ -48,14 +50,9 @@ more documentation on node configuration can be found [here](https://github.com/
 
 ## Run
 
-Start the sampel at your prompt by doing 
+Start the samples at your prompt by doing 
 ```bash
 mix test
 ```
 
-alternatively (in iex shell)
-```elixir
-iex(1)> ClientRunner.start_channel_helper()
-```
-
-by default the command will start tests one by one found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L21), feel free to remove entries to get cleaner log outputs.
+Scenarios executed can be found [here](apps/ae_socket_connector/test/scenarios_test.exs)
