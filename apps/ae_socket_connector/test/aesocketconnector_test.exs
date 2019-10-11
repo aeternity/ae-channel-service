@@ -1,8 +1,6 @@
 defmodule SocketConnectorTest do
   use ExUnit.Case
-  # doctest SocketConnectxor
   require ClientRunner
-  require TestScenarios
 
   @ae_url ClientRunner.ae_url()
   @network_id ClientRunner.network_id()
@@ -54,8 +52,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.withdraw_after_reconnect_v2/3
     )
   end
@@ -66,8 +64,8 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     alice,
-  #     bob,
+  #     {alice, accounts_initiator()},
+  #     {bob, accounts_responder()},
   #     &TestScenarios.withdraw_after_reestablish_v2/3
   #   )
   # end
@@ -78,8 +76,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.backchannel_jobs_v2/3
     )
   end
@@ -91,8 +89,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.close_solo_v2/3
     )
   end
@@ -104,8 +102,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.close_mutual_v2/3
     )
   end
@@ -116,8 +114,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.reconnect_jobs_v2/3
     )
   end
@@ -130,8 +128,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.contract_jobs_v2/3
     )
   end
@@ -142,8 +140,8 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     alice,
-  #     bob,
+  #     {alice, accounts_initiator()},
+  #     {bob, accounts_responder()},
   #     &TestScenarios.reestablish_jobs_v2/3
   #   )
   # end
@@ -154,8 +152,8 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     alice,
-  #     bob,
+  #     {alice, accounts_initiator()},
+  #     {bob, accounts_responder()},
   #     &TestScenarios.query_after_reconnect_v2/3
   #   )
   # end
@@ -167,8 +165,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.teardown_on_channel_creation_v2/3,
       custom_config(%{}, %{minimum_depth: 50})
     )

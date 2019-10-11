@@ -1,5 +1,5 @@
 defmodule TestScenarios do
-  import ClientRunnerHelper
+  # import ClientRunnerHelper
 
   # example
   # %{
@@ -34,14 +34,14 @@ defmodule TestScenarios do
        %{
          message: {:channels_update, 1, :transient, "channels.leave"},
          fuzzy: 0,
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }},
       {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0}},
       {:initiator,
        %{
          message: {:channels_info, 0, :transient, "died"},
          fuzzy: 0,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }}
     ]
 
@@ -57,13 +57,13 @@ defmodule TestScenarios do
        %{
          message: {:channels_update, 1, :transient, "channels.leave"},
          fuzzy: 20,
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }},
       {:initiator,
        %{
          message: {:channels_info, 0, :transient, "died"},
          fuzzy: 20,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }}
     ]
 
@@ -76,18 +76,18 @@ defmodule TestScenarios do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 10
        }},
-      {:initiator, %{next: pause_job(1000)}},
+      {:initiator, %{next: ClientRunnerHelper.pause_job(1000)}},
       {:initiator,
        %{
          next:
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.reconnect(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 0
        }},
@@ -104,13 +104,13 @@ defmodule TestScenarios do
        %{
          message: {:channels_update, 2, :transient, "channels.update"},
          fuzzy: 20,
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }},
       {:initiator,
        %{
          message: {:channels_update, 2, :transient, "channels.update"},
          fuzzy: 20,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }}
     ]
 
@@ -123,20 +123,20 @@ defmodule TestScenarios do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 20
        }},
       {:responder,
        %{
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_999},
              {responder_account, 4_000_000_000_001}
            )
        }},
       {:responder,
-       %{message: {:channels_update, 1, :transient, "channels.update"}, next: pause_job(3000), fuzzy: 10}},
+       %{message: {:channels_update, 1, :transient, "channels.update"}, next: ClientRunnerHelper.pause_job(3000), fuzzy: 10}},
       # this updates should fail, since other end is gone.
       {:responder,
        %{
@@ -159,7 +159,7 @@ defmodule TestScenarios do
          message: {:channels_update, 2, :self, "channels.update"},
          fuzzy: 3,
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 7_000_000_000_003},
              {responder_account, 3_999_999_999_997}
            )
@@ -168,20 +168,20 @@ defmodule TestScenarios do
        %{
          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
        }},
-      {:initiator, %{next: pause_job(10000)}},
+      {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
       {:initiator,
        %{
          next:
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.reconnect(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
       {:initiator,
        %{
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 7_000_000_000_003},
              {responder_account, 3_999_999_999_997}
            )
@@ -195,18 +195,18 @@ defmodule TestScenarios do
          message: {:channels_update, 3, :self, "channels.update"},
          fuzzy: 3,
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_998},
              {responder_account, 4_000_000_000_002}
            )
        }},
       {:responder,
        %{
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }},
       {:initiator,
        %{
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }}
     ]
 
@@ -227,7 +227,7 @@ defmodule TestScenarios do
          message: {:channels_update, 2, :self, "channels.update"},
          fuzzy: 3,
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
            )
@@ -272,7 +272,7 @@ defmodule TestScenarios do
          fuzzy: 10,
          message: {:channels_update, 5, :self, "channels.update"},
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_984},
              {responder_account, 4_000_000_000_006}
            )
@@ -291,7 +291,7 @@ defmodule TestScenarios do
          #  TODO bug somewhere, why do we go for transient here?
          message: {:channels_update, 6, :transient, "channels.update"},
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_998_999_984},
              {responder_account, 4_000_000_000_006}
            )
@@ -316,7 +316,7 @@ defmodule TestScenarios do
          message: {:channels_update, 8, :transient, "channels.update"},
          fuzzy: 10,
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_499_975},
              {responder_account, 4_000_000_000_015}
            )
@@ -353,11 +353,11 @@ defmodule TestScenarios do
        }},
       {:responder,
        %{
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }},
       {:initiator,
        %{
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }}
     ]
   end
@@ -368,7 +368,7 @@ defmodule TestScenarios do
        %{
          message: {:channels_update, 1, :transient, "channels.update"},
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_999},
              {responder_account, 4_000_000_000_001}
            ),
@@ -382,13 +382,13 @@ defmodule TestScenarios do
        %{
          message: {:channels_update, 3, :other, "channels.update"},
          fuzzy: 10,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
          message: {:channels_update, 2, :other, "channels.update"},
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
            ),
@@ -401,25 +401,25 @@ defmodule TestScenarios do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 10
        }},
-      {:responder, %{next: pause_job(1000)}},
+      {:responder, %{next: ClientRunnerHelper.pause_job(1000)}},
       {:responder,
        %{
          next:
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.reconnect(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 0
        }},
       {:responder,
        %{
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
            ),
@@ -433,7 +433,7 @@ defmodule TestScenarios do
        %{
          message: {:channels_update, 3, :self, "channels.update"},
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_999},
              {responder_account, 4_000_000_000_001}
            ),
@@ -441,7 +441,7 @@ defmodule TestScenarios do
        }},
       {:responder,
        %{
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]
 
@@ -452,7 +452,7 @@ defmodule TestScenarios do
     {:local,
      fn client_runner, pid_session_holder ->
        SessionHolder.run_action(pid_session_holder, close_solo)
-       resume_runner(client_runner)
+       ClientRunnerHelper.resume_runner(client_runner)
      end, :empty}
   end
 
@@ -474,13 +474,13 @@ defmodule TestScenarios do
        %{
          message: {:channels_info, 0, :transient, "closing"},
          fuzzy: 10,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
          message: {:channels_info, 0, :transient, "closing"},
          fuzzy: 10,
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]
 
@@ -491,7 +491,7 @@ defmodule TestScenarios do
     {:local,
      fn client_runner, pid_session_holder ->
        SessionHolder.run_action(pid_session_holder, shutdown)
-       resume_runner(client_runner)
+       ClientRunnerHelper.resume_runner(client_runner)
      end, :empty}
   end
 
@@ -520,13 +520,13 @@ defmodule TestScenarios do
        %{
          message: {:channels_info, 0, :transient, "closed_confirmed"},
          fuzzy: 10,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
          message: {:channels_info, 0, :transient, "closed_confirmed"},
          fuzzy: 14,
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]
 
@@ -540,17 +540,17 @@ defmodule TestScenarios do
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
-      {:initiator, %{next: pause_job(10000)}},
+      {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
       {:initiator,
        %{
          next:
            {:local,
             fn client_runner, pid_session_holder ->
               SessionHolder.reestablish(pid_session_holder)
-              resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
       {:initiator,
@@ -558,7 +558,7 @@ defmodule TestScenarios do
          message: {:channels_update, 2, :self, "channels.update"},
          fuzzy: 3,
          next:
-           assert_funds_job(
+           ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
            )
@@ -567,24 +567,24 @@ defmodule TestScenarios do
        %{
          message: {:channels_info, 0, :transient, "open"},
          fuzzy: 10,
-         next: sequence_finish_job(runner_pid, initiator)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
          message: {:channels_info, 0, :transient, "open"},
          fuzzy: 14,
-         next: sequence_finish_job(runner_pid, responder)
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]
 
   # def just_connect({initiator, _intiator_account}, {responder, _responder_account}, runner_pid) do
   #   jobs_initiator = [
   #     {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-  #     sequence_finish_job(runner_pid, initiator)
+  #     ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
   #   ]
 
   #   jobs_responder = [
-  #     sequence_finish_job(runner_pid, responder)
+  #     ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
   #   ]
 
   #   {jobs_initiator, jobs_responder}

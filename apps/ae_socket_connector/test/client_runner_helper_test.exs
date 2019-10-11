@@ -1,4 +1,5 @@
 defmodule ClientRunnerHelper do
+  use ExUnit.Case
   require Logger
 
   def sequence_finish_job(runner_pid, name) do
@@ -34,9 +35,9 @@ defmodule ClientRunnerHelper do
         %{"account" => account2, "balance" => value2}
       ])
 
-    Logger.debug("expected #{inspect(Enum.sort(expect))}")
-    Logger.debug("got      #{inspect(response)}")
-    ^expect = Enum.sort(response)
+    # Logger.debug("expected #{inspect(Enum.sort(expect))}")
+    # Logger.debug("got      #{inspect(response)}")
+    assert expect == Enum.sort(response)
   end
 
   def assert_funds_job({account1, value1}, {account2, value2}) do
