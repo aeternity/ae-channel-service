@@ -21,7 +21,7 @@ defmodule ClientRunner do
             fuzzy_counter: 0
 
   def start_channel_helper(),
-    do: ClientRunner.start_helper(@ae_url, @network_id)
+    do: ClientRunner.start_helper(@ae_url, @network_id, {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()}, {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}, joblist())
 
   def joblist(),
     do: [
@@ -33,12 +33,12 @@ defmodule ClientRunner do
       &close_solo_v2/3,
       &close_mutual_v2/3,
       &reconnect_jobs_v2/3,
-      &contract_jobs_v2/3
+      &contract_jobs_v2/3,
       # &reestablish_jobs/3,
       # &query_after_reconnect/3,
       # # TODO missing "get state"
       # # This is unfinished, info callback needs to be refined and configurable minimg height.
-      # &teardown_on_channel_creation/3
+      &teardown_on_channel_creation_v2/3
     ]
 
   def start_link(
@@ -216,10 +216,10 @@ defmodule ClientRunner do
   # elimiation overlap yields issues, need to be investigated
   @grace_period_ms 2000
 
-  def start_helper(ae_url, network_id) do
-    Enum.each(Enum.zip(joblist(), 1..Enum.count(joblist())), fn {fun, suffix} ->
+  def start_helper(ae_url, network_id, initiator_keys, responder_keys, joblist) do
+    Enum.each(Enum.zip(joblist, 1..Enum.count(joblist)), fn {fun, suffix} ->
       Logger.info("Launching next job in queue")
-      start_helper(ae_url, network_id, gen_name(:alice, suffix), gen_name(:bob, suffix), fun)
+      start_peers(ae_url, network_id, {gen_name(:alice, suffix), initiator_keys}, {gen_name(:bob, suffix), responder_keys}, fun)
       Process.sleep(@grace_period_ms)
     end)
   end
@@ -277,16 +277,16 @@ defmodule ClientRunner do
     }
   end
 
-  def start_helper(
+  def start_peers(
         ae_url,
         network_id,
-        name_initiator,
-        name_responder,
+        {name_initiator, {initiator_pub, initiator_priv}},
+        {name_responder, {responder_pub, responder_priv}},
         job_builder,
         configuration \\ &default_configuration/2
       ) do
-    initiator_pub = TestAccounts.initiatorPubkeyEncoded()
-    responder_pub = TestAccounts.responderPubkeyEncoded()
+    # initiator_pub = TestAccounts.initiatorPubkeyEncoded()
+    # responder_pub = TestAccounts.responderPubkeyEncoded()
 
     Logger.debug("executing test: #{inspect(job_builder)}")
 
@@ -296,12 +296,12 @@ defmodule ClientRunner do
     state_channel_configuration = configuration.(initiator_pub, responder_pub)
 
     start_link(
-      {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey(), state_channel_configuration, ae_url,
+      {initiator_pub, initiator_priv, state_channel_configuration, ae_url,
        network_id, :initiator, jobs_initiator, :yellow, name_initiator}
     )
 
     start_link(
-      {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey(), state_channel_configuration, ae_url,
+      {responder_pub, responder_priv, state_channel_configuration, ae_url,
        network_id, :responder, jobs_responder, :blue, name_responder}
     )
 

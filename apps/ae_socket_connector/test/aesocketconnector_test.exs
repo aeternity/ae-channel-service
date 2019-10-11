@@ -26,15 +26,23 @@ defmodule SocketConnectorTest do
     end
   end
 
+  def accounts_initiator() do
+    {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()}
+  end
+
+  def accounts_responder() do
+    {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}
+  end
+
   @tag :hello_world
   test "hello fsm", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      alice,
-      bob,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
       &TestScenarios.hello_fsm_v2/3,
       custom_config(%{}, %{minimum_depth: 0, port: 1400})
     )
@@ -43,7 +51,7 @@ defmodule SocketConnectorTest do
   test "withdraw after re-connect", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
@@ -55,7 +63,7 @@ defmodule SocketConnectorTest do
   # test "withdraw after reestablish", context do
   #   {alice, bob} = gen_names(context.test)
 
-  #   ClientRunner.start_helper(
+  #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
   #     alice,
@@ -67,7 +75,7 @@ defmodule SocketConnectorTest do
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
@@ -80,7 +88,7 @@ defmodule SocketConnectorTest do
   test "close solo", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
@@ -93,7 +101,7 @@ defmodule SocketConnectorTest do
   test "close mutual", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
@@ -105,7 +113,7 @@ defmodule SocketConnectorTest do
   test "reconnect jobs", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
@@ -119,7 +127,7 @@ defmodule SocketConnectorTest do
   test "contract jobs", context do
     {alice, bob} = gen_names(context.test)
 
-    ClientRunner.start_helper(
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
@@ -131,7 +139,7 @@ defmodule SocketConnectorTest do
   # test "reestablish jobs", context do
   #   {alice, bob} = gen_names(context.test)
 
-  #   ClientRunner.start_helper(
+  #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
   #     alice,
@@ -143,7 +151,7 @@ defmodule SocketConnectorTest do
   # test "query after reconnect", context do
   #   {alice, bob} = gen_names(context.test)
 
-  #   ClientRunner.start_helper(
+  #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
   #     alice,
@@ -155,7 +163,8 @@ defmodule SocketConnectorTest do
   @tag :open_channel_passive
   test "teardown on channel creation", context do
     {alice, bob} = gen_names(context.test)
-    ClientRunner.start_helper(
+
+    ClientRunner.start_peers(
       @ae_url,
       @network_id,
       alice,
