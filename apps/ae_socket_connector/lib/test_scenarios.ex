@@ -156,6 +156,8 @@ defmodule TestScenarios do
        }},
       {:responder,
        %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         fuzzy: 3,
          next:
            assert_funds_job(
              {intiator_account, 7_000_000_000_003},
@@ -190,6 +192,8 @@ defmodule TestScenarios do
        }},
       {:initiator,
        %{
+         message: {:channels_update, 3, :self, "channels.update"},
+         fuzzy: 3,
          next:
            assert_funds_job(
              {intiator_account, 6_999_999_999_998},
@@ -220,6 +224,8 @@ defmodule TestScenarios do
        }},
       {:initiator,
        %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         fuzzy: 3,
          next:
            assert_funds_job(
              {intiator_account, 6_999_999_999_997},
@@ -425,6 +431,7 @@ defmodule TestScenarios do
        }},
       {:responder,
        %{
+         message: {:channels_update, 3, :self, "channels.update"},
          next:
            assert_funds_job(
              {intiator_account, 6_999_999_999_999},
