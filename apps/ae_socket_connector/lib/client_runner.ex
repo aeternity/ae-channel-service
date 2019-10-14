@@ -2,15 +2,11 @@ defmodule ClientRunner do
   use GenServer
   require Logger
 
-  @ae_url "ws://localhost:3014/channel"
-  @network_id "my_test"
+  defmacro ae_url, do:
+    Application.get_env(:ae_socket_connector, :node)[:ae_url]
 
-
-  # @ae_url "wss://testnet.demo.aeternity.io/channel"
-  # @network_id "ae_uat"
-
-  defmacro ae_url, do: @ae_url
-  defmacro network_id, do: @network_id
+  defmacro network_id, do:
+    Application.get_env(:ae_socket_connector, :node)[:network_id]
 
   defstruct pid_session_holder: nil,
             color: nil,
@@ -65,12 +61,7 @@ defmodule ClientRunner do
   end
 
   def filter_jobs(job_list, role) do
-    Enum.reduce(job_list, [], fn {runner, event}, acc ->
-      case runner == role do
-        true -> acc ++ [event]
-        false -> acc
-      end
-    end)
+    for {runner, event} <- job_list, runner == role, do: event
   end
 
   # Server
@@ -195,7 +186,15 @@ defmodule ClientRunner do
   def start_helper(ae_url, network_id, initiator_keys, responder_keys, joblist) do
     Enum.each(Enum.zip(joblist, 1..Enum.count(joblist)), fn {fun, suffix} ->
       Logger.info("Launching next job in queue")
-      start_peers(ae_url, network_id, {gen_name(:alice, suffix), initiator_keys}, {gen_name(:bob, suffix), responder_keys}, fun)
+
+      start_peers(
+        ae_url,
+        network_id,
+        {gen_name(:alice, suffix), initiator_keys},
+        {gen_name(:bob, suffix), responder_keys},
+        fun
+      )
+
       Process.sleep(@grace_period_ms)
     end)
   end
@@ -261,7 +260,6 @@ defmodule ClientRunner do
         job_builder,
         configuration \\ &default_configuration/2
       ) do
-
     Logger.debug("executing test: #{inspect(job_builder)}")
 
     {jobs_initiator, jobs_responder} =
@@ -270,13 +268,13 @@ defmodule ClientRunner do
     state_channel_configuration = configuration.(initiator_pub, responder_pub)
 
     start_link(
-      {initiator_pub, initiator_priv, state_channel_configuration, ae_url,
-       network_id, :initiator, jobs_initiator, :yellow, name_initiator}
+      {initiator_pub, initiator_priv, state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator,
+       :yellow, name_initiator}
     )
 
     start_link(
-      {responder_pub, responder_priv, state_channel_configuration, ae_url,
-       network_id, :responder, jobs_responder, :blue, name_responder}
+      {responder_pub, responder_priv, state_channel_configuration, ae_url, network_id, :responder, jobs_responder,
+       :blue, name_responder}
     )
 
     await_finish([name_initiator, name_responder])
