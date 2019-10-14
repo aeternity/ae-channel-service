@@ -485,7 +485,7 @@ defmodule SocketConnector do
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
@@ -722,7 +722,7 @@ defmodule SocketConnector do
     Logger.info("disconnecting... #{inspect(self())}", state.color)
     :timer.cancel(state.timer_reference)
     # TODO this is redundant.
-    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+    # GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     super(disconnect_map, state)
   end
 

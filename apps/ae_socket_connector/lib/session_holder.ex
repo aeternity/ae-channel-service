@@ -13,7 +13,7 @@ defmodule SessionHolder do
         ae_url: ae_url,
         network_id: network_id,
         color: color,
-        # TODO remove this?
+        # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
     GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color}, name: name)
