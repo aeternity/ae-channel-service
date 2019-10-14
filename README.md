@@ -15,7 +15,7 @@ make shell
 
 ## Configure - local node
 
-add valid accounts in [apps/ae_socket_connector/test/accounts_test.exs]apps/ae_socket_connector/test/accounts_test.exs)
+add valid accounts in [apps/ae_socket_connector/test/accounts_test.exs](apps/ae_socket_connector/test/accounts_test.exs)
 
 These account must exist on the node.
 
