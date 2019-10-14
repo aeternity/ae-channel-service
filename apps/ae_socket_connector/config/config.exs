@@ -10,16 +10,29 @@ use Mix.Config
 
 # You can configure your application as:
 #
-#     config :socket_connector, key: :value
+#     config :ae_socket_connector, key: :value
 #
 # and access this configuration in your application as:
 #
-#     Application.get_env(:socket_connector, :key)
+#     Application.get_env(:ae_socket_connector, :key)
 #
 # You can also configure a 3rd-party app:
 #
 #     config :logger, level: :info
-#
+
+config :logger,
+  compile_time_purge_matching: [
+    # [application: :foo],
+    [module: SocketConnector, level_lower_than: :error]
+  ]
+
+config :ae_socket_connector, :node,
+  ae_url: "ws://localhost:3014/channel",
+  network_id: "my_test"
+
+# config :ae_socket_connector, :urls,
+#   ae_url: "wss://testnet.demo.aeternity.io/channel",
+#   network_id: "ae_uat"
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment

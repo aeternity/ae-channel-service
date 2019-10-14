@@ -1,8 +1,10 @@
 # ae-channel-service
 
-The [channel_runner](apps/ae_socket_connector/lib/channel_runner.ex) is to be considered as a `state-channel` client, which will execute several state channel operations, as token transfers and off-chain contract calls.
+The channel service is to be considered as a `state-channel` client implementation, which will execute several state channel operations, as token transfers and off-chain contract calls.
 
 This implementation benefits by being able calling erlang functions provided by the core team.
+
+Read up on state channels [here](https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md)
 
 ## Build
 
@@ -11,11 +13,24 @@ make clean deps
 make shell
 ```
 
-## Configure
+## Configure - local node
 
-add valid accounts in [apps/ae_socket_connector/lib/test_accounts.ex](apps/ae_socket_connector/lib/test_accounts.ex)
+add valid accounts in [apps/ae_socket_connector/test/accounts_test.exs]apps/ae_socket_connector/test/accounts_test.exs)
 
-add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/lib/channel_runner.ex](apps/ae_socket_connector/lib/channel_runner.ex#L4)
+These account must exist on the node.
+
+add the address to your [æternity](https://github.com/aeternity/aeternity) node and your network id in [apps/ae_socket_connector/config/config.exs](apps/ae_socket_connector/config/config.exs#L29)
+
+## Configure - test net
+
+Create accounts [here](http://aeternity.com/documentation-hub/tutorials/account-creation-in-ae-cli/)
+
+add valid accounts in [apps/ae_socket_connector/test/accounts_test.exs](apps/ae_socket_connector/test/accounts_test.exs)
+
+Your account needs to exist on chain. To make it happen, just top up your accounts
+[here](https://testnet.faucet.aepps.com/) and then you should be able to follow your on chain transactions [here](https://testnet.explorer.aepps.com)
+
+enable testnet by referencing testnet (remove comments) [apps/ae_socket_connector/config/config.exs](apps/ae_socket_connector/config/config.exs#L33)
 
 ## Local node optional configuration
 
@@ -35,9 +50,9 @@ more documentation on node configuration can be found [here](https://github.com/
 
 ## Run
 
-Start the code (in iex shell)
-```
-iex(1)> ChannelRunner.start_channel_helper()
+Start the samples at your prompt by doing 
+```bash
+mix test
 ```
 
-by default the command will start tests one by one found in the following [array](apps/ae_socket_connector/lib/client_runner.ex#L9), feel free to remove entries to get cleaner log outputs.
+Scenarios executed can be found [here](apps/ae_socket_connector/test/scenarios_test.exs)

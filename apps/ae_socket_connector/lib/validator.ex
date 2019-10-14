@@ -33,11 +33,11 @@ defmodule Validator do
     responder_amount = apply(module, :responder_amount, [tx_instance])
 
     case (_sign_map = %WsConnection{
-            initiator: :aeser_api_encoder.encode(:account_pubkey, initiator_pub_key),
-            responder: :aeser_api_encoder.encode(:account_pubkey, responder_pub_key),
+            initiator_id: :aeser_api_encoder.encode(:account_pubkey, initiator_pub_key),
+            responder_id: :aeser_api_encoder.encode(:account_pubkey, responder_pub_key),
             initiator_amount: initiator_amount,
             responder_amount: responder_amount
-          }) == state.session do
+          }) == state.session.basic_configuration do
       true ->
         response = :ok
         Logger.info("OK to sign! #{inspect(response)}", state.color)
@@ -108,7 +108,7 @@ defmodule Validator do
         :aesc_close_mutual_tx ->
           # TODO match_pot_aetx is currently doing the same checking...
           match_poi_aetx(
-            {poi, [state.session.initiator, state.session.responder], []},
+            {poi, [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id], []},
             aetx,
             state.round_and_updates
           )

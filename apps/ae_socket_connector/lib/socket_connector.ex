@@ -7,7 +7,6 @@ defmodule SocketConnector do
   defstruct pub_key: nil,
             priv_key: nil,
             role: nil,
-            # WsConnection{},
             session: %{},
             color: nil,
             channel_id: nil,
@@ -50,10 +49,11 @@ defmodule SocketConnector do
   defmodule(WsConnection,
     do:
       defstruct(
-        initiator: nil,
-        responder: nil,
+        initiator_id: nil,
+        responder_id: nil,
         initiator_amount: nil,
-        responder_amount: nil
+        responder_amount: nil,
+        custom_param_fun: nil
       )
   )
 
@@ -71,12 +71,7 @@ defmodule SocketConnector do
         %__MODULE__{
           pub_key: _pub_key,
           priv_key: _priv_key,
-          session: %WsConnection{
-            initiator: initiator_id,
-            responder: responder_id,
-            initiator_amount: initiator_amount,
-            responder_amount: responder_amount
-          },
+          session: session,
           role: role
         } = state_channel_context,
         ws_base,
@@ -84,7 +79,7 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    session_map = init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, ws_base)
+    session_map = init_map(session, role, ws_base)
 
     ws_url = create_link(ws_base, session_map)
     Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
@@ -274,18 +269,14 @@ defmodule SocketConnector do
 
   # Server side
 
-  def terminate(reason, state) when reason in [{:local, :normal}, {:remote, :closed}] do
+  def terminate(reason, _state)
+      when reason in [{:local, :normal}, {:remote, :closed}, {:remote, 1000, ""}] do
     # silent, all good
     exit(:normal)
   end
 
   def terminate(reason, state) do
-    Logger.warn(
-      "unexpected? termination peer role: #{state.role} pid: #{inspect(self())} reason: #{inspect(reason)}",
-      ansi_color: :red
-    )
-
-    exit(:normal)
+    super(reason, state)
   end
 
   def handle_connect(conn, state) do
@@ -330,10 +321,18 @@ defmodule SocketConnector do
   defp transfer_from(amount, state) do
     case state.role do
       :initiator ->
-        transfer_amount(state.session.initiator, state.session.responder, amount)
+        transfer_amount(
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id,
+          amount
+        )
 
       :responder ->
-        transfer_amount(state.session.responder, state.session.initiator, amount)
+        transfer_amount(
+          state.session.basic_configuration.responder_id,
+          state.session.basic_configuration.initiator_id,
+          amount
+        )
     end
   end
 
@@ -538,7 +537,7 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.initiator, state.session.responder],
+        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
         [],
         from_pid
       )
@@ -596,7 +595,7 @@ defmodule SocketConnector do
 
   # https://github.com/aeternity/protocol/blob/master/node/api/examples/channels/json-rpc/sc_ws_close_mutual.md#initiator-----node-5
   def request_funds(state, from_pid) do
-    %WsConnection{initiator: initiator, responder: responder} = state.session
+    %WsConnection{initiator_id: initiator, responder_id: responder} = state.session.basic_configuration
 
     make_sync(
       from_pid,
@@ -734,6 +733,7 @@ defmodule SocketConnector do
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
+      # TODO this should not be hardcoded.
       port: "12341"
     }
 
@@ -757,30 +757,10 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(initiator_id, responder_id, initiator_amount, responder_amount, role, host_url) do
-    same = %{
-      channel_reserve: "2",
-      initiator_amount: initiator_amount,
-      initiator_id: initiator_id,
-      lock_period: "10",
-      port: "12340",
-      protocol: "json-rpc",
-      push_amount: "1",
-      responder_amount: responder_amount,
-      responder_id: responder_id
-    }
-
-    role_map =
-      case role do
-        :initiator ->
-          %URI{host: host} = URI.parse(host_url)
-          %{host: host, role: "initiator", minimum_depth: 0}
-
-        :responder ->
-          %{role: "responder", minimum_depth: 0}
-      end
-
-    Map.merge(same, role_map)
+  def init_map(%{basic_configuration: basic_configuration, custom_param_fun: custom_param_fun}, role, host_url) do
+    custom = custom_param_fun.(role, host_url)
+    same = Map.from_struct(basic_configuration)
+    Map.merge(same, custom)
   end
 
   def create_link(base_url, params) do
@@ -790,18 +770,6 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  def process_message(
-        %{
-          "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "funding_locked"}}
-        } = message,
-        state
-      ) do
-    Logger.debug("channels.info: #{inspect(message)}", state.color)
-    {:ok, %__MODULE__{state | channel_id: channel_id}}
-  end
-
-  # here we have the client has the first disconnect oppertunity (statement needs to be verified). Thats why state is sent to the session holder
   def process_message(
         %{
           "method" => "channels.sign.initiator_sign",
@@ -950,7 +918,11 @@ defmodule SocketConnector do
 
     sync_call =
       %SyncCall{request: request} =
-      get_poi_response_query([state.session.initiator, state.session.responder], [], process_poi)
+      get_poi_response_query(
+        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+        [],
+        process_poi
+      )
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
@@ -1145,31 +1117,17 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(:sign_approve, state, round, method) do
+  def produce_callback(type, state, round, method) when type in [:channels_update, :channels_info] do
     case state.connection_callbacks do
       nil ->
         :ok
 
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_update: channels_update} ->
+      _ ->
         %Update{round_initiator: round_initiator} =
           Map.get(state.pending_update, round, %Update{round_initiator: :transient})
 
-        channels_update.(round_initiator, round, method)
-        :ok
-    end
-  end
-
-  # TODO merge with above....
-  def produce_callback(:channels_info, state, round, method) do
-    case state.connection_callbacks do
-      nil ->
-        :ok
-
-      %ConnectionCallbacks{sign_approve: _sign_approve, channels_info: channels_info} ->
-        %Update{round_initiator: round_initiator} =
-          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
-
-        channels_info.(round_initiator, round, method)
+        callback = Map.get(state.connection_callbacks, type)
+        callback.(round_initiator, round, method)
         :ok
     end
   end
@@ -1192,7 +1150,7 @@ defmodule SocketConnector do
       state.color
     )
 
-    produce_callback(:sign_approve, state, Validator.get_state_round(state_tx), method)
+    produce_callback(:channels_update, state, Validator.get_state_round(state_tx), method)
 
     new_state = %__MODULE__{
       state
@@ -1220,20 +1178,28 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id and channel_id == channel_id2 do
-    produce_callback(:sign_approve, state, round + 1, method)
+    # The conflist arised on the upcoming round which is + 1
+    produce_callback(:channels_update, state, round + 1, method)
     {:ok, state}
+  end
+
+  defmacro is_first_update(stored_id, new_id) do
+    quote do
+      unquote(stored_id) == nil and (unquote(new_id) != nil)
+    end
   end
 
   def process_message(
         %{
           "method" => "channels.info",
           "params" => %{"channel_id" => channel_id, "data" => %{"event" => event}}
-        } = message,
+        } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when channel_id == current_channel_id do
+      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+
     produce_callback(:channels_info, state, 0, event)
-    {:ok, state}
+    {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
   def process_message(
@@ -1249,31 +1215,12 @@ defmodule SocketConnector do
         %{
           "method" => "channels.on_chain_tx",
           "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
-        } = message,
-        %__MODULE__{channel_id: current_channel_id} = state
-      )
-      when channel_id == current_channel_id do
-    # Produces some logging output.
-    Logger.debug("On chain #{inspect(message)}", state.color)
-    Logger.debug("On chain Pending #{inspect(state.pending_update)}", state.color)
-    Validator.verify_on_chain(signed_tx, state.ws_base)
-    {:ok, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "open"}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id do
-    Logger.debug("= CHANNEL OPEN/READY", state.color)
-    {:ok, state}
-  end
-
-  def process_message(%{"method" => "channels.info"} = message, state) do
-    Logger.debug("= channels info: #{inspect(message)}", state.color)
+    # Produces some logging output.
+    Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, state}
   end
 
