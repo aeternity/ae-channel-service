@@ -86,7 +86,7 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              SessionHolder.reconnect(pid_session_holder)
+              SessionHolder.reconnect(pid_session_holder, 12345)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 0
@@ -174,7 +174,7 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              SessionHolder.reconnect(pid_session_holder)
+              SessionHolder.reconnect(pid_session_holder, 1233)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
@@ -549,7 +549,7 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              SessionHolder.reestablish(pid_session_holder)
+              SessionHolder.reestablish(pid_session_holder, 12343)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},

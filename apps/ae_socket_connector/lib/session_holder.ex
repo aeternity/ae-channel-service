@@ -28,12 +28,12 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:close_connection})
   end
 
-  def reestablish(pid) do
-    GenServer.cast(pid, {:reestablish})
+  def reestablish(pid, port \\ 12342) do
+    GenServer.cast(pid, {:reestablish, port})
   end
 
-  def reconnect(pid) do
-    GenServer.cast(pid, {:reconnect})
+  def reconnect(pid, port \\ 12345) do
+    GenServer.cast(pid, {:reconnect, port})
   end
 
   def stop_helper(pid) do
@@ -54,7 +54,7 @@ defmodule SessionHolder do
 
   # Server
   def init({%SocketConnector{} = configuration, ae_url, network_id, color}) do
-    {:ok, pid} = SocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
+    {:ok, pid} = SocketConnector.start_link(configuration, ae_url, network_id, color, self())
 
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
@@ -79,22 +79,22 @@ defmodule SessionHolder do
     {:noreply, state}
   end
 
-  def handle_cast({:reconnect}, state) do
+  def handle_cast({:reconnect, port}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
+    {:ok, pid} = SocketConnector.start_link(:reconnect, state.configuration, port, state.color, self())
 
     {:noreply, %__MODULE__{state | pid: pid}}
   end
 
-  def handle_cast({:reestablish}, state) do
+  def handle_cast({:reestablish, port}, state) do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
     {:ok, pid} =
       SocketConnector.start_link(
-        :alice,
         :reestablish,
         state.configuration,
+        port,
         state.color,
         self()
       )

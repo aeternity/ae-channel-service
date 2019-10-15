@@ -67,7 +67,6 @@ defmodule SocketConnector do
   )
 
   def start_link(
-        _name,
         %__MODULE__{
           pub_key: _pub_key,
           priv_key: _priv_key,
@@ -102,7 +101,6 @@ defmodule SocketConnector do
   end
 
   def start_link(
-        _name,
         :reestablish,
         %__MODULE__{
           pub_key: _pub_key,
@@ -111,11 +109,12 @@ defmodule SocketConnector do
           round_and_updates: round_and_updates,
           ws_base: ws_base
         } = state_channel_context,
+        port,
         color,
         ws_manager_pid
       ) do
     {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
-    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base)
+    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
 
     Logger.debug("start_link reestablish url: #{inspect(ws_url)}",
@@ -143,20 +142,20 @@ defmodule SocketConnector do
   # "ws://localhost:3014/channel?port=14035&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuEBxaFk2dtVESM%2BzvaLXl319O%2B3%2FKYeLKk9pTEBCQsdAxR85LmHLHuI7gh7kuDE0X0iU33CymvyZhYREohGQFTIOuFX4U4ICPwGhBhcVvJBxDP091oeKLKHW8agBzefkBFITZPJHUXayn9anAYlpbml0aWF0b3KhASLZizA%2BhxzczTNVDD0TYeYxI0%2BWU4ivbUiUdyc9vIoepDdZMA%3D%3D&role=initiator"
   # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
   def start_link(
-        _name,
+        :reconnect,
         %__MODULE__{
           pub_key: pub_key,
           role: role,
           channel_id: channel_id,
           round_and_updates: round_and_updates
         } = state_channel_context,
-        :reconnect,
+        port,
         color,
         ws_manager_pid
       ) do
     {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
     reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key, state_channel_context)
-    session_map = init_reconnect_map(reconnect_tx)
+    session_map = init_reconnect_map(reconnect_tx, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 
@@ -181,14 +180,33 @@ defmodule SocketConnector do
 
     {:ok, aetx} =
       :aesc_client_reconnect_tx.new(%{
-        :channel_id => :aeser_id.create(tag, channel),
-        :round => round,
-        :role => role,
-        :pub_key => :aeser_id.create(:account, puk_key_decoded)
+        channel_id: :aeser_id.create(tag, channel),
+        round: round,
+        role: role,
+        pub_key: :aeser_id.create(:account, puk_key_decoded)
       })
 
     # now we just sign it.
     Signer.sign_aetx(aetx, state)
+  end
+
+  #  TxSpec = #{ channel_id => aeser_id:create(channel, ChannelId)
+    #           , from_id    => aeser_id:create(account, IPubKey)
+    #           , payload    => Payload
+    #           , poi        => PoI
+    #           , ttl        => TTL
+    #           , fee        => 30000 * aec_test_utils:min_gas_price()
+    #           , nonce      => Nonce },
+    # {ok, _Tx} = aesc_close_solo_tx:new(TxSpec).
+
+  def create_solo_close_tx(pub_key, state_tx, poi) do
+    :aesc_close_solo_tx.new(%{
+      from_id: :aeser_id.create(:account, pub_key),
+      payload: state_tx,
+      poi: poi,
+      ttl: 1234,
+      fee: 30000 * 1000000
+    })
   end
 
   @spec close_connection(pid) :: :ok
@@ -485,7 +503,8 @@ defmodule SocketConnector do
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
@@ -728,13 +747,13 @@ defmodule SocketConnector do
 
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=responder
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&host=localhost&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=initiator
-  def init_reestablish_map(channel_id, offchain_tx, role, host_url) do
+  def init_reestablish_map(channel_id, offchain_tx, role, host_url, port) do
     same = %{
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
       # TODO this should not be hardcoded.
-      port: "12341"
+      port: port
     }
 
     role_map =
@@ -750,10 +769,11 @@ defmodule SocketConnector do
     Map.merge(same, role_map)
   end
 
-  def init_reconnect_map(reconnect_tx) do
+  def init_reconnect_map(reconnect_tx, port) do
     %{
       protocol: "json-rpc",
-      reconnect_tx: reconnect_tx
+      reconnect_tx: reconnect_tx,
+      port: port
     }
   end
 
@@ -1185,7 +1205,7 @@ defmodule SocketConnector do
 
   defmacro is_first_update(stored_id, new_id) do
     quote do
-      unquote(stored_id) == nil and (unquote(new_id) != nil)
+      unquote(stored_id) == nil and unquote(new_id) != nil
     end
   end
 
@@ -1197,7 +1217,6 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-
     produce_callback(:channels_info, state, 0, event)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
