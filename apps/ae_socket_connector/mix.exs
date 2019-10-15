@@ -19,6 +19,7 @@ defmodule SocketConnector.MixProject do
   def application do
     [
       extra_applications: [:logger],
+      applications: [:httpotion],
       mod: {SocketConnector.Application, []}
     ]
   end
@@ -26,6 +27,7 @@ defmodule SocketConnector.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:httpotion, "~> 3.1.0"},
       # {:aebytecode, path: "../aebytecode", manager: :rebar3},
       # {:aebytecode, path: "../../aebytecode", manager: :rebar3, compile: false, override: true, app: false},
       # {:aebytecode, ">= 0.0.0", [env: :prod, override: true, git: "https://github.com/aeternity/aebytecode.git", ref: "241a96e"]},
