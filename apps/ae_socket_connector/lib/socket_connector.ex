@@ -734,14 +734,14 @@ defmodule SocketConnector do
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}", state.color)
     :timer.cancel(state.timer_reference)
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnecting... #{inspect(self())}", state.color)
     :timer.cancel(state.timer_reference)
-    # TODO this is redundant.
-    # GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     super(disconnect_map, state)
   end
 
@@ -1237,10 +1237,10 @@ defmodule SocketConnector do
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when channel_id == current_channel_id do
+      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     # Produces some logging output.
     Validator.verify_on_chain(signed_tx, state.ws_base)
-    {:ok, state}
+    {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
   def process_message(message, state) do

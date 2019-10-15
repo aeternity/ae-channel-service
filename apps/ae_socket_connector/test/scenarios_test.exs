@@ -136,7 +136,11 @@ defmodule TestScenarios do
            )
        }},
       {:responder,
-       %{message: {:channels_update, 1, :transient, "channels.update"}, next: ClientRunnerHelper.pause_job(3000), fuzzy: 10}},
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: ClientRunnerHelper.pause_job(3000),
+         fuzzy: 10
+       }},
       # this updates should fail, since other end is gone.
       {:responder,
        %{
@@ -534,7 +538,7 @@ defmodule TestScenarios do
     do: [
       {:initiator,
        %{
-         message: {:channels_info, 0, :transient, "funding_signed"},
+         message: {:channels_info, 0, :transient, "own_funding_locked"},
          fuzzy: 10,
          next:
            {:local,
@@ -553,25 +557,25 @@ defmodule TestScenarios do
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
+      # currently no message is received on reconnect.
+      # to eager fething causes timeout due to missing response.
+      {:initiator, %{next: ClientRunnerHelper.pause_job(1000)}},
       {:initiator,
        %{
-         message: {:channels_update, 2, :self, "channels.update"},
          fuzzy: 3,
          next:
            ClientRunnerHelper.assert_funds_job(
-             {intiator_account, 6_999_999_999_997},
-             {responder_account, 4_000_000_000_003}
+             {intiator_account, 6_999_999_999_999},
+             {responder_account, 4_000_000_000_001}
            )
        }},
       {:initiator,
        %{
-         message: {:channels_info, 0, :transient, "open"},
-         fuzzy: 10,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
-         message: {:channels_info, 0, :transient, "open"},
+         message: {:channels_update, 1, :transient, "channels.update"},
          fuzzy: 14,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
