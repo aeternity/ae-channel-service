@@ -187,26 +187,57 @@ defmodule SocketConnector do
       })
 
     # now we just sign it.
+
     Signer.sign_aetx(aetx, state)
   end
 
   #  TxSpec = #{ channel_id => aeser_id:create(channel, ChannelId)
-    #           , from_id    => aeser_id:create(account, IPubKey)
-    #           , payload    => Payload
-    #           , poi        => PoI
-    #           , ttl        => TTL
-    #           , fee        => 30000 * aec_test_utils:min_gas_price()
-    #           , nonce      => Nonce },
-    # {ok, _Tx} = aesc_close_solo_tx:new(TxSpec).
+  #           , from_id    => aeser_id:create(account, IPubKey)
+  #           , payload    => Payload
+  #           , poi        => PoI
+  #           , ttl        => TTL
+  #           , fee        => 30000 * aec_test_utils:min_gas_price()
+  #           , nonce      => Nonce },
+  # {ok, _Tx} = aesc_close_solo_tx:new(TxSpec).
 
-  def create_solo_close_tx(pub_key, state_tx, poi) do
-    :aesc_close_solo_tx.new(%{
-      from_id: :aeser_id.create(:account, pub_key),
-      payload: state_tx,
-      poi: poi,
-      ttl: 1234,
-      fee: 30000 * 1000000
-    })
+  # TxOpts = #{ channel_id => aeser_id:create(channel, ChId)
+  #       , from_id    => aeser_id:create(account, PubKey)
+  #       , payload    => <<>>
+  #       , poi        => Poi
+  #       , ttl        => TTL
+  #       , fee        => Fee
+  #       , nonce      => Nonce
+  #       },
+
+  #     {channel, ChId} = aeser_api_encoder:decode(ChIdEnc),
+  # {poi, PoiSer} = aeser_api_encoder:decode(PoiEnc),
+  # Poi = aec_trees:deserialize_poi(PoiSer),
+
+  def create_solo_close_tx(pub_key, state_tx, poienc, nonce, state) do
+    {tag, channel} = :aeser_api_encoder.decode(state.channel_id)
+    {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
+    # {tag, transaction} = :aeser_api_encoder.decode(state_tx)
+    {tag, poiser} = :aeser_api_encoder.decode(poienc)
+    poi = :aec_trees.deserialize_poi(poiser)
+    state_tx_decoded = :aeser_api_encoder.decode(state_tx)
+    Logger.debug("State decoded is #{inspect state_tx_decoded}")
+    # Logger.errro("hello2")
+
+    # Poi = aec_trees:deserialize_poi(PoiSer),
+
+    {:ok, aetx} =
+      :aesc_close_solo_tx.new(%{
+        channel_id: :aeser_id.create(:channel, channel),
+        from_id: :aeser_id.create(:account, puk_key_decoded),
+        # payload: state_tx_decoded,
+        payload: <<>>,
+        poi: poi,
+        ttl: 1234,
+        fee: 30000 * 1_000_000,
+        nonce: nonce
+      })
+
+    Signer.sign_aetx(aetx, state)
   end
 
   @spec close_connection(pid) :: :ok

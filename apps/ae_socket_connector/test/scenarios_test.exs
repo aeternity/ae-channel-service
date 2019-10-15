@@ -1,4 +1,5 @@
 defmodule TestScenarios do
+  require Logger
   # import ClientRunnerHelper
 
   # example
@@ -532,6 +533,49 @@ defmodule TestScenarios do
          fuzzy: 14,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
+    ]
+
+  def close_on_chain_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+         fuzzy: 8
+       }},
+      #  get poi is done under the hood, but this call tests additional code
+      {:initiator,
+       %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              poi = SessionHolder.run_action_sync(pid_session_holder, fn pid, from -> SocketConnector.get_poi(pid, from) end)
+              transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, poi, OnChain.get_nonce() + 1})
+              OnChain.post_solo_close(transaction)
+              #  ClientRunnerHelper.resume_runner(client_runner)
+            end, :empty},
+         fuzzy: 8
+       }}
+
+      # {:initiator,
+      #  %{
+      #    #  message: {:channels_update, 2, :self, "channels.update"},
+      #    next: close_mutual_job(),
+      #    fuzzy: 8
+      #  }},
+      # {:initiator,
+      #  %{
+      #    message: {:channels_info, 0, :transient, "closed_confirmed"},
+      #    fuzzy: 10,
+      #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+      #  }},
+      # {:responder,
+      #  %{
+      #    message: {:channels_info, 0, :transient, "closed_confirmed"},
+      #    fuzzy: 14,
+      #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+      #  }}
     ]
 
   def teardown_on_channel_creation_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid),
