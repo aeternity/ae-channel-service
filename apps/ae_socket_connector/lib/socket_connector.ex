@@ -33,7 +33,8 @@ defmodule SocketConnector do
         tx: nil,
         state_tx: nil,
         contract_call: nil,
-        round_initiator: nil
+        round_initiator: nil,
+        poi: nil
       )
   )
 
@@ -191,26 +192,13 @@ defmodule SocketConnector do
     Signer.sign_aetx(aetx, state)
   end
 
-  #  TxSpec = #{ channel_id => aeser_id:create(channel, ChannelId)
-  #           , from_id    => aeser_id:create(account, IPubKey)
-  #           , payload    => Payload
-  #           , poi        => PoI
-  #           , ttl        => TTL
-  #           , fee        => 30000 * aec_test_utils:min_gas_price()
-  #           , nonce      => Nonce },
-  # {ok, _Tx} = aesc_close_solo_tx:new(TxSpec).
-
+  # move this and it's buddy (above) to another file, get rid of state
   def create_solo_close_tx(pub_key, state_tx, poienc, nonce, ttl, state) do
-    {tag, channel} = :aeser_api_encoder.decode(state.channel_id)
+    {_tag, channel} = :aeser_api_encoder.decode(state.channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
-    # {tag, transaction} = :aeser_api_encoder.decode(state_tx)
-    {tag, poiser} = :aeser_api_encoder.decode(poienc)
+    {_tag, poiser} = :aeser_api_encoder.decode(poienc)
     poi = :aec_trees.deserialize_poi(poiser)
     {:transaction, binary} = :aeser_api_encoder.decode(state_tx)
-    Logger.error("State decoded is #{inspect binary}")
-    # Logger.errro("hello2")
-
-    # Poi = aec_trees:deserialize_poi(PoiSer),
 
     {:ok, aetx} =
       :aesc_close_solo_tx.new(%{
@@ -220,7 +208,7 @@ defmodule SocketConnector do
         # payload: <<>>,
         poi: poi,
         ttl: ttl,
-        fee: 300000 * 1_000_000,
+        fee: 300_000 * 1_000_000,
         nonce: nonce
       })
 
@@ -1097,7 +1085,9 @@ defmodule SocketConnector do
         %{"poi" => poi} = _data,
         state
       ) do
-    {poi, state}
+    {round, %Update{} = update} = Enum.max(state.round_and_updates)
+    update_new = Map.put(update, :poi, poi)
+    {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
@@ -1128,9 +1118,13 @@ defmodule SocketConnector do
 
     case return do
       {:reply, {:text, reply}, state} ->
+        # TODO this is going all over
+        GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
         {:reply, {:text, reply}, %__MODULE__{state | sync_call: %{}}}
 
       {_result, updated_state} ->
+        # TODO this is going all over
+        GenServer.cast(state.ws_manager_pid, {:state_tx_update, updated_state})
         {:ok, %__MODULE__{updated_state | sync_call: %{}}}
     end
   end
@@ -1252,10 +1246,11 @@ defmodule SocketConnector do
         %{
           "method" => "channels.on_chain_tx",
           "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
-        } = _message,
+        } = message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+    Logger.debug("on chain things.... #{inspect(message)}", state.color)
     # Produces some logging output.
     Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, %__MODULE__{state | channel_id: channel_id}}

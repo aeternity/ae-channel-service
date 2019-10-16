@@ -11,6 +11,7 @@ defmodule ClientRunner do
   defstruct pid_session_holder: nil,
             color: nil,
             match_list: nil,
+            role: nil,
             fuzzy_counter: 0
 
   def start_link(
@@ -85,6 +86,7 @@ defmodule ClientRunner do
      %__MODULE__{
        pid_session_holder: pid_session_holder,
        match_list: jobs,
+       role: role,
        color: [ansi_color: color]
      }}
   end
@@ -104,7 +106,7 @@ defmodule ClientRunner do
   def handle_cast({:match_jobs, message}, state) do
     case state.match_list do
       [%{message: expected} = match | rest] ->
-        Logger.error(
+        Logger.debug(
           "expected #{inspect(expected)} received #{inspect(message)}",
           state.color
         )
@@ -123,7 +125,7 @@ defmodule ClientRunner do
                 case state.fuzzy_counter >= value do
                   true ->
                     throw(
-                      "message has not arrived, waited for #{inspect(state.fuzzy_counter)} max wait #{
+                      "message role #{inspect(state.role)} #{inspect(expected)}, last received is #{inspect(message)} has not arrived, waited for #{inspect(state.fuzzy_counter)} max wait #{
                         inspect(value)
                       }"
                     )

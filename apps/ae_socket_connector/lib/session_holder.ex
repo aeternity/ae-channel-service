@@ -122,10 +122,27 @@ defmodule SessionHolder do
     {:reply, sign_result, state}
   end
 
-  def handle_call({:solo_close_transaction, poi, nonce, ttl}, _from, %{configuration: %SocketConnector{} = state} = session_holder_state) do
-    {_round, %SocketConnector.Update{state_tx: state_tx}}= Enum.max(state.round_and_updates)
+  def handle_call(
+        {:solo_close_transaction, round, nonce, ttl},
+        _from,
+        %{configuration: %SocketConnector{} = state} = session_holder_state
+      ) do
+    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(state.round_and_updates, round)
+
+    case poi do
+      nil ->
+        Logger.error("You should have fetched poi at round #{inspect(round)}")
+        contains_poi = Enum.reduce(state.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
+          case poi do
+            nil -> acc
+            _ -> Map.put(acc, round, poi)
+          end
+        end)
+        Logger.error("Rounds with poi #{inspect contains_poi}")
+      _ -> :poi_present_for_round
+    end
+
     transaction = SocketConnector.create_solo_close_tx(state.pub_key, state_tx, poi, nonce, ttl, state)
-    # OnChain.post_solo_close(transaction)
     {:reply, transaction, session_holder_state}
   end
 
@@ -134,6 +151,3 @@ defmodule SessionHolder do
   #   String.to_atom(to_string(name) <> "_holder")
   # end
 end
-
-# "ch_26pWwTnMqSSi4FUNarYGkfMK6VLD5tRH8oHepDTQcy1NdP31Rt"
-# ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh

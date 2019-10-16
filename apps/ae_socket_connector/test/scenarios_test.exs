@@ -535,7 +535,7 @@ defmodule TestScenarios do
        }}
     ]
 
-  def close_on_chain_v2({initiator, _intiator_account}, {responder, _responder_account}, runner_pid),
+  def close_on_chain_v2({initiator, intiator_account}, {responder, _responder_account}, runner_pid),
     do: [
       {:initiator,
        %{
@@ -543,43 +543,53 @@ defmodule TestScenarios do
          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
          fuzzy: 8
        }},
-      #  get poi is done under the hood, but this call tests additional code
       {:initiator,
        %{
          message: {:channels_update, 2, :self, "channels.update"},
+         next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+         fuzzy: 5
+       }},
+      {:initiator,
+       %{
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
+         fuzzy: 8
+       }},
+      {:initiator,
+       %{
+         message: {:channels_update, 3, :self, "channels.update"},
+         next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+         fuzzy: 5
+       }},
+      {:initiator,
+       %{
+         #  message: {:channels_update, 3, :self, "channels.update"},
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              nonce = OnChain.get_nonce()
+              nonce = OnChain.nonce(intiator_account)
               height = OnChain.current_height()
-              Logger.debug "nonce is #{inspect nonce} hight is: #{inspect height}"
-              poi = SessionHolder.run_action_sync(pid_session_holder, fn pid, from -> SocketConnector.get_poi(pid, from) end)
-              transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, poi, nonce + 1, height})
+              # for round 2 we get can_slash, for 3 everything is fine. As expected.
+              Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
+
+              transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, 3, nonce + 1, height})
+
               OnChain.post_solo_close(transaction)
               ClientRunnerHelper.resume_runner(client_runner)
-            end, :empty},
-         fuzzy: 8
+            end, :empty}
+         #  fuzzy: 8
        }},
-
-      {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
-      # {:initiator,
-      #  %{
-      #    #  message: {:channels_update, 2, :self, "channels.update"},
-      #    next: close_mutual_job(),
-      #    fuzzy: 8
-      #  }},
-      # {:initiator,
-      #  %{
-      #    message: {:channels_info, 0, :transient, "closed_confirmed"},
-      #    fuzzy: 10,
-      #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
-      #  }},
-      # {:responder,
-      #  %{
-      #    message: {:channels_info, 0, :transient, "closed_confirmed"},
-      #    fuzzy: 14,
-      #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
-      #  }}
+      {:initiator,
+       %{
+         message: {:channels_info, 0, :transient, "closing"},
+         fuzzy: 10,
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+       }},
+      {:responder,
+       %{
+         message: {:channels_info, 0, :transient, "closing"},
+         fuzzy: 15,
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+       }}
     ]
 
   def teardown_on_channel_creation_v2({initiator, intiator_account}, {responder, responder_account}, runner_pid),
