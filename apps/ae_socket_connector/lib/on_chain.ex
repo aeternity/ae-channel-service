@@ -43,7 +43,10 @@ defmodule OnChain do
 
     header = [{"Accept", "application/json"}, {"Content-Type", "application/json"}]
     body = Poison.encode!(%{"tx" => solo_close_tx})
-    response = HTTPotion.post(url, body: body, headers: header)
-    Logger.debug "response is: #{inspect response}"
+    %{"tx_hash" => tx_hash} = Poison.decode!(HTTPotion.post(url, body: body, headers: header).body)
+    Logger.debug "track transaction curl http://localhost:3013/v2/transactions/#{inspect tx_hash}"
   end
 end
+
+
+# curl "http://localhost:3013/v2/transactions//th_VsKRF2Qh9DhZNNZQ4DpnEG2Y5K31BQSckJjQEag5uFBZxarXg"

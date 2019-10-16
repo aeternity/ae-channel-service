@@ -122,9 +122,9 @@ defmodule SessionHolder do
     {:reply, sign_result, state}
   end
 
-  def handle_call({:solo_close_transaction, poi, nonce}, _from, %{configuration: %SocketConnector{} = state} = session_holder_state) do
+  def handle_call({:solo_close_transaction, poi, nonce, ttl}, _from, %{configuration: %SocketConnector{} = state} = session_holder_state) do
     {_round, %SocketConnector.Update{state_tx: state_tx}}= Enum.max(state.round_and_updates)
-    transaction = SocketConnector.create_solo_close_tx(state.pub_key, state_tx, poi, nonce, state)
+    transaction = SocketConnector.create_solo_close_tx(state.pub_key, state_tx, poi, nonce, ttl, state)
     # OnChain.post_solo_close(transaction)
     {:reply, transaction, session_holder_state}
   end

@@ -550,14 +550,18 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
+              nonce = OnChain.get_nonce()
+              height = OnChain.current_height()
+              Logger.debug "nonce is #{inspect nonce} hight is: #{inspect height}"
               poi = SessionHolder.run_action_sync(pid_session_holder, fn pid, from -> SocketConnector.get_poi(pid, from) end)
-              transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, poi, OnChain.get_nonce() + 1})
+              transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, poi, nonce + 1, height})
               OnChain.post_solo_close(transaction)
-              #  ClientRunnerHelper.resume_runner(client_runner)
+              ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 8
-       }}
+       }},
 
+      {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
       # {:initiator,
       #  %{
       #    #  message: {:channels_update, 2, :self, "channels.update"},

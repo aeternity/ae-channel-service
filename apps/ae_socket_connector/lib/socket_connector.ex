@@ -213,7 +213,7 @@ defmodule SocketConnector do
   # {poi, PoiSer} = aeser_api_encoder:decode(PoiEnc),
   # Poi = aec_trees:deserialize_poi(PoiSer),
 
-  def create_solo_close_tx(pub_key, state_tx, poienc, nonce, state) do
+  def create_solo_close_tx(pub_key, state_tx, poienc, nonce, ttl, state) do
     {tag, channel} = :aeser_api_encoder.decode(state.channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
     # {tag, transaction} = :aeser_api_encoder.decode(state_tx)
@@ -232,7 +232,7 @@ defmodule SocketConnector do
         # payload: state_tx_decoded,
         payload: <<>>,
         poi: poi,
-        ttl: 1234,
+        ttl: ttl,
         fee: 30000 * 1_000_000,
         nonce: nonce
       })
