@@ -169,6 +169,7 @@ defmodule ClientRunner do
       :sync ->
         response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
 
+        Logger.debug "synch response is: #{inspect response}"
         case assert_fun do
           :empty -> :empty
           _ -> assert_fun.(response)

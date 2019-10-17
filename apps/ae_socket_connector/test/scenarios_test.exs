@@ -577,7 +577,8 @@ defmodule TestScenarios do
        %{
          message: {:on_chain, 0, :transient, "can_slash"},
          fuzzy: 10,
-         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty},
+        #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{

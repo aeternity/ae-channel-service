@@ -187,6 +187,7 @@ defmodule SocketConnector do
         role: role,
         pub_key: :aeser_id.create(:account, puk_key_decoded)
       })
+
     aetx
   end
 
@@ -209,6 +210,7 @@ defmodule SocketConnector do
         fee: 300_000 * 1_000_000,
         nonce: nonce
       })
+
     aetx
   end
 
@@ -286,6 +288,11 @@ defmodule SocketConnector do
   @spec get_poi(pid, pid) :: :ok
   def get_poi(pid, from \\ nil) do
     WebSockex.cast(pid, {:get_poi, from})
+  end
+
+  @spec slash(pid, pid) :: :ok
+  def slash(pid, from \\ nil) do
+    WebSockex.cast(pid, {:slash, from})
   end
 
   # Server side
@@ -559,12 +566,26 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+        [
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id
+        ],
         [],
         from_pid
       )
 
     Logger.info("=> get poi #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
+  end
+
+  def handle_cast({:slash, from_pid}, state) do
+    sync_call = %SyncCall{request: request} = slash_query(from_pid)
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
@@ -608,6 +629,12 @@ defmodule SocketConnector do
         end
 
       "channels.get.offchain_state" ->
+        fn %{"result" => result}, state ->
+          GenServer.reply(from_pid, result)
+          {result, state}
+        end
+
+      "channels.slash.reply" ->
         fn %{"result" => result}, state ->
           GenServer.reply(from_pid, result)
           {result, state}
@@ -712,6 +739,16 @@ defmodule SocketConnector do
     )
   end
 
+  def slash_query(from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request: build_request("channels.slash"),
+        response: process_response("channels.slash.reply", from_pid)
+      }
+    )
+  end
+
   def get_contract_response_query(address, caller, round, from_pid) do
     make_sync(
       from_pid,
@@ -780,7 +817,11 @@ defmodule SocketConnector do
     }
   end
 
-  def init_map(%{basic_configuration: basic_configuration, custom_param_fun: custom_param_fun}, role, host_url) do
+  def init_map(
+        %{basic_configuration: basic_configuration, custom_param_fun: custom_param_fun},
+        role,
+        host_url
+      ) do
     custom = custom_param_fun.(role, host_url)
     same = Map.from_struct(basic_configuration)
     Map.merge(same, custom)
@@ -907,6 +948,21 @@ defmodule SocketConnector do
 
   def process_message(
         %{
+          "method" => "channels.sign.slash_tx",
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign}
+          }
+        }, state
+      ) do
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.slash_sign", %{signed_tx: signed_tx})
+
+    {:reply, {:text, Poison.encode!(response)}, state}
+  end
+
+  def process_message(
+        %{
           "method" => method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
@@ -942,7 +998,10 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+        [
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id
+        ],
         [],
         process_poi
       )
@@ -1084,6 +1143,7 @@ defmodule SocketConnector do
       ) do
     {round, %Update{} = update} = Enum.max(state.round_and_updates)
     update_new = Map.put(update, :poi, poi)
+
     {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
@@ -1146,7 +1206,8 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(type, state, round, method) when type in [:channels_update, :channels_info, :on_chain] do
+  def produce_callback(type, state, round, method)
+      when type in [:channels_update, :channels_info, :on_chain] do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1242,8 +1303,11 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.on_chain_tx",
-          "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx, "info" => info}}
-        } = message,
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"tx" => signed_tx, "info" => info}
+          }
+        } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
