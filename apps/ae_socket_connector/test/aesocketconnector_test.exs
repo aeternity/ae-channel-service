@@ -60,6 +60,20 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :close_on_chain_mal
+  test "close on chain maliscous", context do
+    {alice, bob} = gen_names(context.test)
+
+    ClientRunner.start_peers(
+      @ae_url,
+      @network_id,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
+      &TestScenarios.close_on_chain_maliscous_v2/3,
+      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+    )
+  end
+
   @tag :reconnect
   test "withdraw after re-connect", context do
     {alice, bob} = gen_names(context.test)
