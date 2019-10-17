@@ -43,7 +43,8 @@ defmodule SocketConnector do
       defstruct(
         sign_approve: nil,
         channels_update: nil,
-        channels_info: nil
+        channels_info: nil,
+        on_chain: nil
       )
   )
 
@@ -155,8 +156,8 @@ defmodule SocketConnector do
         ws_manager_pid
       ) do
     {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key, state_channel_context)
-    session_map = init_reconnect_map(reconnect_tx, port)
+    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
+    session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 
@@ -175,7 +176,7 @@ defmodule SocketConnector do
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
-  def create_reconnect_tx(channel_id, round, role, pub_key, state) do
+  def create_reconnect_tx(channel_id, round, role, pub_key) do
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
 
@@ -186,15 +187,12 @@ defmodule SocketConnector do
         role: role,
         pub_key: :aeser_id.create(:account, puk_key_decoded)
       })
-
-    # now we just sign it.
-
-    Signer.sign_aetx(aetx, state)
+    aetx
   end
 
-  # move this and it's buddy (above) to another file, get rid of state
-  def create_solo_close_tx(pub_key, state_tx, poienc, nonce, ttl, state) do
-    {_tag, channel} = :aeser_api_encoder.decode(state.channel_id)
+  # move this and it's buddy (above) to another file
+  def create_solo_close_tx(pub_key, channel_id, state_tx, poienc, nonce, ttl) do
+    {_tag, channel} = :aeser_api_encoder.decode(channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
     {_tag, poiser} = :aeser_api_encoder.decode(poienc)
     poi = :aec_trees.deserialize_poi(poiser)
@@ -211,8 +209,7 @@ defmodule SocketConnector do
         fee: 300_000 * 1_000_000,
         nonce: nonce
       })
-
-    Signer.sign_aetx(aetx, state)
+    aetx
   end
 
   @spec close_connection(pid) :: :ok

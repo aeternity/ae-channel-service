@@ -142,8 +142,8 @@ defmodule SessionHolder do
       _ -> :poi_present_for_round
     end
 
-    transaction = SocketConnector.create_solo_close_tx(state.pub_key, state_tx, poi, nonce, ttl, state)
-    {:reply, transaction, session_holder_state}
+    transaction = SocketConnector.create_solo_close_tx(state.pub_key, state.channel_id, state_tx, poi, nonce, ttl)
+    {:reply, Signer.sign_aetx(transaction, state), session_holder_state}
   end
 
   # @spec suffix_name(name) :: name when name: atom()
