@@ -562,32 +562,27 @@ defmodule TestScenarios do
        }},
       {:initiator,
        %{
-         #  message: {:channels_update, 3, :self, "channels.update"},
          next:
            {:local,
             fn client_runner, pid_session_holder ->
               nonce = OnChain.nonce(intiator_account)
               height = OnChain.current_height()
-              # for round 2 we get can_slash, for 3 everything is fine. As expected.
               Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
-
               transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, 3, nonce + 1, height})
-
               OnChain.post_solo_close(transaction)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
-         #  fuzzy: 8
        }},
       {:initiator,
        %{
-         message: {:channels_info, 0, :transient, "closing"},
+         message: {:on_chain, 0, :transient, "solo_closing"},
          fuzzy: 10,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
-         message: {:channels_info, 0, :transient, "closing"},
-         fuzzy: 15,
+         message: {:on_chain, 0, :transient, "solo_closing"},
+         fuzzy: 20,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]

@@ -1146,7 +1146,7 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(type, state, round, method) when type in [:channels_update, :channels_info] do
+  def produce_callback(type, state, round, method) when type in [:channels_update, :channels_info, :on_chain] do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1242,13 +1242,13 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.on_chain_tx",
-          "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
+          "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx, "info" => info}}
         } = message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-    Logger.debug("on chain things.... #{inspect(message)}", state.color)
     # Produces some logging output.
+    produce_callback(:on_chain, state, 0, info)
     Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
