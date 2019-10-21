@@ -10,7 +10,8 @@ jobs:  # basic units of work in a run
     working_directory: ~/app  # directory where steps will run
 
     steps:  # commands that comprise the `build` job
-      - run: sudo apt-get install libsodium13
+      - run: sudo apt-get update
+      - run: sudo apt-get install libsodium-dev
       - checkout  # check out source code to working directory
 
       - run: mix local.hex --force  # install Hex locally (without prompt)
