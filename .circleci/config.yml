@@ -1,4 +1,18 @@
 version: 2  # use CircleCI 2.0 instead of CircleCI Classic
+references:
+  install_libsodium: &install_libsodium
+    run:
+      name: Install libsodium
+      environment:
+        LIBSODIUM_VERSION: "1.0.16"
+      # source: https://github.com/aeternity/docker-builder/blob/master/Dockerfile#L23
+      command: |
+        LIBSODIUM_DOWNLOAD_URL="https://github.com/jedisct1/libsodium/releases/download/${LIBSODIUM_VERSION}/libsodium-${LIBSODIUM_VERSION}.tar.gz" \
+          && curl -fsSL -o libsodium-src.tar.gz "$LIBSODIUM_DOWNLOAD_URL" \
+          && mkdir libsodium-src \
+          && tar -zxf libsodium-src.tar.gz -C libsodium-src --strip-components=1 \
+          && cd libsodium-src \
+          && ./configure && make -j$(nproc) && sudo make install && sudo ldconfig 
 jobs:  # basic units of work in a run
   build:  # runs not using Workflows must have a `build` job as entry point
     parallelism: 1  # run only one instance of this job in parallel
@@ -10,8 +24,9 @@ jobs:  # basic units of work in a run
     working_directory: ~/app  # directory where steps will run
 
     steps:  # commands that comprise the `build` job
-      - run: sudo apt-get update
-      - run: sudo apt-get install libsodium-dev
+      - *install_libsodium
+      # - run: sudo apt-get update
+      # - run: sudo apt-get install libsodium-dev
       - checkout  # check out source code to working directory
 
       - run: mix local.hex --force  # install Hex locally (without prompt)
