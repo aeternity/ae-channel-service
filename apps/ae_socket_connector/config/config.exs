@@ -31,7 +31,7 @@ config :logger,
 #   network_id: "my_test"
 
 config :ae_socket_connector, :node,
-  ae_url: "wss://testnet.demo.aeternity.io/channel",
+  ae_url: "wss://testnet.aeternity.io/channel",
   network_id: "ae_uat"
 
 # It is also possible to import configuration files, relative to this
