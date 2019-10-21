@@ -158,6 +158,7 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
+
   @tag :open_channel_passive
   test "teardown on channel creation", context do
     {alice, bob} = gen_names(context.test)
