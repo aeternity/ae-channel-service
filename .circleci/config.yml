@@ -1,4 +1,5 @@
 version: 2  # use CircleCI 2.0 instead of CircleCI Classic
+# https://circleci.com/docs/2.0/language-elixir/
 references:
   install_libsodium: &install_libsodium
     run:
