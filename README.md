@@ -56,3 +56,7 @@ mix test
 ```
 
 Scenarios executed can be found [here](apps/ae_socket_connector/test/scenarios_test.exs)
+
+## Refence to node api
+
+https://api-docs.aeternity.io/
