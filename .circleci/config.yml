@@ -104,3 +104,11 @@ jobs:  # basic units of work in a run
       - store_test_results:  # upload junit test results for display in Test Summary
           # Read more: https://circleci.com/docs/2.0/collect-test-data/
           path: _build/test/lib/ae_socket_connector # Replace with the name of your :app
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - docker_smoke_tests
+      - build:
+          requires:
+            - docker_smoke_tests

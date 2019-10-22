@@ -26,13 +26,13 @@ config :logger,
     [module: SocketConnector, level_lower_than: :error]
   ]
 
-# config :ae_socket_connector, :node,
-#   ae_url: "ws://localhost:3014/channel",
-#   network_id: "my_test"
-
 config :ae_socket_connector, :node,
-  ae_url: "wss://testnet.aeternity.io/channel",
-  network_id: "ae_uat"
+  ae_url: "ws://localhost:3014/channel",
+  network_id: "my_test"
+
+# config :ae_socket_connector, :node,
+#   ae_url: "wss://testnet.aeternity.io/channel",
+#   network_id: "ae_uat"
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
