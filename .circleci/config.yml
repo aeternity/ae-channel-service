@@ -1,5 +1,13 @@
 version: 2  # use CircleCI 2.0 instead of CircleCI Classic
 # https://circleci.com/docs/2.0/language-elixir/
+
+executors:
+  buildpack:
+    docker:
+      - image: circleci/buildpack-deps:xenial
+    environment:
+      DOCKERHUB_REPO: aeternity/aeternity
+
 references:
   install_libsodium: &install_libsodium
     run:
@@ -15,7 +23,37 @@ references:
           && cd libsodium-src \
           && ./configure && make -j$(nproc) && sudo make install && sudo ldconfig \
           && cd ..
+  setup_remote_docker: &setup_remote_docker
+    setup_remote_docker:
+      docker_layer_caching: true
+      version: "17.09.0-ce"
+commands:
+  docker_build_branch:
+    steps:
+      - run:
+          name: Build branch docker image
+          command: |
+            docker build -t ${DOCKERHUB_REPO:?}:${CIRCLE_BRANCH/\//_} .
+      - run:
+          name: Start branch docker image
+          command: |
+            docker run --name ae_${CIRCLE_SHA1:?} ${DOCKERHUB_REPO:?}:${CIRCLE_BRANCH/\//_} bin/aeternity console -noinput -network_id ae_test
+          background: true
+      - run:
+          name: Health check
+          command: |
+            sleep 60 # give it some so that docker health checks kicks in
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' ae_${CIRCLE_SHA1:?})
+            echo $STATUS
+            [ $STATUS == 'healthy' ]
+
 jobs:  # basic units of work in a run
+  docker_smoke_tests:
+    executor: buildpack
+    steps:
+      - checkout
+      - *setup_remote_docker
+      - docker_build_branch  
   build:  # runs not using Workflows must have a `build` job as entry point
     parallelism: 1  # run only one instance of this job in parallel
     docker:  # run the steps with Docker
