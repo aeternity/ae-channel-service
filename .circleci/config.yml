@@ -42,7 +42,7 @@ jobs:  # basic units of work in a run
       # - run: sudo apt-get update
       # - run: sudo apt-get install libsodium-dev
       - setup_remote_docker
-      - run: docker run aeternity/aeternity
+      - run: docker run -d --name aeternity_node aeternity/aeternity
 
       - run: mix local.hex --force  # install Hex locally (without prompt)
       - run: mix local.rebar --force  # fetch a copy of rebar (without prompt)
