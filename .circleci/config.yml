@@ -1,12 +1,18 @@
 version: 2  # use CircleCI 2.0 instead of CircleCI Classic
 # https://circleci.com/docs/2.0/language-elixir/
-
-executors:
-  buildpack:
+aliases:
+  dockerBuildEnv: &dockerBuildEnv
     docker:
       - image: circleci/buildpack-deps:xenial
     environment:
       DOCKERHUB_REPO: aeternity/aeternity
+
+# executors:
+#   buildpack:
+#     docker:
+#       - image: circleci/buildpack-deps:xenial
+#     environment:
+#       DOCKERHUB_REPO: aeternity/aeternity
 
 references:
   install_libsodium: &install_libsodium
@@ -49,7 +55,8 @@ commands:
 
 jobs:  # basic units of work in a run
   docker_smoke_tests:
-    executor: buildpack
+    # executor: buildpack
+    <<: *dockerBuildEnv
     steps:
       - checkout
       - *setup_remote_docker
