@@ -622,6 +622,41 @@ defmodule SocketConnector do
     %{params: Map.merge(default_params, params), method: method, jsonrpc: "2.0"}
   end
 
+  def build_message(method, params \\ %{}) do
+    {reply_method, reply_params} =
+      case method do
+        "channels.sign.responder_sign" ->
+          {"channels.responder_sign", %{}}
+
+        "channels.sign.close_solo_sign" ->
+          {"channels.close_solo_sign", %{}}
+
+        "channels.sign.deposit_tx" ->
+          {"channels.deposit_tx", %{}}
+
+        "channels.sign.deposit_ack" ->
+          {"channels.deposit_ack", %{}}
+
+        "channels.sign.withdraw_tx" ->
+          {"channels.withdraw_tx", %{}}
+
+        "channels.sign.withdraw_ack" ->
+          {"channels.withdraw_ack", %{}}
+
+        "channels.sign.slash_tx" ->
+          {"channels.slash_sign", %{}}
+
+        "channels.sign.settle_sign" ->
+          {"channels.settle_sign", %{}}
+
+
+        _ ->
+          %{}
+      end
+
+    %{params: Map.merge(reply_params, params), method: reply_method, jsonrpc: "2.0"}
+  end
+
   # TODO when returned async the methods are suffixed with .reply, the same pattern should be used here for increased readabiliy
   def process_response(method, from_pid) do
     case method do
@@ -656,6 +691,7 @@ defmodule SocketConnector do
           GenServer.reply(from_pid, result)
           {result, state}
         end
+
       "channels.sign.settle_sign.reply" ->
         fn %{"result" => result}, state ->
           {result, state_updated} = process_get_settle_reponse(result, state)
@@ -899,91 +935,91 @@ defmodule SocketConnector do
   # TODO merge all methods that signs in the same way
   def process_message(
         %{
-          "method" => "channels.sign.close_solo_sign",
+          "method" => "channels.sign.close_solo_sign" = method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.close_solo_sign", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.responder_sign",
+          "method" => "channels.sign.responder_sign" = method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.responder_sign", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.deposit_tx",
+          "method" => "channels.sign.deposit_tx" = method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.deposit_tx", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.deposit_ack",
+          "method" => "channels.sign.deposit_ack" = method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.deposit_ack", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.withdraw_tx",
+          "method" => "channels.sign.withdraw_tx" = method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.withdraw_tx", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.withdraw_ack",
+          "method" => "channels.sign.withdraw_ack" = method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.withdraw_ack", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.slash_tx",
+          "method" => "channels.sign.slash_tx" = method,
           "params" => %{
             "data" => %{"signed_tx" => to_sign}
           }
@@ -992,14 +1028,14 @@ defmodule SocketConnector do
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.slash_sign", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   def process_message(
         %{
-          "method" => "channels.sign.settle_sign",
+          "method" => "channels.sign.settle_sign" = method,
           "params" => %{
             "data" => %{"signed_tx" => to_sign}
           }
@@ -1008,7 +1044,7 @@ defmodule SocketConnector do
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_request("channels.settle_sign", %{signed_tx: signed_tx})
+    response = build_message(method, %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -1122,7 +1158,7 @@ defmodule SocketConnector do
   def process_get_settle_reponse(
         %{"signed_tx" => _signed_tx} = _data,
         state
-  ) do
+      ) do
     {:not_implemented, state}
   end
 
