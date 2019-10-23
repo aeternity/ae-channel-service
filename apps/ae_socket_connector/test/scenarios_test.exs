@@ -1,4 +1,5 @@
 defmodule TestScenarios do
+  use ExUnit.Case
   require Logger
   # import ClientRunnerHelper
 
@@ -270,7 +271,7 @@ defmodule TestScenarios do
                 'make_move',
                 from
               )
-            end, :empty}
+            end, fn a -> assert a == {:ok, {:string, [], "Game continues. The other player's turn."}} end}
        }},
       {:initiator,
        %{
@@ -358,7 +359,7 @@ defmodule TestScenarios do
                 'make_move',
                 from
               )
-            end, :empty}
+            end, fn a -> assert a == {:ok, {:string, [], "Place is already taken!"}} end}
        }},
       {:responder,
        %{
@@ -411,7 +412,7 @@ defmodule TestScenarios do
             fn client_runner, pid_session_holder ->
               SessionHolder.close_connection(pid_session_holder)
               ClientRunnerHelper.resume_runner(client_runner)
-            end, :empty},
+            end, :empty}
        }},
       {:responder, %{next: ClientRunnerHelper.pause_job(1000)}},
       {:responder,
@@ -421,7 +422,7 @@ defmodule TestScenarios do
             fn client_runner, pid_session_holder ->
               SessionHolder.reconnect(pid_session_holder)
               ClientRunnerHelper.resume_runner(client_runner)
-            end, :empty},
+            end, :empty}
        }},
       {:responder,
        %{
@@ -429,7 +430,7 @@ defmodule TestScenarios do
            ClientRunnerHelper.assert_funds_job(
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
-           ),
+           )
        }},
       {:responder,
        %{
