@@ -649,7 +649,6 @@ defmodule SocketConnector do
         "channels.sign.settle_sign" ->
           {"channels.settle_sign", %{}}
 
-
         _ ->
           %{}
       end
@@ -935,113 +934,21 @@ defmodule SocketConnector do
   # TODO merge all methods that signs in the same way
   def process_message(
         %{
-          "method" => "channels.sign.close_solo_sign" = method,
+          "method" => method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
         state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.responder_sign" = method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.deposit_tx" = method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.deposit_ack" = method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.withdraw_tx" = method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.withdraw_ack" = method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.slash_tx" = method,
-          "params" => %{
-            "data" => %{"signed_tx" => to_sign}
-          }
-        },
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.settle_sign" = method,
-          "params" => %{
-            "data" => %{"signed_tx" => to_sign}
-          }
-        },
-        state
-      ) do
+      )
+      when method in [
+             "channels.sign.responder_sign",
+             "channels.sign.close_solo_sign",
+             "channels.sign.deposit_tx",
+             "channels.sign.deposit_ack",
+             "channels.sign.withdraw_tx",
+             "channels.sign.withdraw_ack",
+             "channels.sign.slash_tx",
+             "channels.sign.settle_sign"
+           ] do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_message(method, %{signed_tx: signed_tx})
