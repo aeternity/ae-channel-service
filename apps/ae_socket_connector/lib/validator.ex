@@ -78,6 +78,10 @@ defmodule Validator do
             # todo code missing there. we should get the round somehow.
             sign_approve.(round_initiator, 0, auto_approval, :aetx.serialize_for_client(aetx))
           # apply(module, :for_client, [instance])
+          :aesc_settle_tx ->
+            # todo code missing there. we should get the round somehow.
+            sign_approve.(round_initiator, 0, auto_approval, :aetx.serialize_for_client(aetx))
+          # apply(module, :for_client, [instance])
 
           trasaction_type when trasaction_type in [:aesc_close_solo_tx] ->
             %{"payload" => payload} = apply(module, :for_client, [instance])

@@ -295,6 +295,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:slash, from})
   end
 
+  @spec settle(pid, pid) :: :ok
+  def settle(pid, from \\ nil) do
+    WebSockex.cast(pid, {:settle, from})
+  end
+
   # Server side
 
   def terminate(reason, _state)
@@ -595,6 +600,17 @@ defmodule SocketConnector do
      }}
   end
 
+  def handle_cast({:settle, from_pid}, state) do
+    sync_call = %SyncCall{request: request} = settle_query(from_pid)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
+  end
+
   def build_request(method, params \\ %{}) do
     default_params =
       case method do
@@ -606,6 +622,7 @@ defmodule SocketConnector do
     %{params: Map.merge(default_params, params), method: method, jsonrpc: "2.0"}
   end
 
+  # TODO when returned async the methods are suffixed with .reply, the same pattern should be used here for increased readabiliy
   def process_response(method, from_pid) do
     case method do
       "channels.get.contract_call" ->
@@ -638,6 +655,12 @@ defmodule SocketConnector do
         fn %{"result" => result}, state ->
           GenServer.reply(from_pid, result)
           {result, state}
+        end
+      "channels.sign.settle_sign.reply" ->
+        fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_settle_reponse(result, state)
+          GenServer.reply(from_pid, result)
+          {result, state_updated}
         end
     end
   end
@@ -745,6 +768,16 @@ defmodule SocketConnector do
       %SyncCall{
         request: build_request("channels.slash"),
         response: process_response("channels.slash.reply", from_pid)
+      }
+    )
+  end
+
+  def settle_query(from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request: build_request("channels.settle"),
+        response: process_response("channels.sign.settle_sign.reply", from_pid)
       }
     )
   end
@@ -862,6 +895,8 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(response)}, newstate}
   end
 
+  # TODO before signing this we should check the POI
+  # TODO merge all methods that signs in the same way
   def process_message(
         %{
           "method" => "channels.sign.close_solo_sign",
@@ -952,11 +987,28 @@ defmodule SocketConnector do
           "params" => %{
             "data" => %{"signed_tx" => to_sign}
           }
-        }, state
+        },
+        state
       ) do
     signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
     response = build_request("channels.slash_sign", %{signed_tx: signed_tx})
+
+    {:reply, {:text, Poison.encode!(response)}, state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.sign.settle_sign",
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign}
+          }
+        },
+        state
+      ) do
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.settle_sign", %{signed_tx: signed_tx})
 
     {:reply, {:text, Poison.encode!(response)}, state}
   end
@@ -1065,6 +1117,13 @@ defmodule SocketConnector do
          contract_call_in_flight: nil,
          backchannel_sign_req_fun: nil
      }}
+  end
+
+  def process_get_settle_reponse(
+        %{"signed_tx" => _signed_tx} = _data,
+        state
+  ) do
+    {:not_implemented, state}
   end
 
   def process_get_contract_reponse(

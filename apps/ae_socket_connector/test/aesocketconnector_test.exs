@@ -64,36 +64,35 @@ defmodule SocketConnectorTest do
   test "close on chain maliscous", context do
     {alice, bob} = gen_names(context.test)
 
-
-    scenario = fn ({initiator, intiator_account}, {responder, _responder_account}, runner_pid) ->
+    scenario = fn {initiator, intiator_account}, {responder, _responder_account}, runner_pid ->
       [
         {:initiator,
-        %{
-          message: {:channels_update, 1, :transient, "channels.update"},
-          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-          fuzzy: 8
-        }},
+         %{
+           message: {:channels_update, 1, :transient, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+           fuzzy: 8
+         }},
         {:initiator,
-        %{
-          message: {:channels_update, 2, :self, "channels.update"},
-          next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-          fuzzy: 5
-        }},
+         %{
+           message: {:channels_update, 2, :self, "channels.update"},
+           next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+           fuzzy: 5
+         }},
         {:initiator,
-        %{
-          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
-          fuzzy: 8
-        }},
+         %{
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
+           fuzzy: 8
+         }},
         {:initiator,
-        %{
-          message: {:channels_update, 3, :self, "channels.update"},
-          next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-          fuzzy: 5
-        }},
+         %{
+           message: {:channels_update, 3, :self, "channels.update"},
+           next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+           fuzzy: 5
+         }},
         {:initiator,
-        %{
-          next:
-            {:local,
+         %{
+           next:
+             {:local,
               fn client_runner, pid_session_holder ->
                 nonce = OnChain.nonce(intiator_account)
                 height = OnChain.current_height()
@@ -101,21 +100,41 @@ defmodule SocketConnectorTest do
                 OnChain.post_solo_close(transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
-        }},
+         }},
         {:initiator,
-        %{
-          message: {:on_chain, 0, :transient, "can_slash"},
-          fuzzy: 10,
-          next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty},
-          #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
-        }},
+         %{
+           message: {:on_chain, 0, :transient, "can_slash"},
+           fuzzy: 10,
+           next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty}
+           #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }},
         {:responder,
-        %{
-          message: {:on_chain, 0, :transient, "can_slash"},
-          fuzzy: 20,
-          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
-        }}
-      ] end
+         %{
+           message: {:on_chain, 0, :transient, "can_slash"},
+           fuzzy: 20,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }},
+        {:initiator,
+         %{
+           message: {:on_chain, 0, :transient, "solo_closing"},
+           fuzzy: 5,
+           next: {:async, fn pid -> SocketConnector.settle(pid) end, :empty}
+           #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }},
+        {:initiator,
+         %{
+           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           fuzzy: 10,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }},
+        {:responder,
+         %{
+           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           fuzzy: 20,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }}
+      ]
+    end
 
     ClientRunner.start_peers(
       @ae_url,
