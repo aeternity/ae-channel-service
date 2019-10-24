@@ -666,10 +666,10 @@ defmodule SocketConnector do
     %{params: Map.merge(reply_params, params), method: reply_method, jsonrpc: "2.0"}
   end
 
-  # TODO when returned async the methods are suffixed with .reply, the same pattern should be used here for increased readabiliy
+  # async methods are suffixed with .reply, the same pattern is used here for increased readabiliy
   def process_response(method, from_pid) do
-    case method do
-      "channels.get.contract_call" ->
+    case method <> ".reply" do
+      "channels.get.contract_call.reply" ->
         fn %{"result" => result}, state ->
           {result, state_updated} = process_get_contract_reponse(result, state)
           GenServer.reply(from_pid, result)
@@ -683,13 +683,13 @@ defmodule SocketConnector do
           {result, state_updated}
         end
 
-      "channels.get.balances" ->
+      "channels.get.balances.reply" ->
         fn %{"result" => result}, state ->
           GenServer.reply(from_pid, result)
           {result, state}
         end
 
-      "channels.get.offchain_state" ->
+      "channels.get.offchain_state.reply" ->
         fn %{"result" => result}, state ->
           GenServer.reply(from_pid, result)
           {result, state}
@@ -802,7 +802,7 @@ defmodule SocketConnector do
             accounts: accounts,
             contracts: contracts
           }),
-        response: process_response("channels.get.poi.reply", from_pid)
+        response: process_response("channels.get.poi", from_pid)
       }
     )
   end
@@ -812,7 +812,7 @@ defmodule SocketConnector do
       from_pid,
       %SyncCall{
         request: build_request("channels.slash"),
-        response: process_response("channels.slash.reply", from_pid)
+        response: process_response("channels.slash", from_pid)
       }
     )
   end
@@ -822,7 +822,7 @@ defmodule SocketConnector do
       from_pid,
       %SyncCall{
         request: build_request("channels.settle"),
-        response: process_response("channels.sign.settle_sign.reply", from_pid)
+        response: process_response("channels.sign.settle_sign", from_pid)
       }
     )
   end
