@@ -214,6 +214,11 @@ defmodule SocketConnector do
     aetx
   end
 
+  @spec request_state(pid) :: :ok
+  def request_state(pid) do
+    WebSockex.cast(pid, {:sync_state})
+  end
+
   @spec close_connection(pid) :: :ok
   def close_connection(pid) do
     WebSockex.cast(pid, {:close_connection})
@@ -349,6 +354,11 @@ defmodule SocketConnector do
     Logger.info("=> close_solo #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+  end
+
+  def handle_cast({:sync_state}, state) do
+    sync_state(state)
+    {:ok, state}
   end
 
   defp transfer_from(amount, state) do
@@ -839,17 +849,21 @@ defmodule SocketConnector do
     process_message(message, state)
   end
 
+  def sync_state(state) do
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+  end
+
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}", state.color)
     :timer.cancel(state.timer_reference)
-    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+    sync_state(state)
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnecting... #{inspect(self())}", state.color)
     :timer.cancel(state.timer_reference)
-    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+    sync_state(state)
     super(disconnect_map, state)
   end
 
@@ -924,8 +938,6 @@ defmodule SocketConnector do
       | round_and_updates: Map.merge(state.round_and_updates, pending_update),
         pending_update: %{}
     }
-
-    GenServer.cast(state.ws_manager_pid, {:state_tx_update, newstate})
 
     {:reply, {:text, Poison.encode!(response)}, newstate}
   end
@@ -1177,13 +1189,9 @@ defmodule SocketConnector do
 
     case return do
       {:reply, {:text, reply}, state} ->
-        # TODO this is going all over
-        GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
         {:reply, {:text, reply}, %__MODULE__{state | sync_call: %{}}}
 
       {_result, updated_state} ->
-        # TODO this is going all over
-        GenServer.cast(state.ws_manager_pid, {:state_tx_update, updated_state})
         {:ok, %__MODULE__{updated_state | sync_call: %{}}}
     end
   end
@@ -1249,12 +1257,6 @@ defmodule SocketConnector do
       | round_and_updates: Map.merge(state.round_and_updates, updates),
         pending_update: %{}
     }
-
-    # TODO this quite corse, we send it all, duplicated code.....
-    GenServer.cast(
-      state.ws_manager_pid,
-      {:state_tx_update, new_state}
-    )
 
     {:ok, new_state}
   end

@@ -59,16 +59,24 @@ defmodule SessionHolder do
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
 
-  def handle_cast({:state_tx_update, %SocketConnector{} = configuration}, state) do
-    {:noreply, %__MODULE__{state | configuration: configuration}}
-  end
-
   defp kill_connection(pid, color) do
     Logger.debug("killing connector #{inspect(pid)}", ansi_color: color)
     Process.exit(pid, :normal)
   end
 
+  def fetch_state(pid) do
+    SocketConnector.request_state(pid)
+    receive do
+      {:"$gen_cast", {:state_tx_update, %SocketConnector{} = state}} -> state
+    end
+  end
+
+  def handle_cast({:state_tx_update, %SocketConnector{} = configuration}, state) do
+    {:noreply, %__MODULE__{state | configuration: configuration}}
+  end
+
   def handle_cast({:kill_connection}, state) do
+    fetch_state(state.pid)
     kill_connection(state.pid, state.color)
     {:noreply, state}
   end
@@ -125,14 +133,16 @@ defmodule SessionHolder do
   def handle_call(
         {:solo_close_transaction, round, nonce, ttl},
         _from,
-        %{configuration: %SocketConnector{} = state} = session_holder_state
+        %{configuration: %SocketConnector{} = configuration} = state
       ) do
-    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(state.round_and_updates, round)
+
+    configuration = fetch_state(state.pid)
+    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(configuration.round_and_updates, round)
 
     case poi do
       nil ->
         Logger.error("You should have fetched poi at round #{inspect(round)}")
-        contains_poi = Enum.reduce(state.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
+        contains_poi = Enum.reduce(configuration.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
           case poi do
             nil -> acc
             _ -> Map.put(acc, round, poi)
@@ -142,8 +152,8 @@ defmodule SessionHolder do
       _ -> :poi_present_for_round
     end
 
-    transaction = SocketConnector.create_solo_close_tx(state.pub_key, state.channel_id, state_tx, poi, nonce, ttl)
-    {:reply, Signer.sign_aetx(transaction, state), session_holder_state}
+    transaction = SocketConnector.create_solo_close_tx(configuration.pub_key, configuration.channel_id, state_tx, poi, nonce, ttl)
+    {:reply, Signer.sign_aetx(transaction, configuration), %__MODULE__{state | configuration: configuration}}
   end
 
   # @spec suffix_name(name) :: name when name: atom()
