@@ -4,19 +4,19 @@ defmodule SessionHolder do
 
   @sync_call_timeout 10_000
 
-  defstruct pid: nil,
+  defstruct socket_connector_pid: nil,
             color: nil,
-            configuration: %SocketConnector{}
+            socket_connector_state: %SocketConnector{}
 
   def start_link(%{
-        socket_connector: %SocketConnector{} = configuration,
+        socket_connector: %SocketConnector{} = socket_connector_state,
         ae_url: ae_url,
         network_id: network_id,
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
-    GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color}, name: name)
+    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, color}, name: name)
   end
 
   # this is here for tesing purposes
@@ -53,10 +53,10 @@ defmodule SessionHolder do
   end
 
   # Server
-  def init({%SocketConnector{} = configuration, ae_url, network_id, color}) do
-    {:ok, pid} = SocketConnector.start_link(configuration, ae_url, network_id, color, self())
+  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, color}) do
+    {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
 
-    {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
+    {:ok, %__MODULE__{socket_connector_pid: pid, socket_connector_state: socket_connector_state, color: color}}
   end
 
   defp kill_connection(pid, color) do
@@ -71,28 +71,28 @@ defmodule SessionHolder do
     end
   end
 
-  def handle_cast({:state_tx_update, %SocketConnector{} = configuration}, state) do
-    {:noreply, %__MODULE__{state | configuration: configuration}}
+  def handle_cast({:state_tx_update, %SocketConnector{} = socket_connector_state}, state) do
+    {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   def handle_cast({:kill_connection}, state) do
-    fetch_state(state.pid)
-    kill_connection(state.pid, state.color)
+    fetch_state(state.socket_connector_pid)
+    kill_connection(state.socket_connector_pid, state.color)
     {:noreply, state}
   end
 
   def handle_cast({:close_connection}, state) do
-    Logger.debug("closing connector #{inspect(state.pid)}", ansi_color: state.color)
-    SocketConnector.close_connection(state.pid)
+    Logger.debug("closing connector #{inspect(state.socket_connector_pid)}", ansi_color: state.color)
+    SocketConnector.close_connection(state.socket_connector_pid)
     {:noreply, state}
   end
 
   def handle_cast({:reconnect, port}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:reconnect, state.configuration, port, state.color, self())
+    {:ok, pid} = SocketConnector.start_link(:reconnect, state.socket_connector_state, port, state.color, self())
 
-    {:noreply, %__MODULE__{state | pid: pid}}
+    {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
 
   def handle_cast({:reestablish, port}, state) do
@@ -101,29 +101,29 @@ defmodule SessionHolder do
     {:ok, pid} =
       SocketConnector.start_link(
         :reestablish,
-        state.configuration,
+        state.socket_connector_state,
         port,
         state.color,
         self()
       )
 
-    {:noreply, %__MODULE__{state | pid: pid}}
+    {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
 
   def handle_cast({:action, action}, state) do
-    action.(state.pid)
+    action.(state.socket_connector_pid)
     {:noreply, state}
   end
 
   def handle_call({:action_sync, action}, from, state) do
-    action.(state.pid, from)
+    action.(state.socket_connector_pid, from)
     {:noreply, state}
   end
 
   # TODO this allows backchannel signing, either way. Should we should uppdate round in the state?
   def handle_call({:sign_request, to_sign}, _from, state) do
     sign_result =
-      Signer.sign_transaction(to_sign, state.configuration, fn _tx, _round_initiator, _state ->
+      Signer.sign_transaction(to_sign, state.socket_connector_state, fn _tx, _round_initiator, _state ->
         :ok
       end)
 
@@ -133,16 +133,17 @@ defmodule SessionHolder do
   def handle_call(
         {:solo_close_transaction, round, nonce, ttl},
         _from,
-        %{configuration: %SocketConnector{} = configuration} = state
+        state
       ) do
 
-    configuration = fetch_state(state.pid)
-    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(configuration.round_and_updates, round)
+    # We need the latest SocketConnector state.
+    socket_connector_state = fetch_state(state.socket_connector_pid)
+    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(socket_connector_state.round_and_updates, round)
 
     case poi do
       nil ->
         Logger.error("You should have fetched poi at round #{inspect(round)}")
-        contains_poi = Enum.reduce(configuration.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
+        contains_poi = Enum.reduce(socket_connector_state.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
           case poi do
             nil -> acc
             _ -> Map.put(acc, round, poi)
@@ -152,8 +153,8 @@ defmodule SessionHolder do
       _ -> :poi_present_for_round
     end
 
-    transaction = SocketConnector.create_solo_close_tx(configuration.pub_key, configuration.channel_id, state_tx, poi, nonce, ttl)
-    {:reply, Signer.sign_aetx(transaction, configuration), %__MODULE__{state | configuration: configuration}}
+    transaction = SocketConnector.create_solo_close_tx(socket_connector_state.pub_key, socket_connector_state.channel_id, state_tx, poi, nonce, ttl)
+    {:reply, Signer.sign_aetx(transaction, socket_connector_state), %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   # @spec suffix_name(name) :: name when name: atom()

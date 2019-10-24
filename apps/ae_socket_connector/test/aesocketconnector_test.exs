@@ -188,7 +188,7 @@ defmodule SocketConnectorTest do
   test "close on chain maliscous", context do
     {alice, bob} = gen_names(context.test)
 
-    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+    scenario = fn {initiator, intiator_account}, {responder, _responder_account}, runner_pid ->
       [
         {:initiator,
          %{

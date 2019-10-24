@@ -361,24 +361,6 @@ defmodule SocketConnector do
     {:ok, state}
   end
 
-  defp transfer_from(amount, state) do
-    case state.role do
-      :initiator ->
-        transfer_amount(
-          state.session.basic_configuration.initiator_id,
-          state.session.basic_configuration.responder_id,
-          amount
-        )
-
-      :responder ->
-        transfer_amount(
-          state.session.basic_configuration.responder_id,
-          state.session.basic_configuration.initiator_id,
-          amount
-        )
-    end
-  end
-
   def handle_cast({:transfer, amount}, state) do
     sync_call = %SyncCall{request: request} = transfer_from(amount, state)
 
@@ -476,6 +458,24 @@ defmodule SocketConnector do
     Logger.info("=> new contract #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
+  end
+
+  defp transfer_from(amount, state) do
+    case state.role do
+      :initiator ->
+        transfer_amount(
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id,
+          amount
+        )
+
+      :responder ->
+        transfer_amount(
+          state.session.basic_configuration.responder_id,
+          state.session.basic_configuration.initiator_id,
+          amount
+        )
+    end
   end
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
