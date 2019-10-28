@@ -18,7 +18,7 @@ defmodule SocketConnector do
             ws_base: nil,
             # {round => %Update{}},
             round_and_updates: %{},
-            pending_update: %{},
+            pending_round_and_update: %{},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
             timer_reference: nil,
@@ -110,7 +110,7 @@ defmodule SocketConnector do
           channel_id: channel_id,
           round_and_updates: round_and_updates,
           ws_base: ws_base,
-          pending_update: pending_update
+          pending_round_and_update: pending_round_and_update
         } = state_channel_context,
         port,
         color,
@@ -120,7 +120,7 @@ defmodule SocketConnector do
       try do
         Enum.max(round_and_updates)
       rescue
-        _update_round_pending -> Enum.max(pending_update)
+        _update_round_pending -> Enum.max(pending_round_and_update)
       end
 
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
@@ -157,7 +157,7 @@ defmodule SocketConnector do
           role: role,
           channel_id: channel_id,
           round_and_updates: round_and_updates,
-          pending_update: pending_update
+          pending_round_and_update: pending_round_and_update
         } = state_channel_context,
         port,
         color,
@@ -167,7 +167,7 @@ defmodule SocketConnector do
       try do
         Enum.max(round_and_updates)
       rescue
-        _update_round_pending -> Enum.max(pending_update)
+        _update_round_pending -> Enum.max(pending_round_and_update)
       end
 
     # {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
@@ -944,7 +944,7 @@ defmodule SocketConnector do
     response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
 
     # this is in order to allow early disconnect/reconnect where state_tx is needed.
-    pending_update = %{
+    pending_round_and_update = %{
       Validator.get_state_round(to_sign) => %Update{
         state_tx: signed_tx,
         round_initiator: :self
@@ -953,8 +953,8 @@ defmodule SocketConnector do
 
     newstate = %__MODULE__{
       state
-      | # round_and_updates: Map.merge(state.round_and_updates, pending_update),
-        pending_update: pending_update
+      | # round_and_updates: Map.merge(state.round_and_updates, pending_round_and_update),
+        pending_round_and_update: pending_round_and_update
     }
 
     {:reply, {:text, Poison.encode!(response)}, newstate}
@@ -972,7 +972,7 @@ defmodule SocketConnector do
     response = build_request("channels.responder_sign", %{signed_tx: signed_tx})
 
     # this is in order to allow early disconnect/reconnect where state_tx is needed.
-    pending_update = %{
+    pending_round_and_update = %{
       Validator.get_state_round(to_sign) => %Update{
         state_tx: signed_tx,
         round_initiator: :other
@@ -981,8 +981,8 @@ defmodule SocketConnector do
 
     newstate = %__MODULE__{
       state
-      | # round_and_updates: Map.merge(state.round_and_updates, pending_update),
-        pending_update: pending_update
+      | # round_and_updates: Map.merge(state.round_and_updates, pending_round_and_update),
+        pending_round_and_update: pending_round_and_update
     }
 
     {:reply, {:text, Poison.encode!(response)}, newstate}
@@ -1112,7 +1112,7 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(response)},
      %__MODULE__{
        state
-       | pending_update: %{
+       | pending_round_and_update: %{
            Validator.get_state_round(to_sign) => pending_update
          },
          contract_call_in_flight: nil,
@@ -1270,7 +1270,7 @@ defmodule SocketConnector do
 
       _ ->
         %Update{round_initiator: round_initiator} =
-          Map.get(state.pending_update, round, %Update{round_initiator: :transient})
+          Map.get(state.pending_round_and_update, round, %Update{round_initiator: :transient})
 
         callback = Map.get(state.connection_callbacks, type)
         callback.(round_initiator, round, method)
@@ -1287,7 +1287,7 @@ defmodule SocketConnector do
       )
       when method in ["channels.leave", "channels.update"]
       when channel_id == current_channel_id do
-    updates = check_updated(state_tx, state.pending_update)
+    updates = check_updated(state_tx, state.pending_round_and_update)
 
     Logger.debug(
       "Map length #{inspect(length(Map.to_list(state.round_and_updates)))} round is: #{
@@ -1301,7 +1301,7 @@ defmodule SocketConnector do
     new_state = %__MODULE__{
       state
       | round_and_updates: Map.merge(state.round_and_updates, updates),
-        pending_update: %{}
+        pending_round_and_update: %{}
     }
 
     {:ok, new_state}
