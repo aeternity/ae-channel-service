@@ -109,13 +109,20 @@ defmodule SocketConnector do
           role: role,
           channel_id: channel_id,
           round_and_updates: round_and_updates,
-          ws_base: ws_base
+          ws_base: ws_base,
+          pending_update: pending_update
         } = state_channel_context,
         port,
         color,
         ws_manager_pid
       ) do
-    {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
+    {_round, %Update{state_tx: state_tx}} =
+      try do
+        Enum.max(round_and_updates)
+      rescue
+        _update_round_pending -> Enum.max(pending_update)
+      end
+
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
 
@@ -149,13 +156,21 @@ defmodule SocketConnector do
           pub_key: pub_key,
           role: role,
           channel_id: channel_id,
-          round_and_updates: round_and_updates
+          round_and_updates: round_and_updates,
+          pending_update: pending_update
         } = state_channel_context,
         port,
         color,
         ws_manager_pid
       ) do
-    {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
+    {round, %Update{state_tx: state_tx}} =
+      try do
+        Enum.max(round_and_updates)
+      rescue
+        _update_round_pending -> Enum.max(pending_update)
+      end
+
+    # {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
     reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
     session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
@@ -916,6 +931,7 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
+  # TODO group with channels.sign.responder_sign
   def process_message(
         %{
           "method" => "channels.sign.initiator_sign",
@@ -927,16 +943,46 @@ defmodule SocketConnector do
 
     response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
 
+    # this is in order to allow early disconnect/reconnect where state_tx is needed.
     pending_update = %{
       Validator.get_state_round(to_sign) => %Update{
-        state_tx: signed_tx
+        state_tx: signed_tx,
+        round_initiator: :self
       }
     }
 
     newstate = %__MODULE__{
       state
-      | round_and_updates: Map.merge(state.round_and_updates, pending_update),
-        pending_update: %{}
+      | # round_and_updates: Map.merge(state.round_and_updates, pending_update),
+        pending_update: pending_update
+    }
+
+    {:reply, {:text, Poison.encode!(response)}, newstate}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.sign.responder_sign",
+          "params" => %{"data" => %{"signed_tx" => to_sign}}
+        } = _message,
+        state
+      ) do
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.responder_sign", %{signed_tx: signed_tx})
+
+    # this is in order to allow early disconnect/reconnect where state_tx is needed.
+    pending_update = %{
+      Validator.get_state_round(to_sign) => %Update{
+        state_tx: signed_tx,
+        round_initiator: :other
+      }
+    }
+
+    newstate = %__MODULE__{
+      state
+      | # round_and_updates: Map.merge(state.round_and_updates, pending_update),
+        pending_update: pending_update
     }
 
     {:reply, {:text, Poison.encode!(response)}, newstate}
@@ -952,7 +998,7 @@ defmodule SocketConnector do
         state
       )
       when method in [
-             "channels.sign.responder_sign",
+             #  "channels.sign.responder_sign",
              "channels.sign.close_solo_sign",
              "channels.sign.deposit_tx",
              "channels.sign.deposit_ack",

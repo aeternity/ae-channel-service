@@ -57,12 +57,12 @@ defmodule SocketConnectorTest do
         {:initiator, %{message: {:channels_info, 0, :transient, "open"}}},
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 3
          }},
         {:responder, %{message: {:channels_info, 0, :transient, "open"}}},
-        {:responder, %{message: {:channels_update, 1, :transient, "channels.update"}}},
+        {:responder, %{message: {:channels_update, 1, :other, "channels.update"}}},
         # end of opening sequence
         # leaving
         {:responder,
@@ -99,7 +99,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 10
          }},
@@ -136,7 +136,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 8
          }},
@@ -192,7 +192,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 8
          }},
@@ -274,11 +274,11 @@ defmodule SocketConnectorTest do
   test "withdraw after re-connect", context do
     {alice, bob} = gen_names(context.test)
 
-    scenario = fn {initiator, intiator_account}, {responder, _responder_account}, runner_pid ->
+    scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next:
              {:local,
               fn client_runner, pid_session_holder ->
@@ -350,7 +350,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next:
              {:local,
               fn client_runner, pid_session_holder ->
@@ -369,7 +369,7 @@ defmodule SocketConnectorTest do
          }},
         {:responder,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :other, "channels.update"},
            next: ClientRunnerHelper.pause_job(3000),
            fuzzy: 10
          }},
@@ -475,7 +475,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 8
          }},
@@ -528,7 +528,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 8
          }},
@@ -576,7 +576,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
                {intiator_account, 6_999_999_999_999},
@@ -606,7 +606,7 @@ defmodule SocketConnectorTest do
          }},
         {:responder,
          %{
-           #  message: {:channels_update, 1, :transient, "channels.update"},
+           #  message: {:channels_update, 1, :self, "channels.update"},
            next:
              {:local,
               fn client_runner, pid_session_holder ->
@@ -674,7 +674,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
            fuzzy: 10
          }},
@@ -897,7 +897,7 @@ defmodule SocketConnectorTest do
          }},
         {:responder,
          %{
-           message: {:channels_update, 1, :transient, "channels.update"},
+           message: {:channels_update, 1, :other, "channels.update"},
            fuzzy: 14,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
