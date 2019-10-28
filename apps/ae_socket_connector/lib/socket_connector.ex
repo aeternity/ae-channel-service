@@ -947,7 +947,7 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # these don't contain round...
+  # these dosn't contain round...
   def process_message(
         %{
           "method" => method,
@@ -967,6 +967,7 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(response)}, state}
   end
 
+  # these dosn't contain round... merge with above
   def process_message(
         %{
           "method" => method,
