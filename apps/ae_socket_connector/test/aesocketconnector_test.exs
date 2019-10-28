@@ -91,7 +91,7 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :hello_world
+  @tag :hello_world_mini
   test "hello fsm mini", context do
     {alice, bob} = gen_names(context.test)
 
@@ -309,13 +309,13 @@ defmodule SocketConnectorTest do
          }},
         {:responder,
          %{
-           message: {:channels_update, 2, :transient, "channels.update"},
+           message: {:channels_update, 2, :other, "channels.update"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }},
         {:initiator,
          %{
-           message: {:channels_update, 2, :transient, "channels.update"},
+           message: {:channels_update, 2, :self, "channels.update"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -746,7 +746,7 @@ defmodule SocketConnectorTest do
          %{
            fuzzy: 10,
            #  TODO bug somewhere, why do we go for transient here?
-           message: {:channels_update, 6, :transient, "channels.update"},
+           message: {:channels_update, 6, :self, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
                {intiator_account, 6_999_998_999_984},
@@ -769,8 +769,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           #  TODO bug somewhere, why do we go for transient here?
-           message: {:channels_update, 8, :transient, "channels.update"},
+           message: {:channels_update, 8, :self, "channels.update"},
            fuzzy: 10,
            next:
              ClientRunnerHelper.assert_funds_job(
@@ -781,7 +780,7 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            fuzzy: 50,
-           message: {:channels_update, 8, :transient, "channels.update"},
+           message: {:channels_update, 8, :other, "channels.update"},
            next:
              {:async,
               fn pid ->

@@ -650,9 +650,6 @@ defmodule SocketConnector do
   def build_message(method, params \\ %{}) do
     {reply_method, reply_params} =
       case method do
-        "channels.sign.responder_sign" ->
-          {"channels.responder_sign", %{}}
-
         "channels.sign.close_solo_sign" ->
           {"channels.close_solo_sign", %{}}
 
@@ -673,6 +670,18 @@ defmodule SocketConnector do
 
         "channels.sign.settle_sign" ->
           {"channels.settle_sign", %{}}
+
+        "channels.sign.update" ->
+          {"channels.update", %{}}
+
+        "channels.sign.update_ack" ->
+          {"channels.update_ack", %{}}
+
+        "channels.sign.initiator_sign" ->
+          {"channels.initiator_sign", %{}}
+
+        "channels.sign.responder_sign" ->
+          {"channels.responder_sign", %{}}
 
         _ ->
           %{}
@@ -931,8 +940,7 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # TODO before signing this we should check the POI
-  # TODO merge all methods that signs in the same way.. keep doing this..
+  # these don't contain round...
   def process_message(
         %{
           "method" => method,
@@ -941,12 +949,7 @@ defmodule SocketConnector do
         state
       )
       when method in [
-             #  "channels.sign.responder_sign",
              "channels.sign.close_solo_sign",
-             "channels.sign.deposit_tx",
-             "channels.sign.deposit_ack",
-             "channels.sign.withdraw_tx",
-             "channels.sign.withdraw_ack",
              "channels.sign.slash_tx",
              "channels.sign.settle_sign"
            ] do
@@ -1010,6 +1013,19 @@ defmodule SocketConnector do
      }}
   end
 
+  @self [
+    "channels.sign.update",
+    "channels.sign.initiator_sign",
+    "channels.sign.deposit_tx",
+    "channels.sign.withdraw_tx"
+  ]
+  @other [
+    "channels.sign.update_ack",
+    "channels.sign.responder_sign",
+    "channels.sign.deposit_ack",
+    "channels.sign.withdraw_ack"
+  ]
+
   def process_message(
         %{
           "method" => method,
@@ -1017,18 +1033,14 @@ defmodule SocketConnector do
         } = _message,
         state
       )
-      when method in [
-             "channels.sign.update_ack",
-             "channels.sign.update",
-             "channels.sign.initiator_sign",
-             "channels.sign.responder_sign"
-           ] do
-    {round_initiator, return_method} =
-      case method do
-        "channels.sign.update" -> {:self, "channels.update"}
-        "channels.sign.update_ack" -> {:other, "channels.update_ack"}
-        "channels.sign.initiator_sign" -> {:self, "channels.initiator_sign"}
-        "channels.sign.responder_sign" -> {:other, "channels.responder_sign"}
+      when method in @other
+      when method in @self do
+
+    round_initiator =
+      case {method in @self, method in @other} do
+        {true, false} -> :self
+        {false, true} -> :other
+        _ -> throw("no matching mathod, can not happen")
       end
 
     pending_update = %Update{
@@ -1049,11 +1061,11 @@ defmodule SocketConnector do
     response =
       case state.backchannel_sign_req_fun do
         nil ->
-          build_request(return_method, %{signed_tx: signed_payload})
+          build_message(method, %{signed_tx: signed_payload})
 
         _backchannel ->
           mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
-          build_request(return_method, %{signed_tx: mutual_signed})
+          build_message(method, %{signed_tx: mutual_signed})
       end
 
     # TODO
