@@ -683,6 +683,13 @@ defmodule SocketConnector do
         "channels.sign.responder_sign" ->
           {"channels.responder_sign", %{}}
 
+        "channels.sign.shutdown_sign" ->
+          {"channels.shutdown_sign", %{}}
+
+        "channels.sign.shutdown_sign_ack" ->
+          {"channels.shutdown_sign_ack", %{}}
+
+
         _ ->
           %{}
       end
@@ -968,11 +975,6 @@ defmodule SocketConnector do
         state
       )
       when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
-    return_method =
-      case method do
-        "channels.sign.shutdown_sign" -> "channels.shutdown_sign"
-        _ -> "channels.shutdown_sign_ack"
-      end
 
     pending_sign_attempt = fn poi ->
       # TODO need to check that PoI makes any sense to us
@@ -985,7 +987,7 @@ defmodule SocketConnector do
           Validator.inspect_sign_request_poi(poi)
         )
 
-      build_request(return_method, %{signed_tx: signed_tx})
+      build_message(method, %{signed_tx: signed_tx})
     end
 
     process_poi = fn %{"result" => result}, state ->
