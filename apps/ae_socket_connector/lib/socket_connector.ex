@@ -163,7 +163,7 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    {round, %Update{state_tx: state_tx}} =
+    {round, %Update{}} =
       try do
         Enum.max(round_and_updates)
       rescue
@@ -931,65 +931,8 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # TODO group with channels.sign.responder_sign
-  def process_message(
-        %{
-          "method" => "channels.sign.initiator_sign",
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_request("channels.initiator_sign", %{signed_tx: signed_tx})
-
-    # this is in order to allow early disconnect/reconnect where state_tx is needed.
-    pending_round_and_update = %{
-      Validator.get_state_round(to_sign) => %Update{
-        state_tx: signed_tx,
-        round_initiator: :self
-      }
-    }
-
-    newstate = %__MODULE__{
-      state
-      | # round_and_updates: Map.merge(state.round_and_updates, pending_round_and_update),
-        pending_round_and_update: pending_round_and_update
-    }
-
-    {:reply, {:text, Poison.encode!(response)}, newstate}
-  end
-
-  def process_message(
-        %{
-          "method" => "channels.sign.responder_sign",
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      ) do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
-
-    response = build_request("channels.responder_sign", %{signed_tx: signed_tx})
-
-    # this is in order to allow early disconnect/reconnect where state_tx is needed.
-    pending_round_and_update = %{
-      Validator.get_state_round(to_sign) => %Update{
-        state_tx: signed_tx,
-        round_initiator: :other
-      }
-    }
-
-    newstate = %__MODULE__{
-      state
-      | # round_and_updates: Map.merge(state.round_and_updates, pending_round_and_update),
-        pending_round_and_update: pending_round_and_update
-    }
-
-    {:reply, {:text, Poison.encode!(response)}, newstate}
-  end
-
   # TODO before signing this we should check the POI
-  # TODO merge all methods that signs in the same way
+  # TODO merge all methods that signs in the same way.. keep doing this..
   def process_message(
         %{
           "method" => method,
@@ -1074,11 +1017,18 @@ defmodule SocketConnector do
         } = _message,
         state
       )
-      when method in ["channels.sign.update_ack", "channels.sign.update"] do
+      when method in [
+             "channels.sign.update_ack",
+             "channels.sign.update",
+             "channels.sign.initiator_sign",
+             "channels.sign.responder_sign"
+           ] do
     {round_initiator, return_method} =
       case method do
         "channels.sign.update" -> {:self, "channels.update"}
-        _ -> {:other, "channels.update_ack"}
+        "channels.sign.update_ack" -> {:other, "channels.update_ack"}
+        "channels.sign.initiator_sign" -> {:self, "channels.initiator_sign"}
+        "channels.sign.responder_sign" -> {:other, "channels.responder_sign"}
       end
 
     pending_update = %Update{
@@ -1113,7 +1063,8 @@ defmodule SocketConnector do
      %__MODULE__{
        state
        | pending_round_and_update: %{
-           Validator.get_state_round(to_sign) => pending_update
+           #  TODO not sure on state_tx naming here...
+           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload}
          },
          contract_call_in_flight: nil,
          backchannel_sign_req_fun: nil
@@ -1255,9 +1206,11 @@ defmodule SocketConnector do
 
     case Map.get(pending_map, round) do
       nil ->
+        # Once the pending is well designed we should likely never end up here.
         %{round => %Update{state_tx: state_tx}}
 
       update ->
+        # state_tx == update.state_tx, should match only when the pending payload was cosigned.
         %{round => %Update{update | state_tx: state_tx}}
     end
   end
