@@ -648,50 +648,13 @@ defmodule SocketConnector do
   end
 
   def build_message(method, params \\ %{}) do
+    string_replace = ".sign"
     {reply_method, reply_params} =
-      case method do
-        "channels.sign.close_solo_sign" ->
-          {"channels.close_solo_sign", %{}}
-
-        "channels.sign.deposit_tx" ->
-          {"channels.deposit_tx", %{}}
-
-        "channels.sign.deposit_ack" ->
-          {"channels.deposit_ack", %{}}
-
-        "channels.sign.withdraw_tx" ->
-          {"channels.withdraw_tx", %{}}
-
-        "channels.sign.withdraw_ack" ->
-          {"channels.withdraw_ack", %{}}
-
-        "channels.sign.slash_tx" ->
-          {"channels.slash_sign", %{}}
-
-        "channels.sign.settle_sign" ->
-          {"channels.settle_sign", %{}}
-
-        "channels.sign.update" ->
-          {"channels.update", %{}}
-
-        "channels.sign.update_ack" ->
-          {"channels.update_ack", %{}}
-
-        "channels.sign.initiator_sign" ->
-          {"channels.initiator_sign", %{}}
-
-        "channels.sign.responder_sign" ->
-          {"channels.responder_sign", %{}}
-
-        "channels.sign.shutdown_sign" ->
-          {"channels.shutdown_sign", %{}}
-
-        "channels.sign.shutdown_sign_ack" ->
-          {"channels.shutdown_sign_ack", %{}}
-
-
-        _ ->
-          %{}
+      case String.contains?(method, string_replace) do
+        true ->
+          {String.replace(method, string_replace, ""), %{}}
+        false ->
+          throw("this is not a sign request methid is: #{inspect method}")
       end
 
     %{params: Map.merge(reply_params, params), method: reply_method, jsonrpc: "2.0"}
