@@ -133,6 +133,56 @@ defmodule SocketConnectorTest do
 
   @tag :cancel
   test "cancel transfer", context do
+<<<<<<< HEAD
+=======
+    {alice, bob} = gen_names(context.test)
+
+    scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
+      [
+        {:initiator,
+         %{
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+           fuzzy: 10
+         }},
+        {:initiator,
+         %{
+           message: {:sign_approve, 2},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:sign_approve, 2},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:channels_update, 1, :transient, "channels.leave"},
+           fuzzy: 20,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }},
+        {:initiator,
+         %{
+           message: {:channels_info, 0, :transient, "died"},
+           fuzzy: 20,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }}
+      ]
+    end
+
+    ClientRunner.start_peers(
+      @ae_url,
+      @network_id,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+    )
+  end
+
+  @tag :close_on_chain
+  test "close on chain", context do
+>>>>>>> testcase for cancel
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
@@ -149,9 +199,28 @@ defmodule SocketConnectorTest do
         #  }},
         {:initiator,
          %{
+<<<<<<< HEAD
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 10
+=======
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                nonce = OnChain.nonce(intiator_account)
+                height = OnChain.current_height()
+                Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
+
+                transaction =
+                  GenServer.call(
+                    pid_session_holder,
+                    {:solo_close_transaction, 2, nonce + 1, height}
+                  )
+
+                OnChain.post_solo_close(transaction)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+>>>>>>> testcase for cancel
          }},
         {:initiator,
          %{
@@ -167,8 +236,49 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            message: {:channels_update, 2, :self, "channels.update"},
+<<<<<<< HEAD
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 10
+=======
+           next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+           fuzzy: 5
+         }},
+        {:initiator,
+         %{
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
+           fuzzy: 8
+         }},
+        {:initiator,
+         %{
+           message: {:channels_update, 3, :self, "channels.update"},
+           next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+           fuzzy: 5
+         }},
+        {:initiator,
+         %{
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                nonce = OnChain.nonce(intiator_account)
+                height = OnChain.current_height()
+
+                transaction =
+                  GenServer.call(
+                    pid_session_holder,
+                    {:solo_close_transaction, 2, nonce + 1, height}
+                  )
+
+                OnChain.post_solo_close(transaction)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           message: {:on_chain, 0, :transient, "can_slash"},
+           fuzzy: 10,
+           next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty}
+           #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+>>>>>>> testcase for cancel
          }},
         {:responder,
          %{
@@ -756,7 +866,12 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+<<<<<<< HEAD
       initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+=======
+      initiator_contract =
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+>>>>>>> testcase for cancel
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
@@ -779,7 +894,12 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
+<<<<<<< HEAD
            next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+=======
+           next:
+             {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+>>>>>>> testcase for cancel
          }},
         {:initiator,
          %{
