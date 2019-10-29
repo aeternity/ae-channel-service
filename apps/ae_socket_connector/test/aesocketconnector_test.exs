@@ -14,7 +14,10 @@ defmodule SocketConnectorTest do
   def custom_config(overide_basic_param, override_custom) do
     fn initator_pub, responder_pub ->
       %{basic_configuration: basic_configuration} =
-        Map.merge(ClientRunner.default_configuration(initator_pub, responder_pub), overide_basic_param)
+        Map.merge(
+          ClientRunner.default_configuration(initator_pub, responder_pub),
+          overide_basic_param
+        )
 
       %{
         basic_configuration: basic_configuration,
@@ -128,6 +131,53 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :cancel
+  test "cancel transfer", context do
+    {alice, bob} = gen_names(context.test)
+
+    scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
+      [
+        {:initiator,
+         %{
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+           fuzzy: 10
+         }},
+        {:initiator,
+         %{
+           message: {:sign_approve, 2},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:sign_approve, 2},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:channels_update, 1, :transient, "channels.leave"},
+           fuzzy: 20,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }},
+        {:initiator,
+         %{
+           message: {:channels_info, 0, :transient, "died"},
+           fuzzy: 20,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }}
+      ]
+    end
+
+    ClientRunner.start_peers(
+      @ae_url,
+      @network_id,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+    )
+  end
+
   @tag :close_on_chain
   test "close on chain", context do
     {alice, bob} = gen_names(context.test)
@@ -154,7 +204,13 @@ defmodule SocketConnectorTest do
                 nonce = OnChain.nonce(intiator_account)
                 height = OnChain.current_height()
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
-                transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, 2, nonce + 1, height})
+
+                transaction =
+                  GenServer.call(
+                    pid_session_holder,
+                    {:solo_close_transaction, 2, nonce + 1, height}
+                  )
+
                 OnChain.post_solo_close(transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
@@ -220,7 +276,13 @@ defmodule SocketConnectorTest do
               fn client_runner, pid_session_holder ->
                 nonce = OnChain.nonce(intiator_account)
                 height = OnChain.current_height()
-                transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, 2, nonce + 1, height})
+
+                transaction =
+                  GenServer.call(
+                    pid_session_holder,
+                    {:solo_close_transaction, 2, nonce + 1, height}
+                  )
+
                 OnChain.post_solo_close(transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
@@ -668,7 +730,9 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+      initiator_contract =
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
       [
@@ -689,7 +753,10 @@ defmodule SocketConnectorTest do
              )
          }},
         {:initiator,
-         %{next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}}},
+         %{
+           next:
+             {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+         }},
         {:initiator,
          %{
            fuzzy: 10,
@@ -718,7 +785,10 @@ defmodule SocketConnectorTest do
                   'make_move',
                   from
                 )
-              end, fn a -> assert a == {:ok, {:string, [], "Game continues. The other player's turn."}} end}
+              end,
+              fn a ->
+                assert a == {:ok, {:string, [], "Game continues. The other player's turn."}}
+              end}
          }},
         {:initiator,
          %{
