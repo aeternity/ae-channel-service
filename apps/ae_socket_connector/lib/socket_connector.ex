@@ -320,6 +320,10 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:settle, from})
   end
 
+  def send_signed_message(pid, method, payload) do
+    WebSockex.cast(pid, {:signed_payload, method, payload})
+  end
+
   # Server side
 
   def terminate(reason, _state)
@@ -636,6 +640,10 @@ defmodule SocketConnector do
      }}
   end
 
+  def handle_cast({:signed_payload, method, signed_payload}, state) do
+    {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))}, state}
+  end
+
   def build_request(method, params \\ %{}) do
     default_params =
       case method do
@@ -649,12 +657,14 @@ defmodule SocketConnector do
 
   def build_message(method, params \\ %{}) do
     string_replace = ".sign"
+
     {reply_method, reply_params} =
       case String.contains?(method, string_replace) do
         true ->
           {String.replace(method, string_replace, ""), %{}}
+
         false ->
-          throw("this is not a sign request methid is: #{inspect method}")
+          throw("this is not a sign request method. Method is: #{inspect(method)}")
       end
 
     %{params: Map.merge(reply_params, params), method: reply_method, jsonrpc: "2.0"}
@@ -939,7 +949,6 @@ defmodule SocketConnector do
         state
       )
       when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
-
     pending_sign_attempt = fn poi ->
       # TODO need to check that PoI makes any sense to us
       Logger.debug("POI is: #{inspect(poi)}", state.color)
@@ -1001,7 +1010,6 @@ defmodule SocketConnector do
       )
       when method in @other
       when method in @self do
-
     round_initiator =
       case {method in @self, method in @other} do
         {true, false} -> :self
@@ -1037,16 +1045,41 @@ defmodule SocketConnector do
     # TODO
     # double check that the call_data is the calldata we produced
 
-    {:reply, {:text, Poison.encode!(response)},
+    # test seperated signing....
+    signed_payload_2 =
+      case state.backchannel_sign_req_fun do
+        nil ->
+          signed_payload
+
+        _backchannel ->
+          state.backchannel_sign_req_fun.(signed_payload)
+
+      end
+
+    send_signed_message(self(), method, signed_payload_2)
+
+    {:ok,
      %__MODULE__{
        state
        | pending_round_and_update: %{
            #  TODO not sure on state_tx naming here...
-           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload}
+           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload_2}
          },
          contract_call_in_flight: nil,
          backchannel_sign_req_fun: nil
      }}
+
+
+    # {:reply, {:text, Poison.encode!(response)},
+    #  %__MODULE__{
+    #    state
+    #    | pending_round_and_update: %{
+    #        #  TODO not sure on state_tx naming here...
+    #        Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload}
+    #      },
+    #      contract_call_in_flight: nil,
+    #      backchannel_sign_req_fun: nil
+    #  }}
   end
 
   def process_get_settle_reponse(
