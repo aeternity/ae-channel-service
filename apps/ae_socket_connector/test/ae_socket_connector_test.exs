@@ -155,9 +155,15 @@ defmodule SocketConnectorTest do
            message: {:sign_approve, 2},
            fuzzy: 10
          }},
+        {:initiator,
+         %{
+           message: {:channels_update, 2, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+           fuzzy: 10
+         }},
         {:responder,
          %{
-           message: {:channels_update, 1, :transient, "channels.leave"},
+           message: {:channels_update, 2, :transient, "channels.leave"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }},
