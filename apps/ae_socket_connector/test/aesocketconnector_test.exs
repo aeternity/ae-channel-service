@@ -421,6 +421,7 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
+  @tag :backchannel
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
 
@@ -545,7 +546,7 @@ defmodule SocketConnectorTest do
      end, :empty}
   end
 
-  @tag :close
+  @tag :close_solo
   test "close solo", context do
     {alice, bob} = gen_names(context.test)
 
@@ -598,7 +599,7 @@ defmodule SocketConnectorTest do
      end, :empty}
   end
 
-  @tag :close
+  @tag :close_mut
   test "close mutual", context do
     {alice, bob} = gen_names(context.test)
 

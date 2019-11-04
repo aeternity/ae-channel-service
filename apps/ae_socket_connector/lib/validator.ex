@@ -69,6 +69,7 @@ defmodule Validator do
         sign_approve: sign_approve,
         channels_update: _channels_update
       } ->
+
         # TODO this is not pretty
         {module, instance} = :aetx.specialize_callback(aetx)
 
@@ -106,6 +107,13 @@ defmodule Validator do
     end
   end
 
+   def notify_sign_transaction(
+        to_sign,
+        method,
+        state
+        # verify_hook \\ fn _tx, _round_initiator, _state -> :unsecure end
+      )
+
   def notify_sign_transaction(
         %Update{} = pending_update,
         method,
@@ -129,6 +137,19 @@ defmodule Validator do
     end
   end
 
+  def notify_sign_transaction(
+        to_sign,
+        method,
+        state
+        # verify_hook
+      ) do
+    notify_sign_transaction(
+      %Update{tx: to_sign, round_initiator: :not_implemented},
+      method,
+      state
+    )
+  end
+
 
   def inspect_sign_request_poi(method, poi) do
     fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
@@ -144,7 +165,7 @@ defmodule Validator do
           channel_create_tx(aetx, state)
 
         :aesc_close_mutual_tx ->
-          # TODO match_pot_aetx is currently doing the same checking...
+          # TODO match_pot_aetx is currently doing the notify_sign_transactionsame checking...
           match_poi_aetx(
             {poi, [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
              []},

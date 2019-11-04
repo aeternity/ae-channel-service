@@ -93,15 +93,15 @@ defmodule Signer do
     end
   end
 
-  def sign_transaction(
-        to_sign,
-        state,
-        verify_hook
-      ) do
-    sign_transaction(
-      %Update{tx: to_sign, round_initiator: :not_implemented},
-      state,
-      verify_hook
-    )
-  end
+  # def sign_transaction(
+  #       to_sign,
+  #       state,
+  #       verify_hook
+  #     ) do
+  #   sign_transaction(
+  #     %Update{tx: to_sign, round_initiator: :not_implemented},
+  #     state,
+  #     verify_hook
+  #   )
+  # end
 end

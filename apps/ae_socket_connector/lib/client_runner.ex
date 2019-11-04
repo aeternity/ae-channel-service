@@ -20,7 +20,7 @@ defmodule ClientRunner do
   end
 
   defp log_callback(type, round, round_initiator, method, color) do
-    Logger.debug("#{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}", color)
+    Logger.debug("received: #{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}", color)
   end
 
   def connection_callback(callback_pid, color) do
@@ -108,7 +108,6 @@ defmodule ClientRunner do
       case elem(message, 0) do
         # TODO how do we descide if we should sign?
         :sign_approve ->
-          Logger.debug("Signing....")
           signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
           fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
           SessionHolder.run_action(state.pid_session_holder, fun)

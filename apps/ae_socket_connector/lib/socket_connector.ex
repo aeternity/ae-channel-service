@@ -641,11 +641,22 @@ defmodule SocketConnector do
      }}
   end
 
-  def handle_cast({:signed_payload, method, signed_payload}, state) do
+  def handle_cast(
+        {:signed_payload, method, signed_payload},
+        %__MODULE__{pending_round_and_update: pending_round_and_update} = state
+      )
+      when pending_round_and_update != %{} do
     [{round, update}] = Map.to_list(state.pending_round_and_update)
 
     {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))},
      %__MODULE__{state | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}}}
+  end
+
+  def handle_cast(
+        {:signed_payload, method, signed_payload},
+        state
+      ) do
+    {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))}, state}
   end
 
   def build_request(method, params \\ %{}) do
@@ -853,7 +864,7 @@ defmodule SocketConnector do
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
 
-    # Logger.info("Received Message: #{inspect msg} #{inspect message} #{inspect self()}", state.color)
+    # Logger.info("Received Message: #{inspect(msg)} #{inspect(message)} #{inspect(self())}", state.color)
     process_message(message, state)
   end
 
@@ -937,14 +948,15 @@ defmodule SocketConnector do
              "channels.sign.slash_tx",
              "channels.sign.settle_sign"
            ] do
+    # fun = fn(a, b, c) -> Validator.inspect_sign_request(a, b, method, c) end
 
-    fun = fn(a, b, c) -> Validator.inspect_sign_request(a, b, method, c) end
+    # signed_tx = Signer.sign_transaction(to_sign, state, fun)
 
-    signed_tx = Signer.sign_transaction(to_sign, state, fun)
+    Validator.notify_sign_transaction(to_sign, method, state)
+    {:ok, state}
+    # response = build_message(method, %{signed_tx: signed_tx})
 
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
+    # {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   # these dosn't contain round... merge with above
