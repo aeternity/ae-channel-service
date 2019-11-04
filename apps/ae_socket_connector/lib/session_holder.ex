@@ -6,17 +6,20 @@ defmodule SessionHolder do
 
   defstruct socket_connector_pid: nil,
             color: nil,
+            network_id: nil,
+            priv_key: nil,
             socket_connector_state: %SocketConnector{}
 
   def start_link(%{
         socket_connector: %SocketConnector{} = socket_connector_state,
         ae_url: ae_url,
         network_id: network_id,
+        priv_key: priv_key,
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
-    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, color}, name: name)
+    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, color}, name: name)
   end
 
   # this is here for tesing purposes
@@ -57,10 +60,10 @@ defmodule SessionHolder do
   end
 
   # Server
-  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, color}) do
+  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, color}) do
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
 
-    {:ok, %__MODULE__{socket_connector_pid: pid, socket_connector_state: socket_connector_state, color: color}}
+    {:ok, %__MODULE__{socket_connector_pid: pid, socket_connector_state: socket_connector_state, network_id: network_id, priv_key: priv_key, color: color}}
   end
 
   defp kill_connection(pid, color) do
@@ -127,7 +130,7 @@ defmodule SessionHolder do
   # TODO this allows backchannel signing, either way. Should we should uppdate round in the state?
   def handle_call({:sign_request, to_sign}, _from, state) do
     sign_result =
-      Signer.sign_transaction(to_sign, state.socket_connector_state, fn _tx, _round_initiator, _state ->
+      Signer.sign_transaction(to_sign, state.network_id, state.priv_key, fn _tx, _round_initiator, _state ->
         :ok
       end)
 

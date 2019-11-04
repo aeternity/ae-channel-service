@@ -78,6 +78,7 @@ defmodule ClientRunner do
         },
         ae_url: ae_url,
         network_id: network_id,
+        priv_key: priv_key,
         color: color,
         pid_name: name
       })
