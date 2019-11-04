@@ -107,7 +107,7 @@ defmodule ClientRunner do
     case elem(message, 0) do
       # TODO how do we descide if we should sign?
       :sign_approve ->
-        Logger.debug("HEJSAN")
+        Logger.debug("Signing....")
         signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
         fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
         SessionHolder.run_action(state.pid_session_holder, fun)
@@ -119,17 +119,17 @@ defmodule ClientRunner do
 
   # {:responder, :channels_info, 0, :transient, "channel_open"}
   # def handle_cast({:match_jobs, message}, state)
-  def handle_cast({:match_jobs, message, to_sign}, state) do
+  def handle_cast({:match_jobs, received_message, to_sign}, state) do
     case state.match_list do
       [%{message: expected} = match | rest] ->
         Logger.debug(
-          "expected #{inspect(expected)} received #{inspect(message)}",
+          "expected #{inspect(expected)} received #{inspect(received_message)}",
           state.color
         )
 
-        case expected == message do
+        process_sign_request(received_message, to_sign, state)
+        case expected == received_message do
           true ->
-            process_sign_request(message, to_sign, state)
 
             run_next(match)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
@@ -144,7 +144,7 @@ defmodule ClientRunner do
                   true ->
                     throw(
                       "message role #{inspect(state.role)} #{inspect(expected)}, last received is #{
-                        inspect(message)
+                        inspect(received_message)
                       } has not arrived, waited for #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}"
                     )
 

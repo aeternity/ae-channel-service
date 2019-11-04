@@ -155,12 +155,12 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:sign_approve, 2},
+           message: {:sign_approve, 2, "channels.sign.update"},
            fuzzy: 10
          }},
         {:responder,
          %{
-           message: {:sign_approve, 2},
+           message: {:sign_approve, 2, "channels.sign.update_ack"},
            fuzzy: 10
          }},
         {:initiator,
