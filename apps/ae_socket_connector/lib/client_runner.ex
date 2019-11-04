@@ -71,7 +71,7 @@ defmodule ClientRunner do
       SessionHolder.start_link(%{
         socket_connector: %SocketConnector{
           pub_key: pub_key,
-          priv_key: priv_key,
+          # priv_key: priv_key,
           session: state_channel_configuration,
           role: role,
           connection_callbacks: connection_callback(self(), color)

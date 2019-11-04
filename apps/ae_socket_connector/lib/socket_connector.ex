@@ -5,7 +5,6 @@ defmodule SocketConnector do
   @socket_ping_intervall 50
 
   defstruct pub_key: nil,
-            priv_key: nil,
             role: nil,
             session: %{},
             color: nil,
@@ -71,7 +70,6 @@ defmodule SocketConnector do
   def start_link(
         %__MODULE__{
           pub_key: _pub_key,
-          priv_key: _priv_key,
           session: session,
           role: role
         } = state_channel_context,
@@ -152,27 +150,24 @@ defmodule SocketConnector do
   # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
   def start_link(
         :reconnect,
+        signed_reconnect_tx,
         %__MODULE__{
-          pub_key: pub_key,
-          role: role,
-          channel_id: channel_id,
-          round_and_updates: round_and_updates,
-          pending_round_and_update: pending_round_and_update
         } = state_channel_context,
         port,
         color,
         ws_manager_pid
       ) do
-    {round, %Update{}} =
-      try do
-        Enum.max(round_and_updates)
-      rescue
-        _update_round_pending -> Enum.max(pending_round_and_update)
-      end
+    # {round, %Update{}} =
+    #   try do
+    #     Enum.max(round_and_updates)
+    #   rescue
+    #     _update_round_pending -> Enum.max(pending_round_and_update)
+    #   end
 
     # {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
-    session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
+    # reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
+    # session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
+    session_map = init_reconnect_map(signed_reconnect_tx, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 

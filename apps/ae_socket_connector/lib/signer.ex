@@ -16,6 +16,20 @@ defmodule Signer do
     )
   end
 
+  # TODO merge this with sign_transaction
+  def sign_aetx(aetx, network_id, priv_key) do
+    bin = :aetx.serialize_to_binary(aetx)
+    bin_for_network = <<network_id::binary, bin::binary>>
+    result_signed = :enacl.sign_detached(bin_for_network, priv_key)
+    signed_create_tx = :aetx_sign.new(aetx, [result_signed])
+
+    :aeser_api_encoder.encode(
+      :transaction,
+      :aetx_sign.serialize_to_binary(signed_create_tx)
+    )
+  end
+
+
   # TODO clean up.. remove verify hook from here
   def sign_transaction(
         to_sign,
@@ -93,15 +107,15 @@ defmodule Signer do
     end
   end
 
-  # def sign_transaction(
-  #       to_sign,
-  #       state,
-  #       verify_hook
-  #     ) do
-  #   sign_transaction(
-  #     %Update{tx: to_sign, round_initiator: :not_implemented},
-  #     state,
-  #     verify_hook
-  #   )
-  # end
+  def sign_transaction(
+        to_sign,
+        state,
+        verify_hook
+      ) do
+    sign_transaction(
+      %Update{tx: to_sign, round_initiator: :not_implemented},
+      state,
+      verify_hook
+    )
+  end
 end

@@ -97,7 +97,19 @@ defmodule SessionHolder do
   def handle_cast({:reconnect, port}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:reconnect, state.socket_connector_state, port, state.color, self())
+    socket_connector_state = state.socket_connector_state
+
+    {round, %SocketConnector.Update{}} =
+      try do
+        Enum.max(socket_connector_state.round_and_updates)
+      rescue
+        _update_round_pending -> Enum.max(socket_connector_state.pending_round_and_update)
+      end
+
+    reconnect_tx = SocketConnector.create_reconnect_tx(socket_connector_state.channel_id, round, socket_connector_state.role, socket_connector_state.pub_key)
+    signed_reconnect_tx = Signer.sign_aetx(reconnect_tx, state.network_id, state.priv_key)
+
+    {:ok, pid} = SocketConnector.start_link(:reconnect, signed_reconnect_tx, state.socket_connector_state, port, state.color, self())
 
     {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
@@ -161,7 +173,7 @@ defmodule SessionHolder do
     end
 
     transaction = SocketConnector.create_solo_close_tx(socket_connector_state.pub_key, socket_connector_state.channel_id, state_tx, poi, nonce, ttl)
-    {:reply, Signer.sign_aetx(transaction, socket_connector_state), %__MODULE__{state | socket_connector_state: socket_connector_state}}
+    {:reply, Signer.sign_aetx(transaction, state.network_id, state.priv_key), %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   # @spec suffix_name(name) :: name when name: atom()
