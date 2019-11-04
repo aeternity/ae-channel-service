@@ -642,7 +642,10 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:signed_payload, method, signed_payload}, state) do
-    {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))}, state}
+    [{round, update}] = Map.to_list(state.pending_round_and_update)
+
+    {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))},
+     %__MODULE__{state | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}}}
   end
 
   def build_request(method, params \\ %{}) do
@@ -1061,17 +1064,18 @@ defmodule SocketConnector do
 
     # send_signed_message(self(), method, signed_payload_2)
 
-    {:ok, state}
-    #  %__MODULE__{
-    #    state
-    #    | pending_round_and_update: %{
-    #        #  TODO not sure on state_tx naming here...
-    #        Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload_2}
-    #      },
-    #      contract_call_in_flight: nil,
-    #      backchannel_sign_req_fun: nil
-    #  }}
-
+    # {:ok, state}
+    {:ok,
+     %__MODULE__{
+       state
+       | pending_round_and_update: %{
+           #  TODO not sure on state_tx naming here...
+           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: nil}
+         }
+         #  ,
+         #  contract_call_in_flight: nil,
+         #  backchannel_sign_req_fun: nil
+     }}
 
     # {:reply, {:text, Poison.encode!(response)},
     #  %__MODULE__{

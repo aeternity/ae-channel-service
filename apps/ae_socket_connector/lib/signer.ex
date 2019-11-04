@@ -16,6 +16,7 @@ defmodule Signer do
     )
   end
 
+  # TODO clean up.. remove verify hook from here
   def sign_transaction(
         to_sign,
         network_id, priv_key,
