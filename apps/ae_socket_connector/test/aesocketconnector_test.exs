@@ -45,9 +45,9 @@ defmodule SocketConnectorTest do
         # opening channel
         {:responder, %{message: {:channels_info, 0, :transient, "channel_open"}}},
         {:initiator, %{message: {:channels_info, 0, :transient, "channel_accept"}}},
-        {:initiator, %{message: {:sign_approve, 1}}},
+        {:initiator, %{message: {:sign_approve, 1, "channels.sign.initiator_sign"}}},
         {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
-        {:responder, %{message: {:sign_approve, 1}}},
+        {:responder, %{message: {:sign_approve, 1, "channels.sign.responder_sign"}}},
         {:responder, %{message: {:on_chain, 0, :transient, "funding_created"}}},
         {:initiator, %{message: {:channels_info, 0, :transient, "funding_signed"}}},
         {:initiator, %{message: {:on_chain, 0, :transient, "funding_signed"}}},

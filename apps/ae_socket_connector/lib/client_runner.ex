@@ -104,22 +104,28 @@ defmodule ClientRunner do
   end
 
   def process_sign_request(message, to_sign, state) do
-    case elem(message, 0) do
-      # TODO how do we descide if we should sign?
-      :sign_approve ->
-        Logger.debug("Signing....")
-        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-        fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
-        SessionHolder.run_action(state.pid_session_holder, fun)
+    try do
+      case elem(message, 0) do
+        # TODO how do we descide if we should sign?
+        :sign_approve ->
+          Logger.debug("Signing....")
+          signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+          fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
+          SessionHolder.run_action(state.pid_session_holder, fun)
 
-      _ ->
-        :ok
+        _ ->
+          :ok
+      end
+    rescue
+      _ignore -> :ok
     end
   end
 
   # {:responder, :channels_info, 0, :transient, "channel_open"}
   # def handle_cast({:match_jobs, message}, state)
   def handle_cast({:match_jobs, received_message, to_sign}, state) do
+    process_sign_request(received_message, to_sign, state)
+
     case state.match_list do
       [%{message: expected} = match | rest] ->
         Logger.debug(
@@ -127,10 +133,8 @@ defmodule ClientRunner do
           state.color
         )
 
-        process_sign_request(received_message, to_sign, state)
         case expected == received_message do
           true ->
-
             run_next(match)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 

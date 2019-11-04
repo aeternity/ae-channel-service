@@ -924,7 +924,7 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # these dosn't contain round...
+  # these doesn't contain round...
   def process_message(
         %{
           "method" => method,
@@ -937,7 +937,10 @@ defmodule SocketConnector do
              "channels.sign.slash_tx",
              "channels.sign.settle_sign"
            ] do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    fun = fn(a, b, c) -> Validator.inspect_sign_request(a, b, method, c) end
+
+    signed_tx = Signer.sign_transaction(to_sign, state, fun)
 
     response = build_message(method, %{signed_tx: signed_tx})
 
@@ -961,7 +964,7 @@ defmodule SocketConnector do
         Signer.sign_transaction(
           to_sign,
           state,
-          Validator.inspect_sign_request_poi(poi)
+          Validator.inspect_sign_request_poi(method, poi)
         )
 
       build_message(method, %{signed_tx: signed_tx})

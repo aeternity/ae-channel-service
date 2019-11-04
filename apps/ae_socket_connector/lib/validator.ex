@@ -130,11 +130,11 @@ defmodule Validator do
   end
 
 
-  def inspect_sign_request_poi(poi) do
-    fn a, b, c -> inspect_sign_request(a, b, c, poi) end
+  def inspect_sign_request_poi(method, poi) do
+    fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
   end
 
-  def inspect_sign_request(aetx, round_initiator, state, poi \\ nil) do
+  def inspect_sign_request(aetx, round_initiator, method, state, poi \\ nil) do
     {module, _tx_instance} = :aetx.specialize_callback(aetx)
 
     # TODO if calls is initiated by us and contains what we submitted auto approval can be made
@@ -160,7 +160,7 @@ defmodule Validator do
 
     Logger.error("CSDAKLDJASDKLJASKLD")
 
-    case send_approval_request(aetx, round_initiator, "", auto_approval, state) do
+    case send_approval_request(aetx, round_initiator, method, auto_approval, state) do
       :ok -> :ok
       _ -> :unsecure
     end

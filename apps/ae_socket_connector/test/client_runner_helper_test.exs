@@ -22,7 +22,7 @@ defmodule ClientRunnerHelper do
   end
 
   def resume_runner(client_runner) do
-    GenServer.cast(client_runner, {:match_jobs, {}})
+    GenServer.cast(client_runner, {:match_jobs, {}, nil})
   end
 
 
