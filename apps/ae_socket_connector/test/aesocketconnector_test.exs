@@ -421,119 +421,119 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  @tag :backchannel
-  test "backchannel jobs", context do
-    {alice, bob} = gen_names(context.test)
+  # @tag :backchannel
+  # test "backchannel jobs", context do
+  #   {alice, bob} = gen_names(context.test)
 
-    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      [
-        {:initiator,
-         %{
-           message: {:channels_update, 1, :self, "channels.update"},
-           next:
-             {:local,
-              fn client_runner, pid_session_holder ->
-                SessionHolder.close_connection(pid_session_holder)
-                ClientRunnerHelper.resume_runner(client_runner)
-              end, :empty},
-           fuzzy: 20
-         }},
-        {:responder,
-         %{
-           next:
-             ClientRunnerHelper.assert_funds_job(
-               {intiator_account, 6_999_999_999_999},
-               {responder_account, 4_000_000_000_001}
-             )
-         }},
-        {:responder,
-         %{
-           message: {:channels_update, 1, :other, "channels.update"},
-           next: ClientRunnerHelper.pause_job(3000),
-           fuzzy: 10
-         }},
-        # this updates should fail, since other end is gone.
-        {:responder,
-         %{
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty}
-         }},
-        {:responder,
-         %{
-           message: {:channels_update, 2, :self, "channels.conflict"},
-           fuzzy: 2,
-           next:
-             {:async,
-              fn pid ->
-                SocketConnector.initiate_transfer(pid, 4, fn to_sign ->
-                  SessionHolder.backchannel_sign_request(initiator, to_sign)
-                end)
-              end, :empty}
-         }},
-        {:responder,
-         %{
-           message: {:channels_update, 2, :self, "channels.update"},
-           fuzzy: 3,
-           next:
-             ClientRunnerHelper.assert_funds_job(
-               {intiator_account, 7_000_000_000_003},
-               {responder_account, 3_999_999_999_997}
-             )
-         }},
-        {:responder,
-         %{
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
-         }},
-        {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
-        {:initiator,
-         %{
-           next:
-             {:local,
-              fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder, 1233)
-                ClientRunnerHelper.resume_runner(client_runner)
-              end, :empty}
-         }},
-        {:initiator,
-         %{
-           next:
-             ClientRunnerHelper.assert_funds_job(
-               {intiator_account, 7_000_000_000_003},
-               {responder_account, 3_999_999_999_997}
-             )
-         }},
-        {:initiator,
-         %{
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
-         }},
-        {:initiator,
-         %{
-           message: {:channels_update, 3, :self, "channels.update"},
-           fuzzy: 3,
-           next:
-             ClientRunnerHelper.assert_funds_job(
-               {intiator_account, 6_999_999_999_998},
-               {responder_account, 4_000_000_000_002}
-             )
-         }},
-        {:responder,
-         %{
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
-         }},
-        {:initiator,
-         %{
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
-         }}
-      ]
-    end
-
-    ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
-      scenario
-    )
-  end
+  #   scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+  #     [
+  #       {:initiator,
+  #        %{
+  #          message: {:channels_update, 1, :self, "channels.update"},
+  #          next:
+  #            {:local,
+  #             fn client_runner, pid_session_holder ->
+  #               SessionHolder.close_connection(pid_session_holder)
+  #               ClientRunnerHelper.resume_runner(client_runner)
+  #             end, :empty},
+  #          fuzzy: 20
+  #        }},
+  #       {:responder,
+  #        %{
+  #          next:
+  #            ClientRunnerHelper.assert_funds_job(
+  #              {intiator_account, 6_999_999_999_999},
+  #              {responder_account, 4_000_000_000_001}
+  #            )
+  #        }},
+  #       {:responder,
+  #        %{
+  #          message: {:channels_update, 1, :other, "channels.update"},
+  #          next: ClientRunnerHelper.pause_job(3000),
+  #          fuzzy: 10
+  #        }},
+  #       # this updates should fail, since other end is gone.
+  #       {:responder,
+  #        %{
+  #          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty}
+  #        }},
+  #       {:responder,
+  #        %{
+  #          message: {:channels_update, 2, :self, "channels.conflict"},
+  #          fuzzy: 2,
+  #          next:
+  #            {:async,
+  #             fn pid ->
+  #               SocketConnector.initiate_transfer(pid, 4, fn to_sign ->
+  #                 SessionHolder.backchannel_sign_request(initiator, to_sign)
+  #               end)
+  #             end, :empty}
+  #        }},
+  #       {:responder,
+  #        %{
+  #          message: {:channels_update, 2, :self, "channels.update"},
+  #          fuzzy: 3,
+  #          next:
+  #            ClientRunnerHelper.assert_funds_job(
+  #              {intiator_account, 7_000_000_000_003},
+  #              {responder_account, 3_999_999_999_997}
+  #            )
+  #        }},
+  #       {:responder,
+  #        %{
+  #          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
+  #        }},
+  #       {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
+  #       {:initiator,
+  #        %{
+  #          next:
+  #            {:local,
+  #             fn client_runner, pid_session_holder ->
+  #               SessionHolder.reconnect(pid_session_holder, 1233)
+  #               ClientRunnerHelper.resume_runner(client_runner)
+  #             end, :empty}
+  #        }},
+  #       {:initiator,
+  #        %{
+  #          next:
+  #            ClientRunnerHelper.assert_funds_job(
+  #              {intiator_account, 7_000_000_000_003},
+  #              {responder_account, 3_999_999_999_997}
+  #            )
+  #        }},
+  #       {:initiator,
+  #        %{
+  #          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty}
+  #        }},
+  #       {:initiator,
+  #        %{
+  #          message: {:channels_update, 3, :self, "channels.update"},
+  #          fuzzy: 3,
+  #          next:
+  #            ClientRunnerHelper.assert_funds_job(
+  #              {intiator_account, 6_999_999_999_998},
+  #              {responder_account, 4_000_000_000_002}
+  #            )
+  #        }},
+  #       {:responder,
+  #        %{
+  #          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+  #        }},
+  #       {:initiator,
+  #        %{
+  #          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+  #        }}
+  #     ]
+  #   end
+  #
+  #   ClientRunner.start_peers(
+  #     @ae_url,
+  #     @network_id,
+  #     {alice, accounts_initiator()},
+  #     {bob, accounts_responder()},
+  #     scenario
+  #   )
+  # end
 
   def close_solo_job() do
     # special cased since this doesn't end up in an update.
@@ -599,54 +599,54 @@ defmodule SocketConnectorTest do
      end, :empty}
   end
 
-  @tag :close_mut
-  test "close mutual", context do
-    {alice, bob} = gen_names(context.test)
+  # @tag :close_mut
+  # test "close mutual", context do
+  #   {alice, bob} = gen_names(context.test)
 
-    scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
-      [
-        {:initiator,
-         %{
-           message: {:channels_update, 1, :self, "channels.update"},
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
-         }},
-        #  get poi is done under the hood, but this call tests additional code
-        {:initiator,
-         %{
-           message: {:channels_update, 2, :self, "channels.update"},
-           next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-           fuzzy: 8
-         }},
-        {:initiator,
-         %{
-           #  message: {:channels_update, 2, :self, "channels.update"},
-           next: close_mutual_job(),
-           fuzzy: 8
-         }},
-        {:initiator,
-         %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
-           fuzzy: 10,
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
-         }},
-        {:responder,
-         %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
-           fuzzy: 20,
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
-         }}
-      ]
-    end
+  #   scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
+  #     [
+  #       {:initiator,
+  #        %{
+  #          message: {:channels_update, 1, :self, "channels.update"},
+  #          next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+  #          fuzzy: 8
+  #        }},
+  #       #  get poi is done under the hood, but this call tests additional code
+  #       {:initiator,
+  #        %{
+  #          message: {:channels_update, 2, :self, "channels.update"},
+  #          next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+  #          fuzzy: 8
+  #        }},
+  #       {:initiator,
+  #        %{
+  #          #  message: {:channels_update, 2, :self, "channels.update"},
+  #          next: close_mutual_job(),
+  #          fuzzy: 8
+  #        }},
+  #       {:initiator,
+  #        %{
+  #          message: {:channels_info, 0, :transient, "closed_confirmed"},
+  #          fuzzy: 10,
+  #          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+  #        }},
+  #       {:responder,
+  #        %{
+  #          message: {:channels_info, 0, :transient, "closed_confirmed"},
+  #          fuzzy: 20,
+  #          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+  #        }}
+  #     ]
+  #   end
 
-    ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
-      scenario
-    )
-  end
+  #   ClientRunner.start_peers(
+  #     @ae_url,
+  #     @network_id,
+  #     {alice, accounts_initiator()},
+  #     {bob, accounts_responder()},
+  #     scenario
+  #   )
+  # end
 
   test "reconnect jobs", context do
     {alice, bob} = gen_names(context.test)

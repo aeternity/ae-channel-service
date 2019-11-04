@@ -96,8 +96,6 @@ defmodule SocketConnector do
     Logger.debug("started link pid is #{inspect(pid)}", ansi_color: color)
     start_ping(pid)
     {:ok, pid}
-
-    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
   def start_link(
@@ -157,16 +155,6 @@ defmodule SocketConnector do
         color,
         ws_manager_pid
       ) do
-    # {round, %Update{}} =
-    #   try do
-    #     Enum.max(round_and_updates)
-    #   rescue
-    #     _update_round_pending -> Enum.max(pending_round_and_update)
-    #   end
-
-    # {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
-    # reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
-    # session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
     session_map = init_reconnect_map(signed_reconnect_tx, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
@@ -181,8 +169,6 @@ defmodule SocketConnector do
 
     start_ping(pid)
     {:ok, pid}
-
-    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
@@ -943,15 +929,9 @@ defmodule SocketConnector do
              "channels.sign.slash_tx",
              "channels.sign.settle_sign"
            ] do
-    # fun = fn(a, b, c) -> Validator.inspect_sign_request(a, b, method, c) end
-
-    # signed_tx = Signer.sign_transaction(to_sign, state, fun)
 
     Validator.notify_sign_transaction(to_sign, method, state)
     {:ok, state}
-    # response = build_message(method, %{signed_tx: signed_tx})
-
-    # {:reply, {:text, Poison.encode!(response)}, state}
   end
 
   # these dosn't contain round... merge with above
@@ -967,6 +947,7 @@ defmodule SocketConnector do
       # TODO need to check that PoI makes any sense to us
       Logger.debug("POI is: #{inspect(poi)}", state.color)
 
+      # TODO unfinished...
       signed_tx =
         Signer.sign_transaction(
           to_sign,
@@ -1040,41 +1021,6 @@ defmodule SocketConnector do
 
     Validator.notify_sign_transaction(pending_update, method, state)
 
-    # signed_payload =
-    #   Signer.sign_transaction(
-    #     pending_update,
-    #     state,
-    #     &Validator.inspect_sign_request/3
-    #   )
-
-    # # check if we have a backchannel if so request signing that way:
-    # response =
-    #   case state.backchannel_sign_req_fun do
-    #     nil ->
-    #       build_message(method, %{signed_tx: signed_payload})
-
-    #     _backchannel ->
-    #       mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
-    #       build_message(method, %{signed_tx: mutual_signed})
-    #   end
-
-    # # TODO
-    # # double check that the call_data is the calldata we produced
-
-    # # test seperated signing....
-    # signed_payload_2 =
-    #   case state.backchannel_sign_req_fun do
-    #     nil ->
-    #       signed_payload
-
-    #     _backchannel ->
-    #       state.backchannel_sign_req_fun.(signed_payload)
-
-    #   end
-
-    # send_signed_message(self(), method, signed_payload_2)
-
-    # {:ok, state}
     {:ok,
      %__MODULE__{
        state
@@ -1082,21 +1028,7 @@ defmodule SocketConnector do
            #  TODO not sure on state_tx naming here...
            Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: nil}
          }
-         #  ,
-         #  contract_call_in_flight: nil,
-         #  backchannel_sign_req_fun: nil
      }}
-
-    # {:reply, {:text, Poison.encode!(response)},
-    #  %__MODULE__{
-    #    state
-    #    | pending_round_and_update: %{
-    #        #  TODO not sure on state_tx naming here...
-    #        Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload}
-    #      },
-    #      contract_call_in_flight: nil,
-    #      backchannel_sign_req_fun: nil
-    #  }}
   end
 
   def process_get_settle_reponse(

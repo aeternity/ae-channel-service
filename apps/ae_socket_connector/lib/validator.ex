@@ -69,7 +69,6 @@ defmodule Validator do
         sign_approve: sign_approve,
         channels_update: _channels_update
       } ->
-
         # TODO this is not pretty
         {module, instance} = :aetx.specialize_callback(aetx)
 
@@ -107,30 +106,22 @@ defmodule Validator do
     end
   end
 
-   def notify_sign_transaction(
+  def notify_sign_transaction(
         to_sign,
         method,
         state
-        # verify_hook \\ fn _tx, _round_initiator, _state -> :unsecure end
       )
 
   def notify_sign_transaction(
         %Update{} = pending_update,
         method,
         state
-        # verify_hook
       ) do
     %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
 
-    # {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
-    # # returns #aetx
-    # deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
-    # aetx = :aetx_sign.tx(deserialized_signed_tx)
-
-    # auto approbe needs to be done.
+    # TODO need to re-implement auto approval
     auto_approval = :ok
 
-    # case send_approval_request(aetx, round_initiator, method, auto_approval, state) do
     case send_approval_request(to_sign, round_initiator, method, auto_approval, state) do
       :ok -> :ok
       _ -> :unsecure
@@ -141,7 +132,6 @@ defmodule Validator do
         to_sign,
         method,
         state
-        # verify_hook
       ) do
     notify_sign_transaction(
       %Update{tx: to_sign, round_initiator: :not_implemented},
@@ -149,7 +139,6 @@ defmodule Validator do
       state
     )
   end
-
 
   def inspect_sign_request_poi(method, poi) do
     fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
@@ -178,8 +167,6 @@ defmodule Validator do
 
           :ok
       end
-
-    Logger.error("CSDAKLDJASDKLJASKLD")
 
     case send_approval_request(aetx, round_initiator, method, auto_approval, state) do
       :ok -> :ok
