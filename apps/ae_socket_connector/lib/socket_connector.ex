@@ -320,6 +320,7 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:settle, from})
   end
 
+  @spec send_signed_message(pid, String.t(), <<>>) :: :ok
   def send_signed_message(pid, method, payload) do
     WebSockex.cast(pid, {:signed_payload, method, payload})
   end
@@ -1014,7 +1015,7 @@ defmodule SocketConnector do
       case {method in @self, method in @other} do
         {true, false} -> :self
         {false, true} -> :other
-        _ -> throw("no matching mathod, can not happen")
+        _ -> throw("no matching method, can not happen")
       end
 
     pending_update = %Update{
@@ -1024,50 +1025,52 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    signed_payload =
-      Signer.sign_transaction(
-        pending_update,
-        state,
-        &Validator.inspect_sign_request/3
-      )
+    Validator.notify_sign_transaction(pending_update, method, state)
 
-    # check if we have a backchannel if so request signing that way:
-    response =
-      case state.backchannel_sign_req_fun do
-        nil ->
-          build_message(method, %{signed_tx: signed_payload})
+    # signed_payload =
+    #   Signer.sign_transaction(
+    #     pending_update,
+    #     state,
+    #     &Validator.inspect_sign_request/3
+    #   )
 
-        _backchannel ->
-          mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
-          build_message(method, %{signed_tx: mutual_signed})
-      end
+    # # check if we have a backchannel if so request signing that way:
+    # response =
+    #   case state.backchannel_sign_req_fun do
+    #     nil ->
+    #       build_message(method, %{signed_tx: signed_payload})
 
-    # TODO
-    # double check that the call_data is the calldata we produced
+    #     _backchannel ->
+    #       mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
+    #       build_message(method, %{signed_tx: mutual_signed})
+    #   end
 
-    # test seperated signing....
-    signed_payload_2 =
-      case state.backchannel_sign_req_fun do
-        nil ->
-          signed_payload
+    # # TODO
+    # # double check that the call_data is the calldata we produced
 
-        _backchannel ->
-          state.backchannel_sign_req_fun.(signed_payload)
+    # # test seperated signing....
+    # signed_payload_2 =
+    #   case state.backchannel_sign_req_fun do
+    #     nil ->
+    #       signed_payload
 
-      end
+    #     _backchannel ->
+    #       state.backchannel_sign_req_fun.(signed_payload)
 
-    send_signed_message(self(), method, signed_payload_2)
+    #   end
 
-    {:ok,
-     %__MODULE__{
-       state
-       | pending_round_and_update: %{
-           #  TODO not sure on state_tx naming here...
-           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload_2}
-         },
-         contract_call_in_flight: nil,
-         backchannel_sign_req_fun: nil
-     }}
+    # send_signed_message(self(), method, signed_payload_2)
+
+    {:ok, state}
+    #  %__MODULE__{
+    #    state
+    #    | pending_round_and_update: %{
+    #        #  TODO not sure on state_tx naming here...
+    #        Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload_2}
+    #      },
+    #      contract_call_in_flight: nil,
+    #      backchannel_sign_req_fun: nil
+    #  }}
 
 
     # {:reply, {:text, Poison.encode!(response)},

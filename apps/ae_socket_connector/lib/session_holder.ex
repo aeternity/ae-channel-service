@@ -52,6 +52,10 @@ defmodule SessionHolder do
     GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
   end
 
+  def sign_message(pid, to_sign) do
+    GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
+  end
+
   # Server
   def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, color}) do
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())

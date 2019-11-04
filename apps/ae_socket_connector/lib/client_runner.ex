@@ -26,25 +26,23 @@ defmodule ClientRunner do
   def connection_callback(callback_pid, color) do
     %SocketConnector.ConnectionCallbacks{
 
-      sign_approve: fn round_initiator, round, auto_approval, human ->
+      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, human  ->
         Logger.debug(
-          "sign_approve received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)}. auto_approval: #{
-            inspect(auto_approval)
-          }, containing: #{inspect(human)}",
+          ":sign_approve, #{inspect(round)}, #{inspect(method)} extras: to_sign #{inspect(to_sign)} auto_approval: #{inspect(auto_approval)}, human: #{inspect(human)}",
           ansi_color: color
         )
-        GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round}})
+        GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, method}, to_sign})
         auto_approval
       end,
 
       channels_info: fn round_initiator, round, method ->
         log_callback(:channels_info, round, round_initiator, method, ansi_color: color)
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}})
+        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
       end,
 
       channels_update: fn round_initiator, round, method ->
         log_callback(:channels_update, round, round_initiator, method, ansi_color: color)
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}})
+        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
       end,
 
       on_chain: fn round_initiator, round, method ->
@@ -54,7 +52,7 @@ defmodule ClientRunner do
           }}",
           ansi_color: color
         )
-        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}})
+        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
       end
     }
   end
@@ -105,7 +103,8 @@ defmodule ClientRunner do
   end
 
   # {:responder, :channels_info, 0, :transient, "channel_open"}
-  def handle_cast({:match_jobs, message}, state) do
+  # def handle_cast({:match_jobs, message}, state)
+  def handle_cast({:match_jobs, message, to_sign}, state) do
     case state.match_list do
       [%{message: expected} = match | rest] ->
         Logger.debug(
@@ -115,6 +114,15 @@ defmodule ClientRunner do
 
         case expected == message do
           true ->
+            case elem(expected, 0) do
+              # TODO how do we descide if we should sign?
+              :sign_approve ->
+                Logger.debug "HEJSAN"
+                signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+                fun = fn pid -> SocketConnector.send_signed_message(pid, elem(expected, 2), signed) end
+                SessionHolder.run_action(state.pid_session_holder, fun)
+              _ -> :ok
+            end
             run_next(match)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
@@ -168,7 +176,7 @@ defmodule ClientRunner do
           _ -> assert_fun.(response)
         end
 
-        GenServer.cast(self(), {:match_jobs, {}})
+        GenServer.cast(self(), {:match_jobs, {}, nil})
 
       :local ->
         fun.(self(), state.pid_session_holder)

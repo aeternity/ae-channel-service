@@ -42,6 +42,7 @@ defmodule Signer do
       :ok ->
         bin = :aetx.serialize_to_binary(aetx)
         # bin = signed_tx
+        Logger.error "CRASH #{inspect bin} #{inspect aetx}"
         bin_for_network = <<state.network_id::binary, bin::binary>>
         result_signed = :enacl.sign_detached(bin_for_network, state.priv_key)
         # if there are signatures already make sure to preserve them.

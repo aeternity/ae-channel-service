@@ -139,6 +139,16 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
+           message: {:sign_approve, 1, "channels.sign.initiator_sign"},
+           fuzzy: 10
+         }},
+        # {:responder,
+        #  %{
+        #    message: {:sign_approve, 1, "channels.sign.initiator_sign"},
+        #    fuzzy: 10
+        #  }},
+        {:initiator,
+         %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 10
@@ -736,8 +746,7 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract =
-        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
@@ -760,8 +769,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next:
-             {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
          }},
         {:initiator,
          %{
