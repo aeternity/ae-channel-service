@@ -127,7 +127,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+      custom_config(%{}, %{minimum_depth: 0, port: 1401})
     )
   end
 
@@ -191,7 +191,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+      custom_config(%{}, %{minimum_depth: 0, port: 1402})
     )
   end
 
@@ -253,7 +253,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+      custom_config(%{}, %{minimum_depth: 0, port: 1403})
     )
   end
 
@@ -345,7 +345,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+      custom_config(%{}, %{minimum_depth: 0, port: 1404})
     )
   end
 
@@ -406,7 +406,8 @@ defmodule SocketConnectorTest do
       @network_id,
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
-      scenario
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1405})
     )
   end
 
@@ -586,7 +587,8 @@ defmodule SocketConnectorTest do
       @network_id,
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
-      scenario
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1406})
       # custom_config(%{}, %{minimum_depth: 1})
     )
   end
@@ -740,7 +742,8 @@ defmodule SocketConnectorTest do
       @network_id,
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
-      scenario
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1407})
     )
   end
 
@@ -911,7 +914,8 @@ defmodule SocketConnectorTest do
       @network_id,
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
-      scenario
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1408})
     )
   end
 
@@ -997,7 +1001,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 50})
+      custom_config(%{}, %{minimum_depth: 50, port: 1409})
     )
   end
 
