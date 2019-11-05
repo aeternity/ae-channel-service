@@ -128,7 +128,7 @@ defmodule ClientRunner do
     case state.match_list do
       [%{message: expected} = match | rest] ->
         Logger.debug(
-          "expected #{inspect(expected)} received #{inspect(received_message)}",
+          "match: #{inspect(expected == received_message)} role: #{inspect(state.role)} expected #{inspect(expected)} received #{inspect(received_message)}",
           state.color
         )
 
