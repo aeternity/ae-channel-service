@@ -947,68 +947,68 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  # @tag :ignore
-  # @tag :open_channel_passive
-  # test "teardown on channel creation", context do
-  #   {alice, bob} = gen_names(context.test)
+  @tag :ignore
+  @tag :open_channel_passive
+  test "teardown on channel creation", context do
+    {alice, bob} = gen_names(context.test)
 
-  #   scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-  #     [
-  #       {:initiator,
-  #        %{
-  #          message: {:channels_info, 0, :transient, "own_funding_locked"},
-  #          fuzzy: 10,
-  #          next:
-  #            {:local,
-  #             fn client_runner, pid_session_holder ->
-  #               SessionHolder.close_connection(pid_session_holder)
-  #               ClientRunnerHelper.resume_runner(client_runner)
-  #             end, :empty}
-  #        }},
-  #       {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
-  #       {:initiator,
-  #        %{
-  #          next:
-  #            {:local,
-  #             fn client_runner, pid_session_holder ->
-  #               SessionHolder.reestablish(pid_session_holder, 1501)
-  #               ClientRunnerHelper.resume_runner(client_runner)
-  #             end, :empty}
-  #        }},
-  #       # currently no message is received on reconnect.
-  #       # to eager fething causes timeout due to missing response.
-  #       {:initiator, %{next: ClientRunnerHelper.pause_job(1000)}},
-  #       {:initiator,
-  #        %{
-  #          fuzzy: 3,
-  #          next:
-  #            ClientRunnerHelper.assert_funds_job(
-  #              {intiator_account, 6_999_999_999_999},
-  #              {responder_account, 4_000_000_000_001}
-  #            )
-  #        }},
-  #       {:initiator,
-  #        %{
-  #          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
-  #        }},
-  #       {:responder,
-  #        %{
-  #          message: {:channels_update, 1, :other, "channels.update"},
-  #          fuzzy: 14,
-  #          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
-  #        }}
-  #     ]
-  #   end
+    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+      [
+        {:initiator,
+         %{
+           message: {:channels_info, 0, :transient, "own_funding_locked"},
+           fuzzy: 10,
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                SessionHolder.close_connection(pid_session_holder)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+         }},
+        {:initiator, %{next: ClientRunnerHelper.pause_job(10000)}},
+        {:initiator,
+         %{
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                SessionHolder.reestablish(pid_session_holder, 1501)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+         }},
+        # currently no message is received on reconnect.
+        # to eager fething causes timeout due to missing response.
+        {:initiator, %{next: ClientRunnerHelper.pause_job(1000)}},
+        {:initiator,
+         %{
+           fuzzy: 3,
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_999},
+               {responder_account, 4_000_000_000_001}
+             )
+         }},
+        {:initiator,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }},
+        {:responder,
+         %{
+           message: {:channels_update, 1, :other, "channels.update"},
+           fuzzy: 14,
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }}
+      ]
+    end
 
-  #   ClientRunner.start_peers(
-  #     @ae_url,
-  #     @network_id,
-  #     {alice, accounts_initiator()},
-  #     {bob, accounts_responder()},
-  #     scenario,
-  #     custom_config(%{}, %{minimum_depth: 50, port: 1409})
-  #   )
-  # end
+    ClientRunner.start_peers(
+      @ae_url,
+      @network_id,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
+      scenario,
+      custom_config(%{}, %{minimum_depth: 50, port: 1409})
+    )
+  end
 
   # scenario = fn {initiator, intiator_account}, {responder, _responder_account}, runner_pid ->
   #   []
