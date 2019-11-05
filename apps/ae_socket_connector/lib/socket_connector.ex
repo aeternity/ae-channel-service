@@ -875,17 +875,20 @@ defmodule SocketConnector do
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
       # TODO this should not be hardcoded.
-      port: port
+      port: port,
+      role: role
     }
 
     role_map =
       case role do
         :initiator ->
-          %URI{host: host} = URI.parse(host_url)
-          %{host: host, role: "initiator"}
+          # TODO Workaound to be able to connect to node
+          # %URI{host: host} = URI.parse(host_url)
+          # %{host: host}
+          %{host: "localhost"}
 
-        :responder ->
-          %{role: "responder"}
+        _ ->
+          %{}
       end
 
     Map.merge(same, role_map)

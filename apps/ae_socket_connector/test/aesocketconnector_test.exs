@@ -51,12 +51,12 @@ defmodule SocketConnectorTest do
         {:responder, %{message: {:on_chain, 0, :transient, "funding_created"}}},
         {:initiator, %{message: {:channels_info, 0, :transient, "funding_signed"}}},
         {:initiator, %{message: {:on_chain, 0, :transient, "funding_signed"}}},
-        {:responder, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
-        {:responder, %{message: {:channels_info, 0, :transient, "own_funding_locked"}}},
-        {:initiator, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "own_funding_locked"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "funding_locked"}}},
-        {:responder, %{message: {:channels_info, 0, :transient, "funding_locked"}}},
+        # {:responder, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "own_funding_locked"}}},
+        # {:initiator, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "own_funding_locked"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "funding_locked"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "funding_locked"}}},
         {:initiator, %{message: {:channels_info, 0, :transient, "open"}}},
         {:initiator,
          %{
@@ -156,7 +156,8 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            message: {:sign_approve, 2, "channels.sign.update"},
-           fuzzy: 10
+           fuzzy: 10,
+           sign: :cancel
          }},
         {:responder,
          %{
@@ -547,6 +548,7 @@ defmodule SocketConnectorTest do
   end
 
   @tag :close_solo
+  # @tag timeout: 60000 * 10
   test "close solo", context do
     {alice, bob} = gen_names(context.test)
 
@@ -585,6 +587,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario
+      # custom_config(%{}, %{minimum_depth: 1})
     )
   end
 
