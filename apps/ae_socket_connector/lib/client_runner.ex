@@ -126,7 +126,7 @@ defmodule ClientRunner do
     process_sign_request(received_message, to_sign, state)
 
     case state.match_list do
-      [%{message: expected} = match | rest] ->
+      [%{message: expected} = entry | rest] ->
         Logger.debug(
           "match: #{inspect(expected == received_message)} role: #{inspect(state.role)} expected #{inspect(expected)} received #{inspect(received_message)}",
           state.color
@@ -134,11 +134,11 @@ defmodule ClientRunner do
 
         case expected == received_message do
           true ->
-            run_next(match)
+            run_next(entry)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
           false ->
-            case Map.get(match, :fuzzy, 0) do
+            case Map.get(entry, :fuzzy, 0) do
               0 ->
                 throw("message not matching")
 
@@ -162,8 +162,8 @@ defmodule ClientRunner do
             end
         end
 
-      [%{next: _next} = match | rest] ->
-        run_next(match)
+      [%{next: _next} = entry | rest] ->
+        run_next(entry)
         {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
       [] ->
