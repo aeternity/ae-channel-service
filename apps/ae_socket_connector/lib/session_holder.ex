@@ -31,11 +31,11 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:close_connection})
   end
 
-  def reestablish(pid, port \\ 12342) do
+  def reestablish(pid, port \\ 1501) do
     GenServer.cast(pid, {:reestablish, port})
   end
 
-  def reconnect(pid, port \\ 12345) do
+  def reconnect(pid, port \\ 1502) do
     GenServer.cast(pid, {:reconnect, port})
   end
 

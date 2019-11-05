@@ -71,7 +71,7 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            message: {:channels_update, 1, :transient, "channels.leave"},
-           fuzzy: 0,
+           fuzzy: 1,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }},
         {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 0}},
@@ -962,7 +962,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reestablish(pid_session_holder, 12343)
+                SessionHolder.reestablish(pid_session_holder, 1501)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
