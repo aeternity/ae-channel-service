@@ -5,7 +5,6 @@ defmodule SocketConnector do
   @socket_ping_intervall 50
 
   defstruct pub_key: nil,
-            priv_key: nil,
             role: nil,
             session: %{},
             color: nil,
@@ -71,7 +70,6 @@ defmodule SocketConnector do
   def start_link(
         %__MODULE__{
           pub_key: _pub_key,
-          priv_key: _priv_key,
           session: session,
           role: role
         } = state_channel_context,
@@ -98,8 +96,6 @@ defmodule SocketConnector do
     Logger.debug("started link pid is #{inspect(pid)}", ansi_color: color)
     start_ping(pid)
     {:ok, pid}
-
-    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
   def start_link(
@@ -152,27 +148,14 @@ defmodule SocketConnector do
   # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
   def start_link(
         :reconnect,
+        signed_reconnect_tx,
         %__MODULE__{
-          pub_key: pub_key,
-          role: role,
-          channel_id: channel_id,
-          round_and_updates: round_and_updates,
-          pending_round_and_update: pending_round_and_update
         } = state_channel_context,
         port,
         color,
         ws_manager_pid
       ) do
-    {round, %Update{}} =
-      try do
-        Enum.max(round_and_updates)
-      rescue
-        _update_round_pending -> Enum.max(pending_round_and_update)
-      end
-
-    # {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
-    session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
+    session_map = init_reconnect_map(signed_reconnect_tx, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 
@@ -186,8 +169,6 @@ defmodule SocketConnector do
 
     start_ping(pid)
     {:ok, pid}
-
-    # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
@@ -318,6 +299,11 @@ defmodule SocketConnector do
   @spec settle(pid, pid) :: :ok
   def settle(pid, from \\ nil) do
     WebSockex.cast(pid, {:settle, from})
+  end
+
+  @spec send_signed_message(pid, String.t(), <<>>) :: :ok
+  def send_signed_message(pid, method, payload) do
+    WebSockex.cast(pid, {:signed_payload, method, payload})
   end
 
   # Server side
@@ -636,6 +622,24 @@ defmodule SocketConnector do
      }}
   end
 
+  def handle_cast(
+        {:signed_payload, method, signed_payload},
+        %__MODULE__{pending_round_and_update: pending_round_and_update} = state
+      )
+      when pending_round_and_update != %{} do
+    [{round, update}] = Map.to_list(state.pending_round_and_update)
+
+    {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))},
+     %__MODULE__{state | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}}}
+  end
+
+  def handle_cast(
+        {:signed_payload, method, signed_payload},
+        state
+      ) do
+    {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))}, state}
+  end
+
   def build_request(method, params \\ %{}) do
     default_params =
       case method do
@@ -649,12 +653,14 @@ defmodule SocketConnector do
 
   def build_message(method, params \\ %{}) do
     string_replace = ".sign"
+
     {reply_method, reply_params} =
       case String.contains?(method, string_replace) do
         true ->
           {String.replace(method, string_replace, ""), %{}}
+
         false ->
-          throw("this is not a sign request methid is: #{inspect method}")
+          throw("this is not a sign request method. Method is: #{inspect(method)}")
       end
 
     %{params: Map.merge(reply_params, params), method: reply_method, jsonrpc: "2.0"}
@@ -839,7 +845,7 @@ defmodule SocketConnector do
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
 
-    # Logger.info("Received Message: #{inspect msg} #{inspect message} #{inspect self()}", state.color)
+    # Logger.info("Received Message: #{inspect(msg)} #{inspect(message)} #{inspect(self())}", state.color)
     process_message(message, state)
   end
 
@@ -863,23 +869,26 @@ defmodule SocketConnector do
 
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=responder
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&host=localhost&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=initiator
-  def init_reestablish_map(channel_id, offchain_tx, role, host_url, port) do
+  def init_reestablish_map(channel_id, offchain_tx, role, _host_url, port) do
     same = %{
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
       # TODO this should not be hardcoded.
-      port: port
+      port: port,
+      role: role
     }
 
     role_map =
       case role do
         :initiator ->
-          %URI{host: host} = URI.parse(host_url)
-          %{host: host, role: "initiator"}
+          # TODO Workaound to be able to connect to node
+          # %URI{host: host} = URI.parse(host_url)
+          # %{host: host}
+          %{host: "localhost"}
 
-        :responder ->
-          %{role: "responder"}
+        _ ->
+          %{}
       end
 
     Map.merge(same, role_map)
@@ -910,7 +919,7 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # these dosn't contain round...
+  # these doesn't contain round...
   def process_message(
         %{
           "method" => method,
@@ -923,11 +932,9 @@ defmodule SocketConnector do
              "channels.sign.slash_tx",
              "channels.sign.settle_sign"
            ] do
-    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
 
-    response = build_message(method, %{signed_tx: signed_tx})
-
-    {:reply, {:text, Poison.encode!(response)}, state}
+    Validator.notify_sign_transaction(to_sign, method, state)
+    {:ok, state}
   end
 
   # these dosn't contain round... merge with above
@@ -939,16 +946,16 @@ defmodule SocketConnector do
         state
       )
       when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
-
     pending_sign_attempt = fn poi ->
       # TODO need to check that PoI makes any sense to us
       Logger.debug("POI is: #{inspect(poi)}", state.color)
 
+      # TODO unfinished...
       signed_tx =
         Signer.sign_transaction(
           to_sign,
           state,
-          Validator.inspect_sign_request_poi(poi)
+          Validator.inspect_sign_request_poi(method, poi)
         )
 
       build_message(method, %{signed_tx: signed_tx})
@@ -1001,12 +1008,11 @@ defmodule SocketConnector do
       )
       when method in @other
       when method in @self do
-
     round_initiator =
       case {method in @self, method in @other} do
         {true, false} -> :self
         {false, true} -> :other
-        _ -> throw("no matching mathod, can not happen")
+        _ -> throw("no matching method, can not happen")
       end
 
     pending_update = %Update{
@@ -1016,36 +1022,15 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    signed_payload =
-      Signer.sign_transaction(
-        pending_update,
-        state,
-        &Validator.inspect_sign_request/3
-      )
+    Validator.notify_sign_transaction(pending_update, method, state)
 
-    # check if we have a backchannel if so request signing that way:
-    response =
-      case state.backchannel_sign_req_fun do
-        nil ->
-          build_message(method, %{signed_tx: signed_payload})
-
-        _backchannel ->
-          mutual_signed = state.backchannel_sign_req_fun.(signed_payload)
-          build_message(method, %{signed_tx: mutual_signed})
-      end
-
-    # TODO
-    # double check that the call_data is the calldata we produced
-
-    {:reply, {:text, Poison.encode!(response)},
+    {:ok,
      %__MODULE__{
        state
        | pending_round_and_update: %{
            #  TODO not sure on state_tx naming here...
-           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: signed_payload}
-         },
-         contract_call_in_flight: nil,
-         backchannel_sign_req_fun: nil
+           Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: nil}
+         }
      }}
   end
 

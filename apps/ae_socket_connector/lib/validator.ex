@@ -55,7 +55,12 @@ defmodule Validator do
   #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
   # end
 
-  defp send_approval_request(aetx, round_initiator, auto_approval, state) do
+  defp send_approval_request(to_sign, round_initiator, method, auto_approval, state) do
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
+    # returns #aetx
+    deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
+    aetx = :aetx_sign.tx(deserialized_signed_tx)
+
     case state.connection_callbacks do
       nil ->
         :unsecure
@@ -72,15 +77,17 @@ defmodule Validator do
           :aesc_close_mutual_tx ->
             Logger.debug("Close mutual #{inspect(instance)}", state.color)
             # round = apply(module, :nonce, [instance])
-            sign_approve.(round_initiator, 0, auto_approval, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
 
           :aesc_slash_tx ->
             # todo code missing there. we should get the round somehow.
-            sign_approve.(round_initiator, 0, auto_approval, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+
           # apply(module, :for_client, [instance])
           :aesc_settle_tx ->
             # todo code missing there. we should get the round somehow.
-            sign_approve.(round_initiator, 0, auto_approval, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+
           # apply(module, :for_client, [instance])
 
           trasaction_type when trasaction_type in [:aesc_close_solo_tx] ->
@@ -90,20 +97,54 @@ defmodule Validator do
             aetx = :aetx_sign.tx(deserialized_signed_tx)
             {module, instance} = :aetx.specialize_callback(aetx)
             round = apply(module, :round, [instance])
-            sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, round, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
 
           _ ->
             round = apply(module, :round, [instance])
-            sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, round, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
         end
     end
   end
 
-  def inspect_sign_request_poi(poi) do
-    fn a, b, c -> inspect_sign_request(a, b, c, poi) end
+  def notify_sign_transaction(
+        to_sign,
+        method,
+        state
+      )
+
+  def notify_sign_transaction(
+        %Update{} = pending_update,
+        method,
+        state
+      ) do
+    %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
+
+    # TODO need to re-implement auto approval
+    auto_approval = :ok
+
+    case send_approval_request(to_sign, round_initiator, method, auto_approval, state) do
+      :ok -> :ok
+      _ -> :unsecure
+    end
   end
 
-  def inspect_sign_request(aetx, round_initiator, state, poi \\ nil) do
+  def notify_sign_transaction(
+        to_sign,
+        method,
+        state
+      ) do
+    notify_sign_transaction(
+      %Update{tx: to_sign, round_initiator: :not_implemented},
+      method,
+      state
+    )
+  end
+
+  def inspect_sign_request_poi(method, poi) do
+    fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
+  end
+
+  def inspect_sign_request(aetx, round_initiator, method, state, poi \\ nil) do
     {module, _tx_instance} = :aetx.specialize_callback(aetx)
 
     # TODO if calls is initiated by us and contains what we submitted auto approval can be made
@@ -113,9 +154,10 @@ defmodule Validator do
           channel_create_tx(aetx, state)
 
         :aesc_close_mutual_tx ->
-          # TODO match_pot_aetx is currently doing the same checking...
+          # TODO match_pot_aetx is currently doing the notify_sign_transactionsame checking...
           match_poi_aetx(
-            {poi, [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id], []},
+            {poi, [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+             []},
             aetx,
             state.round_and_updates
           )
@@ -126,7 +168,7 @@ defmodule Validator do
           :ok
       end
 
-    case send_approval_request(aetx, round_initiator, auto_approval, state) do
+    case send_approval_request(aetx, round_initiator, method, auto_approval, state) do
       :ok -> :ok
       _ -> :unsecure
     end

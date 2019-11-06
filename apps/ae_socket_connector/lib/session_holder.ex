@@ -6,17 +6,20 @@ defmodule SessionHolder do
 
   defstruct socket_connector_pid: nil,
             color: nil,
+            network_id: nil,
+            priv_key: nil,
             socket_connector_state: %SocketConnector{}
 
   def start_link(%{
         socket_connector: %SocketConnector{} = socket_connector_state,
         ae_url: ae_url,
         network_id: network_id,
+        priv_key: priv_key,
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
-    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, color}, name: name)
+    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, color}, name: name)
   end
 
   # this is here for tesing purposes
@@ -28,11 +31,11 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:close_connection})
   end
 
-  def reestablish(pid, port \\ 12342) do
+  def reestablish(pid, port \\ 1501) do
     GenServer.cast(pid, {:reestablish, port})
   end
 
-  def reconnect(pid, port \\ 12345) do
+  def reconnect(pid, port \\ 1502) do
     GenServer.cast(pid, {:reconnect, port})
   end
 
@@ -52,11 +55,15 @@ defmodule SessionHolder do
     GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
   end
 
+  def sign_message(pid, to_sign) do
+    GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
+  end
+
   # Server
-  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, color}) do
+  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, color}) do
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
 
-    {:ok, %__MODULE__{socket_connector_pid: pid, socket_connector_state: socket_connector_state, color: color}}
+    {:ok, %__MODULE__{socket_connector_pid: pid, socket_connector_state: socket_connector_state, network_id: network_id, priv_key: priv_key, color: color}}
   end
 
   defp kill_connection(pid, color) do
@@ -90,7 +97,19 @@ defmodule SessionHolder do
   def handle_cast({:reconnect, port}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:reconnect, state.socket_connector_state, port, state.color, self())
+    socket_connector_state = state.socket_connector_state
+
+    {round, %SocketConnector.Update{}} =
+      try do
+        Enum.max(socket_connector_state.round_and_updates)
+      rescue
+        _update_round_pending -> Enum.max(socket_connector_state.pending_round_and_update)
+      end
+
+    reconnect_tx = SocketConnector.create_reconnect_tx(socket_connector_state.channel_id, round, socket_connector_state.role, socket_connector_state.pub_key)
+    signed_reconnect_tx = Signer.sign_aetx(reconnect_tx, state.network_id, state.priv_key)
+
+    {:ok, pid} = SocketConnector.start_link(:reconnect, signed_reconnect_tx, state.socket_connector_state, port, state.color, self())
 
     {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
@@ -123,7 +142,7 @@ defmodule SessionHolder do
   # TODO this allows backchannel signing, either way. Should we should uppdate round in the state?
   def handle_call({:sign_request, to_sign}, _from, state) do
     sign_result =
-      Signer.sign_transaction(to_sign, state.socket_connector_state, fn _tx, _round_initiator, _state ->
+      Signer.sign_transaction(to_sign, state.network_id, state.priv_key, fn _tx, _round_initiator, _state ->
         :ok
       end)
 
@@ -154,7 +173,7 @@ defmodule SessionHolder do
     end
 
     transaction = SocketConnector.create_solo_close_tx(socket_connector_state.pub_key, socket_connector_state.channel_id, state_tx, poi, nonce, ttl)
-    {:reply, Signer.sign_aetx(transaction, socket_connector_state), %__MODULE__{state | socket_connector_state: socket_connector_state}}
+    {:reply, Signer.sign_aetx(transaction, state.network_id, state.priv_key), %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   # @spec suffix_name(name) :: name when name: atom()
