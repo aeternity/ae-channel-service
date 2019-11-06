@@ -5,7 +5,6 @@ defmodule ClientRunnerHelper do
   def sequence_finish_job(runner_pid, name) do
     {:local,
      fn _client_runner, _pid_session_holder ->
-       Logger.info("Sending termination for #{inspect(name)}")
        send(runner_pid, {:test_finished, name})
      end, :empty}
   end

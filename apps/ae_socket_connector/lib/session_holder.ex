@@ -13,7 +13,7 @@ defmodule SessionHolder do
         ae_url: ae_url,
         network_id: network_id,
         color: color,
-        # TODO remove this?
+        # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
     GenServer.start_link(__MODULE__, {configuration, ae_url, network_id, color}, name: name)
@@ -28,12 +28,12 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:close_connection})
   end
 
-  def reestablish(pid) do
-    GenServer.cast(pid, {:reestablish})
+  def reestablish(pid, port \\ 12342) do
+    GenServer.cast(pid, {:reestablish, port})
   end
 
-  def reconnect(pid) do
-    GenServer.cast(pid, {:reconnect})
+  def reconnect(pid, port \\ 12345) do
+    GenServer.cast(pid, {:reconnect, port})
   end
 
   def stop_helper(pid) do
@@ -54,7 +54,7 @@ defmodule SessionHolder do
 
   # Server
   def init({%SocketConnector{} = configuration, ae_url, network_id, color}) do
-    {:ok, pid} = SocketConnector.start_link(:alice, configuration, ae_url, network_id, color, self())
+    {:ok, pid} = SocketConnector.start_link(configuration, ae_url, network_id, color, self())
 
     {:ok, %__MODULE__{pid: pid, configuration: configuration, color: color}}
   end
@@ -79,22 +79,22 @@ defmodule SessionHolder do
     {:noreply, state}
   end
 
-  def handle_cast({:reconnect}, state) do
+  def handle_cast({:reconnect, port}, state) do
     Logger.debug("about to re-connect connection", ansi_color: state.color)
 
-    {:ok, pid} = SocketConnector.start_link(:alice, state.configuration, :reconnect, state.color, self())
+    {:ok, pid} = SocketConnector.start_link(:reconnect, state.configuration, port, state.color, self())
 
     {:noreply, %__MODULE__{state | pid: pid}}
   end
 
-  def handle_cast({:reestablish}, state) do
+  def handle_cast({:reestablish, port}, state) do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
     {:ok, pid} =
       SocketConnector.start_link(
-        :alice,
         :reestablish,
         state.configuration,
+        port,
         state.color,
         self()
       )
@@ -120,6 +120,30 @@ defmodule SessionHolder do
       end)
 
     {:reply, sign_result, state}
+  end
+
+  def handle_call(
+        {:solo_close_transaction, round, nonce, ttl},
+        _from,
+        %{configuration: %SocketConnector{} = state} = session_holder_state
+      ) do
+    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(state.round_and_updates, round)
+
+    case poi do
+      nil ->
+        Logger.error("You should have fetched poi at round #{inspect(round)}")
+        contains_poi = Enum.reduce(state.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
+          case poi do
+            nil -> acc
+            _ -> Map.put(acc, round, poi)
+          end
+        end)
+        Logger.error("Rounds with poi #{inspect contains_poi}")
+      _ -> :poi_present_for_round
+    end
+
+    transaction = SocketConnector.create_solo_close_tx(state.pub_key, state.channel_id, state_tx, poi, nonce, ttl)
+    {:reply, Signer.sign_aetx(transaction, state), session_holder_state}
   end
 
   # @spec suffix_name(name) :: name when name: atom()

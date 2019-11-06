@@ -33,7 +33,8 @@ defmodule SocketConnector do
         tx: nil,
         state_tx: nil,
         contract_call: nil,
-        round_initiator: nil
+        round_initiator: nil,
+        poi: nil
       )
   )
 
@@ -42,7 +43,8 @@ defmodule SocketConnector do
       defstruct(
         sign_approve: nil,
         channels_update: nil,
-        channels_info: nil
+        channels_info: nil,
+        on_chain: nil
       )
   )
 
@@ -67,7 +69,6 @@ defmodule SocketConnector do
   )
 
   def start_link(
-        _name,
         %__MODULE__{
           pub_key: _pub_key,
           priv_key: _priv_key,
@@ -102,7 +103,6 @@ defmodule SocketConnector do
   end
 
   def start_link(
-        _name,
         :reestablish,
         %__MODULE__{
           pub_key: _pub_key,
@@ -111,11 +111,12 @@ defmodule SocketConnector do
           round_and_updates: round_and_updates,
           ws_base: ws_base
         } = state_channel_context,
+        port,
         color,
         ws_manager_pid
       ) do
     {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
-    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base)
+    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
 
     Logger.debug("start_link reestablish url: #{inspect(ws_url)}",
@@ -143,20 +144,20 @@ defmodule SocketConnector do
   # "ws://localhost:3014/channel?port=14035&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuEBxaFk2dtVESM%2BzvaLXl319O%2B3%2FKYeLKk9pTEBCQsdAxR85LmHLHuI7gh7kuDE0X0iU33CymvyZhYREohGQFTIOuFX4U4ICPwGhBhcVvJBxDP091oeKLKHW8agBzefkBFITZPJHUXayn9anAYlpbml0aWF0b3KhASLZizA%2BhxzczTNVDD0TYeYxI0%2BWU4ivbUiUdyc9vIoepDdZMA%3D%3D&role=initiator"
   # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
   def start_link(
-        _name,
+        :reconnect,
         %__MODULE__{
           pub_key: pub_key,
           role: role,
           channel_id: channel_id,
           round_and_updates: round_and_updates
         } = state_channel_context,
-        :reconnect,
+        port,
         color,
         ws_manager_pid
       ) do
     {round, %Update{state_tx: _state_tx}} = Enum.max(round_and_updates)
-    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key, state_channel_context)
-    session_map = init_reconnect_map(reconnect_tx)
+    reconnect_tx = create_reconnect_tx(channel_id, round, role, pub_key)
+    session_map = init_reconnect_map(Signer.sign_aetx(reconnect_tx, state_channel_context), port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
     Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
 
@@ -175,20 +176,42 @@ defmodule SocketConnector do
   end
 
   # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
-  def create_reconnect_tx(channel_id, round, role, pub_key, state) do
+  def create_reconnect_tx(channel_id, round, role, pub_key) do
     {tag, channel} = :aeser_api_encoder.decode(channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
 
     {:ok, aetx} =
       :aesc_client_reconnect_tx.new(%{
-        :channel_id => :aeser_id.create(tag, channel),
-        :round => round,
-        :role => role,
-        :pub_key => :aeser_id.create(:account, puk_key_decoded)
+        channel_id: :aeser_id.create(tag, channel),
+        round: round,
+        role: role,
+        pub_key: :aeser_id.create(:account, puk_key_decoded)
       })
 
-    # now we just sign it.
-    Signer.sign_aetx(aetx, state)
+    aetx
+  end
+
+  # move this and it's buddy (above) to another file
+  def create_solo_close_tx(pub_key, channel_id, state_tx, poienc, nonce, ttl) do
+    {_tag, channel} = :aeser_api_encoder.decode(channel_id)
+    {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
+    {_tag, poiser} = :aeser_api_encoder.decode(poienc)
+    poi = :aec_trees.deserialize_poi(poiser)
+    {:transaction, binary} = :aeser_api_encoder.decode(state_tx)
+
+    {:ok, aetx} =
+      :aesc_close_solo_tx.new(%{
+        channel_id: :aeser_id.create(:channel, channel),
+        from_id: :aeser_id.create(:account, puk_key_decoded),
+        payload: binary,
+        # payload: <<>>,
+        poi: poi,
+        ttl: ttl,
+        fee: 300_000 * 1_000_000,
+        nonce: nonce
+      })
+
+    aetx
   end
 
   @spec close_connection(pid) :: :ok
@@ -265,6 +288,16 @@ defmodule SocketConnector do
   @spec get_poi(pid, pid) :: :ok
   def get_poi(pid, from \\ nil) do
     WebSockex.cast(pid, {:get_poi, from})
+  end
+
+  @spec slash(pid, pid) :: :ok
+  def slash(pid, from \\ nil) do
+    WebSockex.cast(pid, {:slash, from})
+  end
+
+  @spec settle(pid, pid) :: :ok
+  def settle(pid, from \\ nil) do
+    WebSockex.cast(pid, {:settle, from})
   end
 
   # Server side
@@ -485,7 +518,8 @@ defmodule SocketConnector do
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
-    [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
@@ -537,12 +571,37 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+        [
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id
+        ],
         [],
         from_pid
       )
 
     Logger.info("=> get poi #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
+  end
+
+  def handle_cast({:slash, from_pid}, state) do
+    sync_call = %SyncCall{request: request} = slash_query(from_pid)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         sync_call: sync_call
+     }}
+  end
+
+  def handle_cast({:settle, from_pid}, state) do
+    sync_call = %SyncCall{request: request} = settle_query(from_pid)
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{
@@ -563,6 +622,7 @@ defmodule SocketConnector do
     %{params: Map.merge(default_params, params), method: method, jsonrpc: "2.0"}
   end
 
+  # TODO when returned async the methods are suffixed with .reply, the same pattern should be used here for increased readabiliy
   def process_response(method, from_pid) do
     case method do
       "channels.get.contract_call" ->
@@ -589,6 +649,18 @@ defmodule SocketConnector do
         fn %{"result" => result}, state ->
           GenServer.reply(from_pid, result)
           {result, state}
+        end
+
+      "channels.slash.reply" ->
+        fn %{"result" => result}, state ->
+          GenServer.reply(from_pid, result)
+          {result, state}
+        end
+      "channels.sign.settle_sign.reply" ->
+        fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_settle_reponse(result, state)
+          GenServer.reply(from_pid, result)
+          {result, state_updated}
         end
     end
   end
@@ -690,6 +762,26 @@ defmodule SocketConnector do
     )
   end
 
+  def slash_query(from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request: build_request("channels.slash"),
+        response: process_response("channels.slash.reply", from_pid)
+      }
+    )
+  end
+
+  def settle_query(from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request: build_request("channels.settle"),
+        response: process_response("channels.sign.settle_sign.reply", from_pid)
+      }
+    )
+  end
+
   def get_contract_response_query(address, caller, round, from_pid) do
     make_sync(
       from_pid,
@@ -715,26 +807,26 @@ defmodule SocketConnector do
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}", state.color)
     :timer.cancel(state.timer_reference)
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnecting... #{inspect(self())}", state.color)
     :timer.cancel(state.timer_reference)
-    # TODO this is redundant.
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
     super(disconnect_map, state)
   end
 
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=responder
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&host=localhost&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=initiator
-  def init_reestablish_map(channel_id, offchain_tx, role, host_url) do
+  def init_reestablish_map(channel_id, offchain_tx, role, host_url, port) do
     same = %{
       existing_channel_id: channel_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
       # TODO this should not be hardcoded.
-      port: "12341"
+      port: port
     }
 
     role_map =
@@ -750,14 +842,19 @@ defmodule SocketConnector do
     Map.merge(same, role_map)
   end
 
-  def init_reconnect_map(reconnect_tx) do
+  def init_reconnect_map(reconnect_tx, port) do
     %{
       protocol: "json-rpc",
-      reconnect_tx: reconnect_tx
+      reconnect_tx: reconnect_tx,
+      port: port
     }
   end
 
-  def init_map(%{basic_configuration: basic_configuration, custom_param_fun: custom_param_fun}, role, host_url) do
+  def init_map(
+        %{basic_configuration: basic_configuration, custom_param_fun: custom_param_fun},
+        role,
+        host_url
+      ) do
     custom = custom_param_fun.(role, host_url)
     same = Map.from_struct(basic_configuration)
     Map.merge(same, custom)
@@ -798,6 +895,8 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(response)}, newstate}
   end
 
+  # TODO before signing this we should check the POI
+  # TODO merge all methods that signs in the same way
   def process_message(
         %{
           "method" => "channels.sign.close_solo_sign",
@@ -884,6 +983,38 @@ defmodule SocketConnector do
 
   def process_message(
         %{
+          "method" => "channels.sign.slash_tx",
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign}
+          }
+        },
+        state
+      ) do
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.slash_sign", %{signed_tx: signed_tx})
+
+    {:reply, {:text, Poison.encode!(response)}, state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.sign.settle_sign",
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign}
+          }
+        },
+        state
+      ) do
+    signed_tx = Signer.sign_transaction(to_sign, state, &Validator.inspect_sign_request/3)
+
+    response = build_request("channels.settle_sign", %{signed_tx: signed_tx})
+
+    {:reply, {:text, Poison.encode!(response)}, state}
+  end
+
+  def process_message(
+        %{
           "method" => method,
           "params" => %{"data" => %{"signed_tx" => to_sign}}
         } = _message,
@@ -919,7 +1050,10 @@ defmodule SocketConnector do
     sync_call =
       %SyncCall{request: request} =
       get_poi_response_query(
-        [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+        [
+          state.session.basic_configuration.initiator_id,
+          state.session.basic_configuration.responder_id
+        ],
         [],
         process_poi
       )
@@ -983,6 +1117,13 @@ defmodule SocketConnector do
          contract_call_in_flight: nil,
          backchannel_sign_req_fun: nil
      }}
+  end
+
+  def process_get_settle_reponse(
+        %{"signed_tx" => _signed_tx} = _data,
+        state
+  ) do
+    {:not_implemented, state}
   end
 
   def process_get_contract_reponse(
@@ -1059,7 +1200,10 @@ defmodule SocketConnector do
         %{"poi" => poi} = _data,
         state
       ) do
-    {poi, state}
+    {round, %Update{} = update} = Enum.max(state.round_and_updates)
+    update_new = Map.put(update, :poi, poi)
+
+    {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
@@ -1090,9 +1234,13 @@ defmodule SocketConnector do
 
     case return do
       {:reply, {:text, reply}, state} ->
+        # TODO this is going all over
+        GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
         {:reply, {:text, reply}, %__MODULE__{state | sync_call: %{}}}
 
       {_result, updated_state} ->
+        # TODO this is going all over
+        GenServer.cast(state.ws_manager_pid, {:state_tx_update, updated_state})
         {:ok, %__MODULE__{updated_state | sync_call: %{}}}
     end
   end
@@ -1117,7 +1265,8 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(type, state, round, method) when type in [:channels_update, :channels_info] do
+  def produce_callback(type, state, round, method)
+      when type in [:channels_update, :channels_info, :on_chain] do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1185,7 +1334,7 @@ defmodule SocketConnector do
 
   defmacro is_first_update(stored_id, new_id) do
     quote do
-      unquote(stored_id) == nil and (unquote(new_id) != nil)
+      unquote(stored_id) == nil and unquote(new_id) != nil
     end
   end
 
@@ -1197,7 +1346,6 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-
     produce_callback(:channels_info, state, 0, event)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
@@ -1214,14 +1362,18 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.on_chain_tx",
-          "params" => %{"channel_id" => channel_id, "data" => %{"tx" => signed_tx}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"tx" => signed_tx, "info" => info}
+          }
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when channel_id == current_channel_id do
+      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     # Produces some logging output.
+    produce_callback(:on_chain, state, 0, info)
     Validator.verify_on_chain(signed_tx, state.ws_base)
-    {:ok, state}
+    {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
   def process_message(message, state) do

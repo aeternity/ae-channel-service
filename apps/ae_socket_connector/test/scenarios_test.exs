@@ -1,4 +1,5 @@
 defmodule TestScenarios do
+  require Logger
   # import ClientRunnerHelper
 
   # example
@@ -14,8 +15,12 @@ defmodule TestScenarios do
       {:initiator, %{message: {:sign_approve, 1}}},
       {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
       {:responder, %{message: {:sign_approve, 1}}},
+      {:responder, %{message: {:on_chain, 0, :transient, "funding_created"}}},
       {:initiator, %{message: {:channels_info, 0, :transient, "funding_signed"}}},
+      {:initiator, %{message: {:on_chain, 0, :transient, "funding_signed"}}},
+      {:responder, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
       {:responder, %{message: {:channels_info, 0, :transient, "own_funding_locked"}}},
+      {:initiator, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
       {:initiator, %{message: {:channels_info, 0, :transient, "own_funding_locked"}}},
       {:initiator, %{message: {:channels_info, 0, :transient, "funding_locked"}}},
       {:responder, %{message: {:channels_info, 0, :transient, "funding_locked"}}},
@@ -86,7 +91,7 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              SessionHolder.reconnect(pid_session_holder)
+              SessionHolder.reconnect(pid_session_holder, 12345)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
          fuzzy: 0
@@ -136,7 +141,11 @@ defmodule TestScenarios do
            )
        }},
       {:responder,
-       %{message: {:channels_update, 1, :transient, "channels.update"}, next: ClientRunnerHelper.pause_job(3000), fuzzy: 10}},
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: ClientRunnerHelper.pause_job(3000),
+         fuzzy: 10
+       }},
       # this updates should fail, since other end is gone.
       {:responder,
        %{
@@ -174,7 +183,7 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              SessionHolder.reconnect(pid_session_holder)
+              SessionHolder.reconnect(pid_session_holder, 1233)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
@@ -392,7 +401,7 @@ defmodule TestScenarios do
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
            ),
-         fuzzy: 10
+         fuzzy: 15
        }},
       {:responder,
        %{
@@ -403,7 +412,6 @@ defmodule TestScenarios do
               SessionHolder.close_connection(pid_session_holder)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
-         fuzzy: 10
        }},
       {:responder, %{next: ClientRunnerHelper.pause_job(1000)}},
       {:responder,
@@ -414,7 +422,6 @@ defmodule TestScenarios do
               SessionHolder.reconnect(pid_session_holder)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty},
-         fuzzy: 0
        }},
       {:responder,
        %{
@@ -423,7 +430,6 @@ defmodule TestScenarios do
              {intiator_account, 6_999_999_999_997},
              {responder_account, 4_000_000_000_003}
            ),
-         fuzzy: 10
        }},
       {:responder,
        %{
@@ -473,13 +479,13 @@ defmodule TestScenarios do
       {:initiator,
        %{
          message: {:channels_info, 0, :transient, "closing"},
-         fuzzy: 10,
+         fuzzy: 15,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
          message: {:channels_info, 0, :transient, "closing"},
-         fuzzy: 10,
+         fuzzy: 15,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]
@@ -525,7 +531,100 @@ defmodule TestScenarios do
       {:responder,
        %{
          message: {:channels_info, 0, :transient, "closed_confirmed"},
-         fuzzy: 14,
+         fuzzy: 20,
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+       }}
+    ]
+
+  # def close_on_chain_maliscous_v2({initiator, intiator_account}, {responder, _responder_account}, runner_pid),
+  #   do: [
+  #     {:initiator,
+  #      %{
+  #        message: {:channels_update, 1, :transient, "channels.update"},
+  #        next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+  #        fuzzy: 8
+  #      }},
+  #     {:initiator,
+  #      %{
+  #        message: {:channels_update, 2, :self, "channels.update"},
+  #        next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+  #        fuzzy: 5
+  #      }},
+  #     {:initiator,
+  #      %{
+  #        next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
+  #        fuzzy: 8
+  #      }},
+  #     {:initiator,
+  #      %{
+  #        message: {:channels_update, 3, :self, "channels.update"},
+  #        next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+  #        fuzzy: 5
+  #      }},
+  #     {:initiator,
+  #      %{
+  #        next:
+  #          {:local,
+  #           fn client_runner, pid_session_holder ->
+  #             nonce = OnChain.nonce(intiator_account)
+  #             height = OnChain.current_height()
+  #             transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, 2, nonce + 1, height})
+  #             OnChain.post_solo_close(transaction)
+  #             ClientRunnerHelper.resume_runner(client_runner)
+  #           end, :empty}
+  #      }},
+  #     {:initiator,
+  #      %{
+  #        message: {:on_chain, 0, :transient, "can_slash"},
+  #        fuzzy: 10,
+  #        next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty},
+  #       #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+  #      }},
+  #     {:responder,
+  #      %{
+  #        message: {:on_chain, 0, :transient, "can_slash"},
+  #        fuzzy: 20,
+  #        next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+  #      }}
+  #   ]
+
+  def close_on_chain_v2({initiator, intiator_account}, {responder, _responder_account}, runner_pid),
+    do: [
+      {:initiator,
+       %{
+         message: {:channels_update, 1, :transient, "channels.update"},
+         next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+         fuzzy: 8
+       }},
+      {:initiator,
+       %{
+         message: {:channels_update, 2, :self, "channels.update"},
+         next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
+         fuzzy: 5
+       }},
+      {:initiator,
+       %{
+         next:
+           {:local,
+            fn client_runner, pid_session_holder ->
+              nonce = OnChain.nonce(intiator_account)
+              height = OnChain.current_height()
+              Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
+              transaction = GenServer.call(pid_session_holder, {:solo_close_transaction, 2, nonce + 1, height})
+              OnChain.post_solo_close(transaction)
+              ClientRunnerHelper.resume_runner(client_runner)
+            end, :empty}
+       }},
+      {:initiator,
+       %{
+         message: {:on_chain, 0, :transient, "solo_closing"},
+         fuzzy: 10,
+         next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+       }},
+      {:responder,
+       %{
+         message: {:on_chain, 0, :transient, "solo_closing"},
+         fuzzy: 20,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}
     ]
@@ -534,7 +633,7 @@ defmodule TestScenarios do
     do: [
       {:initiator,
        %{
-         message: {:channels_info, 0, :transient, "funding_signed"},
+         message: {:channels_info, 0, :transient, "own_funding_locked"},
          fuzzy: 10,
          next:
            {:local,
@@ -549,29 +648,29 @@ defmodule TestScenarios do
          next:
            {:local,
             fn client_runner, pid_session_holder ->
-              SessionHolder.reestablish(pid_session_holder)
+              SessionHolder.reestablish(pid_session_holder, 12343)
               ClientRunnerHelper.resume_runner(client_runner)
             end, :empty}
        }},
+      # currently no message is received on reconnect.
+      # to eager fething causes timeout due to missing response.
+      {:initiator, %{next: ClientRunnerHelper.pause_job(1000)}},
       {:initiator,
        %{
-         message: {:channels_update, 2, :self, "channels.update"},
          fuzzy: 3,
          next:
            ClientRunnerHelper.assert_funds_job(
-             {intiator_account, 6_999_999_999_997},
-             {responder_account, 4_000_000_000_003}
+             {intiator_account, 6_999_999_999_999},
+             {responder_account, 4_000_000_000_001}
            )
        }},
       {:initiator,
        %{
-         message: {:channels_info, 0, :transient, "open"},
-         fuzzy: 10,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
        }},
       {:responder,
        %{
-         message: {:channels_info, 0, :transient, "open"},
+         message: {:channels_update, 1, :transient, "channels.update"},
          fuzzy: 14,
          next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
        }}

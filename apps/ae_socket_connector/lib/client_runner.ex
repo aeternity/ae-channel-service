@@ -2,15 +2,14 @@ defmodule ClientRunner do
   use GenServer
   require Logger
 
-  defmacro ae_url, do:
-    Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
 
-  defmacro network_id, do:
-    Application.get_env(:ae_socket_connector, :node)[:network_id]
+  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
 
   defstruct pid_session_holder: nil,
             color: nil,
             match_list: nil,
+            role: nil,
             fuzzy_counter: 0
 
   def start_link(
@@ -52,6 +51,16 @@ defmodule ClientRunner do
         )
 
         GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}})
+      end,
+      on_chain: fn round_initiator, round, method ->
+        Logger.debug(
+          "on_chain received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)} method is #{
+            inspect(method)
+          }}",
+          ansi_color: color
+        )
+
+        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}})
       end
     }
   end
@@ -85,6 +94,7 @@ defmodule ClientRunner do
      %__MODULE__{
        pid_session_holder: pid_session_holder,
        match_list: jobs,
+       role: role,
        color: [ansi_color: color]
      }}
   end
@@ -104,7 +114,7 @@ defmodule ClientRunner do
   def handle_cast({:match_jobs, message}, state) do
     case state.match_list do
       [%{message: expected} = match | rest] ->
-        Logger.error(
+        Logger.debug(
           "expected #{inspect(expected)} received #{inspect(message)}",
           state.color
         )
@@ -123,9 +133,9 @@ defmodule ClientRunner do
                 case state.fuzzy_counter >= value do
                   true ->
                     throw(
-                      "message has not arrived, waited for #{inspect(state.fuzzy_counter)} max wait #{
-                        inspect(value)
-                      }"
+                      "message role #{inspect(state.role)} #{inspect(expected)}, last received is #{
+                        inspect(message)
+                      } has not arrived, waited for #{inspect(state.fuzzy_counter)} max wait #{inspect(value)}"
                     )
 
                   false ->
@@ -144,9 +154,7 @@ defmodule ClientRunner do
         {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
       [] ->
-        Logger.debug("list empty", state.color)
-        # Logger.info("Sending termination for #{inspect(state.socket_holder_name)}")
-        # send(state.runner_pid, {:test_finished, state.socket_holder_name})
+        Logger.debug("list reached end", state.color)
         {:noreply, state}
     end
   end
@@ -161,12 +169,12 @@ defmodule ClientRunner do
       :sync ->
         response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
 
+        Logger.debug "synch response is: #{inspect response}"
         case assert_fun do
           :empty -> :empty
           _ -> assert_fun.(response)
         end
 
-        Logger.debug("sync response is: #{inspect(response)}", state.color)
         GenServer.cast(self(), {:match_jobs, {}})
 
       :local ->
