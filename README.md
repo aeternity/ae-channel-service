@@ -55,7 +55,7 @@ Start the samples at your prompt by doing
 mix test
 ```
 
-Scenarios executed can be found [here](apps/ae_socket_connector/test/scenarios_test.exs)
+Scenarios executed can be found [here](apps/ae_socket_connector/test/ae_socket_connector_test.exs)
 
 ## Refence to node api
 

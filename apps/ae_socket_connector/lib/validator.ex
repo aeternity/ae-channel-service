@@ -71,8 +71,8 @@ defmodule Validator do
           # TODO we need to know at which round we are closing here...
           :aesc_close_mutual_tx ->
             Logger.debug("Close mutual #{inspect(instance)}", state.color)
-            round = apply(module, :nonce, [instance])
-            sign_approve.(round_initiator, round, auto_approval, :aetx.serialize_for_client(aetx))
+            # round = apply(module, :nonce, [instance])
+            sign_approve.(round_initiator, 0, auto_approval, :aetx.serialize_for_client(aetx))
 
           :aesc_slash_tx ->
             # todo code missing there. we should get the round somehow.
