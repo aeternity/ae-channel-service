@@ -352,7 +352,6 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  @tag :ignore
   @tag :reconnect
   test "withdraw after re-connect", context do
     {alice, bob} = gen_names(context.test)
@@ -949,6 +948,7 @@ defmodule SocketConnectorTest do
 
   # @tag :ignore
   # @tag :open_channel_passive
+  # # this scenario does not work on circle ci. needs to be investigated
   # test "teardown on channel creation", context do
   #   {alice, bob} = gen_names(context.test)
 
@@ -956,6 +956,9 @@ defmodule SocketConnectorTest do
   #     [
   #       {:initiator,
   #        %{
+  #          # worked before
+  #          # message: {:channels_info, 0, :transient, "funding_signed"},
+  #          # should work now
   #          message: {:channels_info, 0, :transient, "own_funding_locked"},
   #          fuzzy: 10,
   #          next:
