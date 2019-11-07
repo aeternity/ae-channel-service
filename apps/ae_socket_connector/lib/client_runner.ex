@@ -110,7 +110,6 @@ defmodule ClientRunner do
     try do
       Logger.debug "LETS sign some stuff #{inspect sign_info}"
       case elem(message, 0) do
-        # TODO how do we descide if we should sign?
         :sign_approve ->
           case sign_info do
             {:default} ->

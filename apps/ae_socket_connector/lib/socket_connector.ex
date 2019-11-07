@@ -22,8 +22,7 @@ defmodule SocketConnector do
             contract_call_in_flight_round: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall,
-            connection_callbacks: nil,
-            backchannel_sign_req_fun: nil
+            connection_callbacks: nil
 
   defmodule(Update,
     do:
@@ -113,10 +112,10 @@ defmodule SocketConnector do
         ws_manager_pid
       ) do
     {_round, %Update{state_tx: state_tx}} =
-      try do
-        Enum.max(round_and_updates)
-      rescue
-        _update_round_pending -> Enum.max(pending_round_and_update)
+      case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
+        {true, _} -> Enum.max(pending_round_and_update)
+        {false, true} -> Enum.max(round_and_updates)
+        {false, false} -> throw "cannot reestablish not saved state avaliable"
       end
 
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
@@ -233,12 +232,6 @@ defmodule SocketConnector do
   @spec initiate_transfer(pid, integer) :: :ok
   def initiate_transfer(pid, amount) do
     WebSockex.cast(pid, {:transfer, amount})
-  end
-
-  @spec initiate_transfer(pid, integer, backchannel_sign_req_fun) :: :ok
-        when backchannel_sign_req_fun: fun()
-  def initiate_transfer(pid, amount, backchannel_sign_req_fun) do
-    WebSockex.cast(pid, {:transfer, amount, backchannel_sign_req_fun})
   end
 
   @spec deposit(pid, integer) :: :ok
@@ -369,20 +362,6 @@ defmodule SocketConnector do
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
-  end
-
-  def handle_cast({:transfer, amount, backchannel_sign_req_fun}, state) do
-    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
-
-    Logger.info("=> transfer #{inspect(request)}", state.color)
-
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{
-       state
-       | pending_id: Map.get(request, :id, nil),
-         sync_call: sync_call,
-         backchannel_sign_req_fun: backchannel_sign_req_fun
-     }}
   end
 
   def handle_cast({:deposit, amount}, state) do

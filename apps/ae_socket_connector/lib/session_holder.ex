@@ -95,11 +95,13 @@ defmodule SessionHolder do
 
     socket_connector_state = state.socket_connector_state
 
+    pending_round_and_update = socket_connector_state.pending_round_and_update
+    round_and_updates = socket_connector_state.round_and_updates
     {round, %SocketConnector.Update{}} =
-      try do
-        Enum.max(socket_connector_state.round_and_updates)
-      rescue
-        _update_round_pending -> Enum.max(socket_connector_state.pending_round_and_update)
+      case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
+        {true, _} -> Enum.max(pending_round_and_update)
+        {false, true} -> Enum.max(round_and_updates)
+        {false, false} -> throw "cannot reconnect not saved state avaliable"
       end
 
     reconnect_tx = SocketConnector.create_reconnect_tx(socket_connector_state.channel_id, round, socket_connector_state.role, socket_connector_state.pub_key)
