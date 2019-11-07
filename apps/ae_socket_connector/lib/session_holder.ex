@@ -51,10 +51,6 @@ defmodule SessionHolder do
     GenServer.call(pid, {:action_sync, action}, @sync_call_timeout)
   end
 
-  def backchannel_sign_request(pid, to_sign) do
-    GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
-  end
-
   def sign_message(pid, to_sign) do
     GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
   end
@@ -139,7 +135,7 @@ defmodule SessionHolder do
     {:noreply, state}
   end
 
-  # TODO this allows backchannel signing, either way. Should we should uppdate round in the state?
+  # used for general signing, sometimes for backchannel purposes
   def handle_call({:sign_request, to_sign}, _from, state) do
     sign_result =
       Signer.sign_transaction(to_sign, state.network_id, state.priv_key, fn _tx, _round_initiator, _state ->
