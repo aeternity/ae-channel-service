@@ -20,7 +20,10 @@ defmodule ClientRunner do
   end
 
   defp log_callback(type, round, round_initiator, method, color) do
-    Logger.debug("received: #{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}", color)
+    Logger.debug(
+      "received: #{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}",
+      color
+    )
   end
 
   def connection_callback(callback_pid, color) do
@@ -103,14 +106,26 @@ defmodule ClientRunner do
     end
   end
 
-  def process_sign_request(message, to_sign, state) do
+  def process_sign_request(message, to_sign, pid_session_holder, %{sign: sign_info} \\ %{sign: {:default}}) do
     try do
+      Logger.debug "LETS sign some stuff #{inspect sign_info}"
       case elem(message, 0) do
         # TODO how do we descide if we should sign?
         :sign_approve ->
-          signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-          fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
-          SessionHolder.run_action(state.pid_session_holder, fun)
+          case sign_info do
+            {:default} ->
+              Logger.debug "LETS sign some stuff more #{inspect sign_info}"
+              signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+              fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
+              SessionHolder.run_action(pid_session_holder, fun)
+
+            {:backchannel, pid_other_session_holder} ->
+              Logger.debug "LETS sign some stuff more 2 #{inspect sign_info}"
+              signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+              signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
+              fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed2) end
+              SessionHolder.run_action(pid_session_holder, fun)
+          end
 
         _ ->
           :ok
@@ -120,24 +135,31 @@ defmodule ClientRunner do
     end
   end
 
-  # {:responder, :channels_info, 0, :transient, "channel_open"}
-  # def handle_cast({:match_jobs, message}, state)
-  def handle_cast({:match_jobs, received_message, to_sign}, state) do
-    process_sign_request(received_message, to_sign, state)
+  def process_sign_request(message, to_sign, pid_session_holder, _trash) do
+    Logger.debug "trash"
+    process_sign_request(message, to_sign, pid_session_holder)
+  end
 
+  # message is mandated in every entry
+  def handle_cast({:match_jobs, received_message, to_sign}, state) do
     case state.match_list do
       [%{message: expected} = entry | rest] ->
         Logger.debug(
-          "match: #{inspect(expected == received_message)} role: #{inspect(state.role)} expected #{inspect(expected)} received #{inspect(received_message)}",
+          "match: #{inspect(expected == received_message)} role: #{inspect(state.role)} expected #{
+            inspect(expected)
+          } received #{inspect(received_message)}",
           state.color
         )
 
         case expected == received_message do
           true ->
+            process_sign_request(received_message, to_sign, state.pid_session_holder, entry)
             run_next(entry)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
           false ->
+            process_sign_request(received_message, to_sign, state.pid_session_holder)
+
             case Map.get(entry, :fuzzy, 0) do
               0 ->
                 throw("message not matching")
@@ -163,10 +185,12 @@ defmodule ClientRunner do
         end
 
       [%{next: _next} = entry | rest] ->
+        process_sign_request(received_message, to_sign, state.pid_session_holder)
         run_next(entry)
         {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
       [] ->
+        process_sign_request(received_message, to_sign, state.pid_session_holder)
         Logger.debug("list reached end", state.color)
         {:noreply, state}
     end
