@@ -159,22 +159,18 @@ defmodule SocketConnectorTest do
          %{
            message: {:sign_approve, 2, "channels.sign.update"},
            fuzzy: 10,
-          #  sign: {:error, 10}
-         }},
-        {:responder,
-         %{
-           message: {:sign_approve, 2, "channels.sign.update_ack"},
-           fuzzy: 10
+           sign: {:no_sign},
+           next: {:async, fn pid -> SocketConnector.abort(pid, "channels.sign.update", 555, "some message") end, :empty}
          }},
         {:initiator,
          %{
-           message: {:channels_update, 2, :self, "channels.update"},
+           message: {:channels_info, 0, :transient, "aborted_update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 10
          }},
         {:responder,
          %{
-           message: {:channels_update, 2, :transient, "channels.leave"},
+           message: {:channels_update, 1, :transient, "channels.leave"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }},

@@ -371,7 +371,7 @@ defmodule SocketConnector do
   end
 
   def handle_cast({:abort, method, abort_code, _abort_message}, state) do
-    request = build_request(method, %{error: abort_code})
+    request = build_message(method, %{error: abort_code})
     Logger.info("=> abort #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}

@@ -124,6 +124,8 @@ defmodule ClientRunner do
               signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
               fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed2) end
               SessionHolder.run_action(pid_session_holder, fun)
+            _ ->
+              Logger.debug "Don't sign"
           end
 
         _ ->
