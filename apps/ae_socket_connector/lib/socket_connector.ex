@@ -234,6 +234,12 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:transfer, amount})
   end
 
+  @spec abort(pid, String.t(), integer, String.t()) :: :ok
+  def abort(pid, method, abort_code, abort_message) do
+    WebSockex.cast(pid, {:abort, method, abort_code, abort_message})
+  end
+
+
   @spec deposit(pid, integer) :: :ok
   def deposit(pid, amount) do
     WebSockex.cast(pid, {:deposit, amount})
@@ -362,6 +368,13 @@ defmodule SocketConnector do
 
     {:reply, {:text, Poison.encode!(request)},
      %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
+  end
+
+  def handle_cast({:abort, method, abort_code, _abort_message}, state) do
+    request = build_request(method, %{error: abort_code})
+    Logger.info("=> abort #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:deposit, amount}, state) do

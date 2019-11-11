@@ -143,11 +143,12 @@ defmodule SocketConnectorTest do
            message: {:sign_approve, 1, "channels.sign.initiator_sign"},
            fuzzy: 10
          }},
-        # {:responder,
-        #  %{
-        #    message: {:sign_approve, 1, "channels.sign.initiator_sign"},
-        #    fuzzy: 10
-        #  }},
+        {:responder,
+         %{
+           message: {:sign_approve, 1, "channels.sign.responder_sign"},
+           fuzzy: 10,
+        #    next: {:async, fn pid -> SocketConnector.abort(pid, "channels.sign.responder_sign", 555, "some message") end, :empty}
+         }},
         {:initiator,
          %{
            message: {:channels_update, 1, :self, "channels.update"},
@@ -158,7 +159,7 @@ defmodule SocketConnectorTest do
          %{
            message: {:sign_approve, 2, "channels.sign.update"},
            fuzzy: 10,
-           sign: {:error, 10}
+          #  sign: {:error, 10}
          }},
         {:responder,
          %{
@@ -469,7 +470,7 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            message: {:channels_update, 2, :self, "channels.conflict"},
-           fuzzy: 2,
+           fuzzy: 5,
            next:
              {:async,
               fn pid ->
