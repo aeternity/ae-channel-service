@@ -146,7 +146,6 @@ defmodule SocketConnectorTest do
          %{
            message: {:sign_approve, 1, "channels.sign.responder_sign"},
            fuzzy: 10,
-        #    next: {:async, fn pid -> SocketConnector.abort(pid, "channels.sign.responder_sign", 555, "some message") end, :empty}
          }},
         {:initiator,
          %{
@@ -158,8 +157,7 @@ defmodule SocketConnectorTest do
          %{
            message: {:sign_approve, 2, "channels.sign.update"},
            fuzzy: 10,
-           sign: {:no_sign},
-           next: {:async, fn pid -> SocketConnector.abort(pid, "channels.sign.update", 555, "some message") end, :empty}
+           sign: {:abort, 555}
          }},
         {:initiator,
          %{
@@ -424,6 +422,7 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
+  @tag :ignore
   @tag :backchannel
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)

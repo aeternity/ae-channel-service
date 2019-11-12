@@ -32,7 +32,7 @@ defmodule ClientRunner do
         Logger.debug(
           ":sign_approve, #{inspect(round)}, #{inspect(method)} extras: to_sign #{inspect(to_sign)} auto_approval: #{
             inspect(auto_approval)
-          }, human: #{inspect(human)}",
+          }, human: #{inspect(human)}, initiator #{inspect(round_initiator)}",
           ansi_color: color
         )
 
@@ -106,38 +106,42 @@ defmodule ClientRunner do
     end
   end
 
-  def process_sign_request(message, to_sign, pid_session_holder, %{sign: sign_info} \\ %{sign: {:default}}) do
-    try do
-      Logger.debug "LETS sign some stuff #{inspect sign_info}"
-      case elem(message, 0) do
-        :sign_approve ->
-          case sign_info do
-            {:default} ->
-              Logger.debug "LETS sign some stuff more #{inspect sign_info}"
-              signed = SessionHolder.sign_message(pid_session_holder, to_sign)
-              fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
-              SessionHolder.run_action(pid_session_holder, fun)
+  def process_sign_request(message, to_sign, pid_session_holder, mode \\ %{sign: {:default}})
 
-            {:backchannel, pid_other_session_holder} ->
-              Logger.debug "LETS sign some stuff more 2 #{inspect sign_info}"
-              signed = SessionHolder.sign_message(pid_session_holder, to_sign)
-              signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
-              fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed2) end
-              SessionHolder.run_action(pid_session_holder, fun)
-            _ ->
-              Logger.debug "Don't sign"
-          end
+  def process_sign_request({}, _to_sign, _pid_session_holder, _mode) do
+    Logger.debug("Empty request")
+  end
 
-        _ ->
-          :ok
-      end
-    rescue
-      _ignore -> :ok
+  def process_sign_request(message, to_sign, pid_session_holder, %{sign: sign_info}) do
+    case elem(message, 0) do
+      :sign_approve ->
+        case sign_info do
+          {:default} ->
+            signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+            fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
+            SessionHolder.run_action(pid_session_holder, fun)
+
+          {:backchannel, pid_other_session_holder} ->
+            signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+            signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
+            fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed2) end
+            SessionHolder.run_action(pid_session_holder, fun)
+
+          {:abort, abort_code} ->
+            method = elem(message, 2)
+            fun = fn pid -> SocketConnector.abort(pid, method, abort_code, "some message") end
+            SessionHolder.run_action(pid_session_holder, fun)
+
+          _ ->
+            Logger.debug("Don't sign")
+        end
+
+      _ ->
+        :ok
     end
   end
 
-  def process_sign_request(message, to_sign, pid_session_holder, _trash) do
-    Logger.debug "trash"
+  def process_sign_request(message, to_sign, pid_session_holder, _not_sign_request) do
     process_sign_request(message, to_sign, pid_session_holder)
   end
 
@@ -152,15 +156,14 @@ defmodule ClientRunner do
           state.color
         )
 
+        process_sign_request(received_message, to_sign, state.pid_session_holder, entry)
+
         case expected == received_message do
           true ->
-            process_sign_request(received_message, to_sign, state.pid_session_holder, entry)
             run_next(entry)
             {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
           false ->
-            process_sign_request(received_message, to_sign, state.pid_session_holder)
-
             case Map.get(entry, :fuzzy, 0) do
               0 ->
                 throw("message not matching")
@@ -186,7 +189,7 @@ defmodule ClientRunner do
         end
 
       [%{next: _next} = entry | rest] ->
-        process_sign_request(received_message, to_sign, state.pid_session_holder)
+        process_sign_request(received_message, to_sign, state.pid_session_holder, entry)
         run_next(entry)
         {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 

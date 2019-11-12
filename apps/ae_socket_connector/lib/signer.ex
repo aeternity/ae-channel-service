@@ -4,6 +4,7 @@ defmodule Signer do
 
   # TODO merge this with sign_transaction
   def sign_aetx(aetx, network_id, priv_key) do
+    Logger.debug "signing decoded transaction"
     bin = :aetx.serialize_to_binary(aetx)
     bin_for_network = <<network_id::binary, bin::binary>>
     result_signed = :enacl.sign_detached(bin_for_network, priv_key)
@@ -24,6 +25,7 @@ defmodule Signer do
       ) do
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
     # returns #aetx
+    Logger.debug "signing transaction"
     deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
     aetx = :aetx_sign.tx(deserialized_signed_tx)
 
