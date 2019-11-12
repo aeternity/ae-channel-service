@@ -192,7 +192,7 @@ defmodule SocketConnectorTest do
   end
 
   # this test works locally again and again, but temporary removed for circle ci
-  @tag :ignore
+  # @tag :ignore
   @tag :close_on_chain
   test "close on chain", context do
     {alice, bob} = gen_names(context.test)
@@ -949,9 +949,7 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  # @tag :ignore
   @tag :open_channel_passive
-  # this scenario does not work on circle ci. needs to be investigated
   test "teardown on channel creation", context do
     {alice, bob} = gen_names(context.test)
 
