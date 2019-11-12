@@ -949,7 +949,7 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  @tag :ignore
+  # @tag :ignore
   @tag :open_channel_passive
   # this scenario does not work on circle ci. needs to be investigated
   test "teardown on channel creation", context do
