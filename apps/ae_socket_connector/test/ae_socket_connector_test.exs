@@ -131,6 +131,7 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :ignore
   @tag :abort
   test "abort transfer", context do
     {alice, bob} = gen_names(context.test)
@@ -439,10 +440,15 @@ defmodule SocketConnectorTest do
               end, :empty},
            fuzzy: 20
          }},
+        #  grace time to make sure that initiator is gone
+        {:responder,
+        %{
+          message: {:channels_update, 1, :other, "channels.update"},
+          next: ClientRunnerHelper.pause_job(3000),
+          fuzzy: 10
+        }},
         {:responder,
          %{
-           fuzzy: 10,
-           message: {:channels_update, 1, :other, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
                {intiator_account, 6_999_999_999_999},
@@ -450,11 +456,11 @@ defmodule SocketConnectorTest do
              )
          }},
         #  grace time to make sure that initiator is gone
-        {:responder,
-         %{
-           next: ClientRunnerHelper.pause_job(3000),
-           fuzzy: 10
-         }},
+        # {:responder,
+        #  %{
+        #    next: ClientRunnerHelper.pause_job(3000),
+        #    fuzzy: 10
+        #  }},
         # this updates should fail, since other end is gone.
         {:responder,
          %{
