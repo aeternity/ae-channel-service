@@ -115,7 +115,7 @@ defmodule SocketConnector do
       case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
         {true, _} -> Enum.max(pending_round_and_update)
         {false, true} -> Enum.max(round_and_updates)
-        {false, false} -> throw "cannot reestablish not saved state avaliable"
+        {false, false} -> throw "cannot reestablish no saved state avaliable"
       end
 
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)

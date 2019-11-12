@@ -145,7 +145,7 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            message: {:sign_approve, 1, "channels.sign.responder_sign"},
-           fuzzy: 10,
+           fuzzy: 10
          }},
         {:initiator,
          %{
@@ -422,7 +422,6 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  @tag :ignore
   @tag :backchannel
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
@@ -431,7 +430,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_update, 1, :self, "channels.update"},
+           message: {:channels_info, 0, :transient, "open"},
            next:
              {:local,
               fn client_runner, pid_session_holder ->
@@ -443,16 +442,16 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            fuzzy: 10,
-           message: {:channels_info, 0, :transient, "open"},
+           message: {:channels_update, 1, :other, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
                {intiator_account, 6_999_999_999_999},
                {responder_account, 4_000_000_000_001}
              )
          }},
+        #  grace time to make sure that initiator is gone
         {:responder,
          %{
-           message: {:channels_update, 1, :other, "channels.update"},
            next: ClientRunnerHelper.pause_job(3000),
            fuzzy: 10
          }},
@@ -471,7 +470,7 @@ defmodule SocketConnectorTest do
                 SocketConnector.initiate_transfer(pid, 4)
               end, :empty}
          }},
-        #  lets do some backchannel signing
+        # lets do some backchannel signing
         {:responder,
          %{
            message: {:sign_approve, 2, "channels.sign.update"},

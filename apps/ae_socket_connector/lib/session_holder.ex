@@ -59,7 +59,14 @@ defmodule SessionHolder do
   def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, color}) do
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
 
-    {:ok, %__MODULE__{socket_connector_pid: pid, socket_connector_state: socket_connector_state, network_id: network_id, priv_key: priv_key, color: color}}
+    {:ok,
+     %__MODULE__{
+       socket_connector_pid: pid,
+       socket_connector_state: socket_connector_state,
+       network_id: network_id,
+       priv_key: priv_key,
+       color: color
+     }}
   end
 
   defp kill_connection(pid, color) do
@@ -69,6 +76,7 @@ defmodule SessionHolder do
 
   def fetch_state(pid) do
     SocketConnector.request_state(pid)
+
     receive do
       {:"$gen_cast", {:state_tx_update, %SocketConnector{} = state}} -> state
     end
@@ -79,15 +87,21 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:kill_connection}, state) do
-    fetch_state(state.socket_connector_pid)
+    socket_connector_state = fetch_state(state.socket_connector_pid)
     kill_connection(state.socket_connector_pid, state.color)
-    {:noreply, state}
+    {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   def handle_cast({:close_connection}, state) do
     Logger.debug("closing connector #{inspect(state.socket_connector_pid)}", ansi_color: state.color)
     SocketConnector.close_connection(state.socket_connector_pid)
-    {:noreply, state}
+
+    socket_connector_state =
+      receive do
+        {:"$gen_cast", {:state_tx_update, %SocketConnector{} = state}} -> state
+      end
+
+    {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   def handle_cast({:reconnect, port}, state) do
@@ -97,17 +111,33 @@ defmodule SessionHolder do
 
     pending_round_and_update = socket_connector_state.pending_round_and_update
     round_and_updates = socket_connector_state.round_and_updates
+
     {round, %SocketConnector.Update{}} =
       case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
         {true, _} -> Enum.max(pending_round_and_update)
         {false, true} -> Enum.max(round_and_updates)
-        {false, false} -> throw "cannot reconnect not saved state avaliable"
+        {false, false} -> throw("cannot reconnect no saved state avaliable")
       end
 
-    reconnect_tx = SocketConnector.create_reconnect_tx(socket_connector_state.channel_id, round, socket_connector_state.role, socket_connector_state.pub_key)
+    reconnect_tx =
+      SocketConnector.create_reconnect_tx(
+        socket_connector_state.channel_id,
+        round,
+        socket_connector_state.role,
+        socket_connector_state.pub_key
+      )
+
     signed_reconnect_tx = Signer.sign_aetx(reconnect_tx, state.network_id, state.priv_key)
 
-    {:ok, pid} = SocketConnector.start_link(:reconnect, signed_reconnect_tx, state.socket_connector_state, port, state.color, self())
+    {:ok, pid} =
+      SocketConnector.start_link(
+        :reconnect,
+        signed_reconnect_tx,
+        state.socket_connector_state,
+        port,
+        state.color,
+        self()
+      )
 
     {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
@@ -152,26 +182,43 @@ defmodule SessionHolder do
         _from,
         state
       ) do
-
     # We need the latest SocketConnector state.
     socket_connector_state = fetch_state(state.socket_connector_pid)
-    %SocketConnector.Update{state_tx: state_tx, poi: poi} = Map.get(socket_connector_state.round_and_updates, round)
+
+    %SocketConnector.Update{state_tx: state_tx, poi: poi} =
+      Map.get(socket_connector_state.round_and_updates, round)
 
     case poi do
       nil ->
         Logger.error("You should have fetched poi at round #{inspect(round)}")
-        contains_poi = Enum.reduce(socket_connector_state.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}}, acc ->
-          case poi do
-            nil -> acc
-            _ -> Map.put(acc, round, poi)
-          end
-        end)
-        Logger.error("Rounds with poi #{inspect contains_poi}")
-      _ -> :poi_present_for_round
+
+        contains_poi =
+          Enum.reduce(socket_connector_state.round_and_updates, %{}, fn {round, %SocketConnector.Update{poi: poi}},
+                                                                        acc ->
+            case poi do
+              nil -> acc
+              _ -> Map.put(acc, round, poi)
+            end
+          end)
+
+        Logger.error("Rounds with poi #{inspect(contains_poi)}")
+
+      _ ->
+        :poi_present_for_round
     end
 
-    transaction = SocketConnector.create_solo_close_tx(socket_connector_state.pub_key, socket_connector_state.channel_id, state_tx, poi, nonce, ttl)
-    {:reply, Signer.sign_aetx(transaction, state.network_id, state.priv_key), %__MODULE__{state | socket_connector_state: socket_connector_state}}
+    transaction =
+      SocketConnector.create_solo_close_tx(
+        socket_connector_state.pub_key,
+        socket_connector_state.channel_id,
+        state_tx,
+        poi,
+        nonce,
+        ttl
+      )
+
+    {:reply, Signer.sign_aetx(transaction, state.network_id, state.priv_key),
+     %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   # @spec suffix_name(name) :: name when name: atom()
