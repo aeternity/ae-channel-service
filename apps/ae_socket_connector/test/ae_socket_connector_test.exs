@@ -455,13 +455,6 @@ defmodule SocketConnectorTest do
                {responder_account, 4_000_000_000_001}
              )
          }},
-        #  grace time to make sure that initiator is gone
-        # {:responder,
-        #  %{
-        #    next: ClientRunnerHelper.pause_job(3000),
-        #    fuzzy: 10
-        #  }},
-        # this updates should fail, since other end is gone.
         {:responder,
          %{
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty}

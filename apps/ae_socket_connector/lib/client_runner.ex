@@ -10,7 +10,8 @@ defmodule ClientRunner do
             color: nil,
             match_list: nil,
             role: nil,
-            fuzzy_counter: 0
+            fuzzy_counter: 0,
+            paused: false
 
   def start_link(
         {_pub_key, _priv_key, _state_channel_configuration, _ae_url, _network_id, _role, _jobs, _color, _name} =
@@ -145,6 +146,21 @@ defmodule ClientRunner do
     process_sign_request(message, to_sign, pid_session_holder)
   end
 
+  def handle_cast({:end_pause}, state) do
+    GenServer.cast(self(), {:match_jobs, {}, nil})
+    {:noreply, %__MODULE__{state | paused: false}}
+  end
+
+  def handle_cast({:match_jobs, received_message, to_sign}, %__MODULE__{paused: paused} = state)
+      when paused == true do
+    Logger.debug(
+      "PAUSED role: #{inspect(state.role)} ignoring message #{inspect(received_message)}",
+      state.color
+    )
+
+    {:noreply, state}
+  end
+
   # message is mandated in every entry
   def handle_cast({:match_jobs, received_message, to_sign}, state) do
     case state.match_list do
@@ -206,6 +222,7 @@ defmodule ClientRunner do
     case mode do
       :async ->
         SessionHolder.run_action(state.pid_session_holder, fun)
+        {:noreply, state}
 
       :sync ->
         response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
@@ -216,12 +233,17 @@ defmodule ClientRunner do
         end
 
         GenServer.cast(self(), {:match_jobs, {}, nil})
+        {:noreply, state}
 
       :local ->
         fun.(self(), state.pid_session_holder)
-    end
+        {:noreply, state}
 
-    {:noreply, state}
+      :pause ->
+        fun.(self(), state.pid_session_holder)
+        Logger.debug("role: #{inspect(state.role)} entering pause")
+        {:noreply, %__MODULE__{state | paused: true}}
+    end
   end
 
   def gen_name(name, suffix) do

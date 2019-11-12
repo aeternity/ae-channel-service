@@ -10,7 +10,7 @@ defmodule ClientRunnerHelper do
   end
 
   def pause_job(delay) do
-    {:local,
+    {:pause,
      fn client_runner, _pid_session_holder ->
        Logger.debug("requested pause for: #{inspect(delay)}ms")
 
@@ -22,7 +22,7 @@ defmodule ClientRunnerHelper do
   end
 
   def resume_runner(client_runner) do
-    GenServer.cast(client_runner, {:match_jobs, {}, nil})
+    GenServer.cast(client_runner, {:end_pause})
   end
 
 
