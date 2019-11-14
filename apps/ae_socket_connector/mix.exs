@@ -27,12 +27,13 @@ defmodule SocketConnector.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      # {:setup, "1.8.4", override: true, manager: :rebar, runtime: false},
       {:httpotion, "~> 3.1.0"},
       # {:aebytecode, path: "../aebytecode", manager: :rebar3},
       # {:aebytecode, path: "../../aebytecode", manager: :rebar3, compile: false, override: true, app: false},
       # {:aebytecode, ">= 0.0.0", [env: :prod, override: true, git: "https://github.com/aeternity/aebytecode.git", ref: "241a96e"]},
       {:aesophia,
-       git: "https://github.com/aeternity/aesophia.git", ref: "73b9a54", manager: :rebar},
+       git: "https://github.com/aeternity/aesophia.git", ref: "422baa5b6553e3a0b3ef6dd4ae42fb05567673ff", manager: :rebar},
       # {:aeserialization, ">= 0.0.0", [env: :prod, override: true, git: "https://github.com/aeternity/aeserialization.git", ref: "816bf99", manager: :rebar3]},
       {:websockex, "~> 0.4.2"},
       {:poison, "~> 3.1"},
