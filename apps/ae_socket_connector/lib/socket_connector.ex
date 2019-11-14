@@ -940,7 +940,7 @@ defmodule SocketConnector do
         to_charlist(File.read!(contract_file)),
         fun,
         :ok,
-        deserialized_return
+        deserialized_return, [{:backend, :fate}]
       )
 
     # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)

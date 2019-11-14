@@ -782,10 +782,25 @@ defmodule SocketConnectorTest do
          %{
            next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
          }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           message: {:channels_update, 3, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'join',
+                  ['true']
+                )
+              end, :empty}
+         }},
         {:initiator,
          %{
            fuzzy: 10,
-           message: {:channels_update, 3, :self, "channels.update"},
+           message: {:channels_update, 4, :other, "channels.update"},
            next:
              {:async,
               fn pid ->
@@ -794,21 +809,6 @@ defmodule SocketConnectorTest do
                   initiator_contract,
                   'move',
                   ['1', '1']
-                )
-              end, :empty}
-         }},
-        {:initiator,
-         %{
-           fuzzy: 10,
-           message: {:channels_update, 4, :self, "channels.update"},
-           next:
-             {:async,
-              fn pid ->
-                SocketConnector.call_contract(
-                  pid,
-                  initiator_contract,
-                  'move',
-                  ['1', '2']
                 )
               end, :empty}
          }},
@@ -827,7 +827,7 @@ defmodule SocketConnectorTest do
                 )
               end,
               fn a ->
-                assert a == {:ok, {:string, [], "not your turn"}}
+                assert a == {:ok, {:bool, [], true}}
               end}
          }},
         {:responder,
