@@ -797,10 +797,41 @@ defmodule SocketConnectorTest do
                 )
               end, :empty}
          }},
+        {:responder,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 4, :self, "channels.update"},
+           next:
+             {:sync,
+              fn pid, from ->
+                SocketConnector.get_contract_reponse(
+                  pid,
+                  initiator_contract,
+                  'join',
+                  from
+                )
+              end,
+              fn a ->
+                assert a == {:ok, {:tuple, [], []}}
+              end}
+         }},
+        {:responder,
+         %{
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['2', '2']
+                )
+              end, :empty}
+         }},
         {:initiator,
          %{
            fuzzy: 10,
-           message: {:channels_update, 4, :other, "channels.update"},
+           message: {:channels_update, 5, :other, "channels.update"},
            next:
              {:async,
               fn pid ->
@@ -815,7 +846,22 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            fuzzy: 10,
-           message: {:channels_update, 5, :self, "channels.update"},
+           message: {:channels_update, 6, :self, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['1', '2']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 7, :self, "channels.update"},
            next:
              {:sync,
               fn pid, from ->
@@ -827,7 +873,85 @@ defmodule SocketConnectorTest do
                 )
               end,
               fn a ->
-                assert a == {:ok, {:bool, [], true}}
+                assert a == {:error, [{:err, {:pos, :no_file, 0, 0}, :data_error, [70, 97, 105, 108, 101, 100, 32, 116, 111, 32, 100, 101, 99, 111, 100, 101, 32, 98, 105, 110, 97, 114, 121, 32, 97, 115, 32, 116, 121, 112, 101, 32, 'bool', 10], :none}]}
+              end}
+         }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           message: {:channels_update, 7, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['1', '2']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 8, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['0', '2']
+                )
+              end, :empty}
+         }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           message: {:channels_update, 9, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['2', '1']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 10, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['2', '0']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 11, :self, "channels.update"},
+           next:
+             {:sync,
+              fn pid, from ->
+                SocketConnector.get_contract_reponse(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  from
+                )
+              end,
+              fn a ->
+                assert a == {:error, [{:err, {:pos, :no_file, 0, 0}, :data_error, [70, 97, 105, 108, 101, 100, 32, 116, 111, 32, 100, 101, 99, 111, 100, 101, 32, 98, 105, 110, 97, 114, 121, 32, 97, 115, 32, 116, 121, 112, 101, 32, 'bool', 10], :none}]}
               end}
          }},
         {:responder,
@@ -836,6 +960,8 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
+           fuzzy: 10,
+           message: {:channels_update, 11, :self, "channels.update"},
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
       ]
