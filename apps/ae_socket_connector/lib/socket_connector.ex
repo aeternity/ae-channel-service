@@ -404,7 +404,7 @@ defmodule SocketConnector do
 
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [])
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [], [{:backend, :fate}])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     request = new_contract_req(encoded_bytecode, encoded_calldata, 3)
@@ -477,7 +477,7 @@ defmodule SocketConnector do
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
   def handle_cast({:call_contract, {pub_key, contract_file}, fun, args}, state) do
-    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args)
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [{:backend, :fate}])
 
     contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
 
@@ -699,17 +699,17 @@ defmodule SocketConnector do
 
   def new_contract_req(code, call_data, _version) do
     build_request("channels.update.new_contract", %{
-      abi_version: 1,
+      abi_version: 3,
       call_data: call_data,
       code: code,
       deposit: 10,
-      vm_version: 3
+      vm_version: 5
     })
   end
 
   def call_contract_req(address, call_data) do
     build_request("channels.update.call_contract", %{
-      abi_version: 1,
+      abi_version: 3,
       amount: 0,
       call_data: call_data,
       contract_id: address
