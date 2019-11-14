@@ -433,7 +433,7 @@ defmodule SocketConnector do
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
   def calculate_contract_address({owner, contract_file}, updates) do
-    {:ok, map} = :aeso_compiler.file(contract_file)
+    {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, :fate}])
 
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
