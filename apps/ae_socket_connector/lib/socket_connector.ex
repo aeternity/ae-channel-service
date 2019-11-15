@@ -441,6 +441,7 @@ defmodule SocketConnector do
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
+    # {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, :aevm}])
 
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
@@ -929,7 +930,7 @@ defmodule SocketConnector do
     {:ok, state}
   end
 
-  # these dosn't contain round... merge with above
+  # these doesn't contain round...
   def process_message(
         %{
           "method" => method,
@@ -937,46 +938,64 @@ defmodule SocketConnector do
         } = _message,
         state
       )
-      when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
-    pending_sign_attempt = fn poi ->
-      # TODO need to check that PoI makes any sense to us
-      Logger.debug("POI is: #{inspect(poi)}", state.color)
+      when method in [
+             "channels.sign.shutdown_sign",
+             "channels.sign.shutdown_sign_ack"
+           ] do
 
-      # TODO unfinished...
-      signed_tx =
-        Signer.sign_transaction(
-          to_sign,
-          state,
-          Validator.inspect_sign_request_poi(method, poi)
-        )
-
-      build_message(method, %{signed_tx: signed_tx})
-    end
-
-    process_poi = fn %{"result" => result}, state ->
-      {result, state_updated} = process_get_poi_response(result, state)
-      response = pending_sign_attempt.(result)
-      {:reply, {:text, Poison.encode!(response)}, state_updated}
-    end
-
-    sync_call =
-      %SyncCall{request: request} =
-      get_poi_response_query(
-        [
-          state.session.basic_configuration.initiator_id,
-          state.session.basic_configuration.responder_id
-        ],
-        [],
-        process_poi
-      )
-
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{
-       state
-       | pending_id: Map.get(request, :id, nil),
-         sync_call: sync_call
-     }}
+    Validator.notify_sign_transaction(to_sign, method, state)
+    {:ok, state}
   end
+
+  # # subject to be removed
+  # # these dosn't contain round... merge with above
+  # def process_message(
+  #       %{
+  #         "method" => method,
+  #         "params" => %{"data" => %{"signed_tx" => to_sign}}
+  #       } = _message,
+  #       state
+  #     )
+  #     when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
+  #   pending_sign_attempt = fn poi ->
+  #     # TODO need to check that PoI makes any sense to us
+  #     Logger.debug("POI is: #{inspect(poi)}", state.color)
+
+  #     # TODO unfinished...
+  #     signed_tx =
+  #       Signer.sign_transaction(
+  #         to_sign,
+  #         state,
+  #         Validator.inspect_sign_request_poi(method, poi)
+  #       )
+
+  #     build_message(method, %{signed_tx: signed_tx})
+  #   end
+
+  #   process_poi = fn %{"result" => result}, state ->
+  #     {result, state_updated} = process_get_poi_response(result, state)
+  #     response = pending_sign_attempt.(result)
+  #     {:reply, {:text, Poison.encode!(response)}, state_updated}
+  #   end
+
+  #   sync_call =
+  #     %SyncCall{request: request} =
+  #     get_poi_response_query(
+  #       [
+  #         state.session.basic_configuration.initiator_id,
+  #         state.session.basic_configuration.responder_id
+  #       ],
+  #       [],
+  #       process_poi
+  #     )
+
+  #   {:reply, {:text, Poison.encode!(request)},
+  #    %__MODULE__{
+  #      state
+  #      | pending_id: Map.get(request, :id, nil),
+  #        sync_call: sync_call
+  #    }}
+  # end
 
   @self [
     "channels.sign.update",
@@ -1113,9 +1132,27 @@ defmodule SocketConnector do
     {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
-  def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
+  def process_message(%{"channel_id" => _channel_id, "error" => %{"request" => %{"params" => %{"call_data" => call_data, "code" => code}}}} = error, state) do
+  # def process_message(%{"channel_id" => _channel_id, "error" => %{"request" => hejsan}} = error, state) do
     Logger.error("error")
     Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
+
+    decoded_call_data = :aeser_api_encoder.decode(call_data)
+    decoded_code = :aeser_api_encoder.decode(code)
+
+
+    Logger.error "call_data #{inspect decoded_call_data}"
+    Logger.error "code #{inspect decoded_code}"
+
+    # deserialized_return = decoded_code
+    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
+    # {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
+    # result = :aect_sophia.prepare_for_json(:string, term)
+    # Logger.error(
+    #   "decoded inspect(result)}", state.color
+    # )
+
+
     {:error, state}
   end
 
