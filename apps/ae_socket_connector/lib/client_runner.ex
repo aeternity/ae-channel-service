@@ -128,6 +128,11 @@ defmodule ClientRunner do
             fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed2) end
             SessionHolder.run_action(pid_session_holder, fun)
 
+          {:check_poi} ->
+            fun = fn pid, from -> SocketConnector.get_poi(pid, from) end
+            poi = SessionHolder.run_action_sync(pid_session_holder, fun)
+            Logger.debug("poi is: #{inspect poi}")
+
           {:abort, abort_code} ->
             method = elem(message, 2)
             fun = fn pid -> SocketConnector.abort(pid, method, abort_code, "some message") end

@@ -442,11 +442,11 @@ defmodule SocketConnectorTest do
          }},
         #  grace time to make sure that initiator is gone
         {:responder,
-        %{
-          message: {:channels_update, 1, :other, "channels.update"},
-          next: ClientRunnerHelper.pause_job(3000),
-          fuzzy: 10
-        }},
+         %{
+           message: {:channels_update, 1, :other, "channels.update"},
+           next: ClientRunnerHelper.pause_job(3000),
+           fuzzy: 10
+         }},
         {:responder,
          %{
            next:
@@ -632,8 +632,17 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            #  message: {:channels_update, 2, :self, "channels.update"},
-           next: close_mutual_job(),
-           fuzzy: 8
+           next: {:async, fn pid -> SocketConnector.shutdown(pid) end, :empty}
+           #  next: close_mutual_job(),
+           #  fuzzy: 8
+         }},
+        {:initiator,
+         %{
+           message: {:sign_approve, 0, "channels.sign.shutdown_sign"},
+           next: {:async, fn pid -> SocketConnector.shutdown(pid) end, :empty},
+           sign: {:check_poi}
+           #  next: close_mutual_job(),
+           #  fuzzy: 8
          }},
         {:initiator,
          %{
