@@ -595,17 +595,6 @@ defmodule SocketConnectorTest do
     )
   end
 
-  def close_mutual_job() do
-    # special cased since this doesn't end up in an update.
-    shutdown = fn pid -> SocketConnector.shutdown(pid) end
-
-    {:local,
-     fn client_runner, pid_session_holder ->
-       SessionHolder.run_action(pid_session_holder, shutdown)
-       ClientRunnerHelper.resume_runner(client_runner)
-     end, :empty}
-  end
-
   @tag :close_mut
   test "close mutual", context do
     {alice, bob} = gen_names(context.test)
@@ -948,7 +937,6 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  # @tag :ignore
   @tag :open_channel_passive
   # this scenario does not work on circle ci. needs to be investigated
   test "teardown on channel creation", context do

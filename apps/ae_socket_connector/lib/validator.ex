@@ -23,6 +23,7 @@ defmodule Validator do
     apply(module, :round, [instance])
   end
 
+  # not used remove or, re-use inmplemetation
   defp channel_create_tx(tx, state) do
     # TODO make sure to verify that what we are signing matches according to the original request made.
     # module is: aesc_create_tx
@@ -119,7 +120,7 @@ defmodule Validator do
       ) do
     %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
 
-    # TODO need to re-implement auto approval
+    # The idea here is that if we initiated the round we can automatically confirm that the sign request contians what we intended. Grab code from inspect_sign_request
     auto_approval = :ok
 
     case send_approval_request(to_sign, round_initiator, method, auto_approval, state) do
@@ -140,10 +141,12 @@ defmodule Validator do
     )
   end
 
+  # not used remove or, re-use inmplemetation
   def inspect_sign_request_poi(method, poi) do
     fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
   end
 
+  # not used remove or, re-use inmplemetation
   def inspect_sign_request(aetx, round_initiator, method, state, poi \\ nil) do
     {module, _tx_instance} = :aetx.specialize_callback(aetx)
 
@@ -195,7 +198,7 @@ defmodule Validator do
     Logger.debug("url to check: curl #{inspect(url_to_check)}")
   end
 
-  def match_poi_aetx({poi, [initiator, responder], contracts}, to_sign, round_and_updates) do
+  def match_poi_aetx({poi, [initiator, responder], contracts}, to_sign, state_tx) do
     {poi_hash, accounts_and_values} = extract_poi_hash(poi, [initiator, responder], contracts)
 
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
@@ -203,14 +206,12 @@ defmodule Validator do
     deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
     aetx = :aetx_sign.tx(deserialized_signed_tx)
 
-    # aetx = :aetx_sign.deserialize_from_binary(signed_tx)
     {module, instance} = :aetx.specialize_callback(aetx)
 
     case module do
       :aesc_close_mutual_tx ->
 
-        case poi_hash == get_state_hash(round_and_updates) do
-        # case poi_hash == get_state_hash(get_most_recent_state_tx(round_and_updates)) do
+        case poi_hash == get_state_hash(state_tx) do
           true ->
             expected_after_fee = [
               {
@@ -257,11 +258,6 @@ defmodule Validator do
         Logger.debug("PoI checking not implemented yet for #{inspect(module)}")
         :ok
     end
-  end
-
-  defp get_most_recent_state_tx(round_and_updates) do
-    {_round, %Update{state_tx: state_tx}} = Enum.max(round_and_updates)
-    state_tx
   end
 
   defp extract_poi_hash(poi_encoded, accounts, _contracts) do

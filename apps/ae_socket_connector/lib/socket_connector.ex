@@ -772,20 +772,6 @@ defmodule SocketConnector do
     end
   end
 
-  # def get_poi_response_query(accounts, contracts, fun) when is_function(fun) do
-  #   make_sync(
-  #     true,
-  #     %SyncCall{
-  #       request:
-  #         build_request("channels.get.poi", %{
-  #           accounts: accounts,
-  #           contracts: contracts
-  #         }),
-  #       response: fun
-  #     }
-  #   )
-  # end
-
   def get_poi_response_query(accounts, contracts, from_pid) do
     make_sync(
       from_pid,
@@ -923,22 +909,7 @@ defmodule SocketConnector do
       when method in [
              "channels.sign.close_solo_sign",
              "channels.sign.slash_tx",
-             "channels.sign.settle_sign"
-           ] do
-
-    Validator.notify_sign_transaction(to_sign, method, state)
-    {:ok, state}
-  end
-
-  # these doesn't contain round...
-  def process_message(
-        %{
-          "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      )
-      when method in [
+             "channels.sign.settle_sign",
              "channels.sign.shutdown_sign",
              "channels.sign.shutdown_sign_ack"
            ] do
@@ -946,56 +917,6 @@ defmodule SocketConnector do
     Validator.notify_sign_transaction(to_sign, method, state)
     {:ok, state}
   end
-
-  # # subject to be removed
-  # # these dosn't contain round... merge with above
-  # def process_message(
-  #       %{
-  #         "method" => method,
-  #         "params" => %{"data" => %{"signed_tx" => to_sign}}
-  #       } = _message,
-  #       state
-  #     )
-  #     when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
-  #   pending_sign_attempt = fn poi ->
-  #     # TODO need to check that PoI makes any sense to us
-  #     Logger.debug("POI is: #{inspect(poi)}", state.color)
-
-  #     # TODO unfinished...
-  #     signed_tx =
-  #       Signer.sign_transaction(
-  #         to_sign,
-  #         state,
-  #         Validator.inspect_sign_request_poi(method, poi)
-  #       )
-
-  #     build_message(method, %{signed_tx: signed_tx})
-  #   end
-
-  #   process_poi = fn %{"result" => result}, state ->
-  #     {result, state_updated} = process_get_poi_response(result, state)
-  #     response = pending_sign_attempt.(result)
-  #     {:reply, {:text, Poison.encode!(response)}, state_updated}
-  #   end
-
-  #   sync_call =
-  #     %SyncCall{request: request} =
-  #     get_poi_response_query(
-  #       [
-  #         state.session.basic_configuration.initiator_id,
-  #         state.session.basic_configuration.responder_id
-  #       ],
-  #       [],
-  #       process_poi
-  #     )
-
-  #   {:reply, {:text, Poison.encode!(request)},
-  #    %__MODULE__{
-  #      state
-  #      | pending_id: Map.get(request, :id, nil),
-  #        sync_call: sync_call
-  #    }}
-  # end
 
   @self [
     "channels.sign.update",
@@ -1141,7 +1062,7 @@ defmodule SocketConnector do
   # This is where we get syncrouns responses back
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id == pending_id do
-    return =
+    {_result, updated_state} =
       case state.sync_call do
         %SyncCall{response: response} ->
           case response do
@@ -1158,13 +1079,7 @@ defmodule SocketConnector do
           {:ok, state}
       end
 
-    case return do
-      {:reply, {:text, reply}, state} ->
-        {:reply, {:text, reply}, %__MODULE__{state | sync_call: %{}}}
-
-      {_result, updated_state} ->
-        {:ok, %__MODULE__{updated_state | sync_call: %{}}}
-    end
+    {:ok, %__MODULE__{updated_state | sync_call: %{}}}
   end
 
   # wrong unexpected id in response.
