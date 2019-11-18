@@ -772,19 +772,19 @@ defmodule SocketConnector do
     end
   end
 
-  def get_poi_response_query(accounts, contracts, fun) when is_function(fun) do
-    make_sync(
-      true,
-      %SyncCall{
-        request:
-          build_request("channels.get.poi", %{
-            accounts: accounts,
-            contracts: contracts
-          }),
-        response: fun
-      }
-    )
-  end
+  # def get_poi_response_query(accounts, contracts, fun) when is_function(fun) do
+  #   make_sync(
+  #     true,
+  #     %SyncCall{
+  #       request:
+  #         build_request("channels.get.poi", %{
+  #           accounts: accounts,
+  #           contracts: contracts
+  #         }),
+  #       response: fun
+  #     }
+  #   )
+  # end
 
   def get_poi_response_query(accounts, contracts, from_pid) do
     make_sync(
@@ -1132,27 +1132,9 @@ defmodule SocketConnector do
     {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
-  def process_message(%{"channel_id" => _channel_id, "error" => %{"request" => %{"params" => %{"call_data" => call_data, "code" => code}}}} = error, state) do
-  # def process_message(%{"channel_id" => _channel_id, "error" => %{"request" => hejsan}} = error, state) do
+  def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("error")
     Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
-
-    decoded_call_data = :aeser_api_encoder.decode(call_data)
-    decoded_code = :aeser_api_encoder.decode(code)
-
-
-    Logger.error "call_data #{inspect decoded_call_data}"
-    Logger.error "code #{inspect decoded_code}"
-
-    # deserialized_return = decoded_code
-    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
-    # {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
-    # result = :aect_sophia.prepare_for_json(:string, term)
-    # Logger.error(
-    #   "decoded inspect(result)}", state.color
-    # )
-
-
     {:error, state}
   end
 

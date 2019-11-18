@@ -221,10 +221,7 @@ defmodule SocketConnectorTest do
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
                 transaction =
-                  GenServer.call(
-                    pid_session_holder,
-                    {:solo_close_transaction, 2, nonce + 1, height}
-                  )
+                    SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
 
                 OnChain.post_solo_close(transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
@@ -609,7 +606,6 @@ defmodule SocketConnectorTest do
      end, :empty}
   end
 
-  @tag :ignore
   @tag :close_mut
   test "close mutual", context do
     {alice, bob} = gen_names(context.test)
@@ -631,18 +627,12 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           #  message: {:channels_update, 2, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.shutdown(pid) end, :empty}
-           #  next: close_mutual_job(),
-           #  fuzzy: 8
          }},
         {:initiator,
          %{
            message: {:sign_approve, 0, "channels.sign.shutdown_sign"},
-           next: {:async, fn pid -> SocketConnector.shutdown(pid) end, :empty},
            sign: {:check_poi}
-           #  next: close_mutual_job(),
-           #  fuzzy: 8
          }},
         {:initiator,
          %{

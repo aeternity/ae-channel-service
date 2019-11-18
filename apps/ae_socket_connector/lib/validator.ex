@@ -195,13 +195,22 @@ defmodule Validator do
     Logger.debug("url to check: curl #{inspect(url_to_check)}")
   end
 
-  defp match_poi_aetx({poi, [initiator, responder], contracts}, aetx, round_and_updates) do
+  def match_poi_aetx({poi, [initiator, responder], contracts}, to_sign, round_and_updates) do
     {poi_hash, accounts_and_values} = extract_poi_hash(poi, [initiator, responder], contracts)
+
+    {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
+
+    deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
+    aetx = :aetx_sign.tx(deserialized_signed_tx)
+
+    # aetx = :aetx_sign.deserialize_from_binary(signed_tx)
     {module, instance} = :aetx.specialize_callback(aetx)
 
     case module do
       :aesc_close_mutual_tx ->
-        case poi_hash == get_state_hash(get_most_recent_state_tx(round_and_updates)) do
+
+        case poi_hash == get_state_hash(round_and_updates) do
+        # case poi_hash == get_state_hash(get_most_recent_state_tx(round_and_updates)) do
           true ->
             expected_after_fee = [
               {

@@ -55,6 +55,14 @@ defmodule SessionHolder do
     GenServer.call(pid, {:sign_request, to_sign}, @sync_call_timeout)
   end
 
+  def solo_close_transaction(pid, round, nonce, ttl) do
+    GenServer.call(pid, {:solo_close_transaction, round, nonce, ttl})
+  end
+
+  def verify_poi(pid, to_sign, poi) do
+    GenServer.call(pid, {:verify_poi, to_sign, poi})
+  end
+
   # Server
   def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, color}) do
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
@@ -175,6 +183,18 @@ defmodule SessionHolder do
       end)
 
     {:reply, sign_result, state}
+  end
+
+  def handle_call({:verify_poi, to_sign, poi}, _from, state) do
+    socket_connector_state = fetch_state(state.socket_connector_pid)
+
+    {_round, %SocketConnector.Update{state_tx: state_tx}} = Enum.max(socket_connector_state.round_and_updates)
+
+    %SocketConnector.WsConnection{initiator_id: initiator_id, responder_id: responder_id} =
+      socket_connector_state.session.basic_configuration
+
+    valid = Validator.match_poi_aetx({poi, [initiator_id, responder_id], []}, to_sign, state_tx)
+    {:reply, valid, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   def handle_call(
