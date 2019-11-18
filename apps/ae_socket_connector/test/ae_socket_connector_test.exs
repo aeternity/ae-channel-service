@@ -942,6 +942,16 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               #  initiator have put 10 in the contract
+               {intiator_account, 6_999_999_999_987},
+               {responder_account, 4_000_000_000_003}
+             )
+         }},
+        {:initiator,
+         %{
+           # This is the winning move
            fuzzy: 10,
            message: {:channels_update, 10, :other, "channels.update"},
            next:
@@ -973,6 +983,15 @@ defmodule SocketConnectorTest do
                 # we have a winner!
                 assert a == {:ok, {:bool, [], true}}
               end}
+         }},
+        {:initiator,
+         %{
+           # initiator regained his 10 credits, since he won.
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_997},
+               {responder_account, 4_000_000_000_003}
+             )
          }},
         {:responder,
          %{
@@ -1068,6 +1087,7 @@ defmodule SocketConnectorTest do
            message: {:channels_update, 5, :self, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
+               #  reduce by 10 + 3, 10 deposit in contract
                {intiator_account, 6_999_999_999_984},
                {responder_account, 4_000_000_000_006}
              )
@@ -1083,7 +1103,6 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            fuzzy: 10,
-           #  TODO bug somewhere, why do we go for transient here?
            message: {:channels_update, 6, :self, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
