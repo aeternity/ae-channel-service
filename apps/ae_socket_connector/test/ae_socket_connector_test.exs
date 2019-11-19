@@ -220,8 +220,7 @@ defmodule SocketConnectorTest do
                 height = OnChain.current_height()
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
-                transaction =
-                    SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
+                transaction = SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
 
                 OnChain.post_solo_close(transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
@@ -920,17 +919,110 @@ defmodule SocketConnectorTest do
     )
   end
 
-  # test "reestablish jobs", context do
-  #   {alice, bob} = gen_names(context.test)
+  @tag :reestablish
+  test "reestablish jobs", context do
+    {alice, bob} = gen_names(context.test)
 
-  #   ClientRunner.start_peers(
-  #     @ae_url,
-  #     @network_id,
-  #     {alice, accounts_initiator()},
-  #     {bob, accounts_responder()},
-  #     &TestScenarios.reestablish_jobs_v2/3
-  #   )
-  # end
+    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+      [
+        {:initiator,
+         %{
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+           fuzzy: 10
+         }},
+        {:initiator,
+         %{
+           message: {:channels_update, 2, :self, "channels.update"},
+           fuzzy: 3,
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_997},
+               {responder_account, 4_000_000_000_003}
+             )
+         }},
+        {:initiator,
+         %{
+           # message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty}
+           # fuzzy: 3
+         }},
+        {:initiator,
+         %{
+           fuzzy: 20,
+           message: {:channels_info, 0, :transient, "died"},
+           next: ClientRunnerHelper.pause_job(300)
+         }},
+        {:initiator,
+         %{
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                SessionHolder.reestablish(pid_session_holder, 1501)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+         }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           # :channels_info, 0, :transient, "peer_disconnected"
+           message: {:channels_update, 2, :transient, "channels.leave"},
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                SessionHolder.kill_connection(pid_session_holder)
+                SessionHolder.reestablish(pid_session_holder, 1501)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+         }},
+        {:responder, %{next: ClientRunnerHelper.pause_job(1000)}},
+        {:responder,
+         %{
+           fuzzy: 3,
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_997},
+               {responder_account, 4_000_000_000_003}
+             )
+         }},
+        # reestablish without leave
+        {:responder,
+         %{
+           next:
+             {:local,
+              fn client_runner, pid_session_holder ->
+                SessionHolder.kill_connection(pid_session_holder)
+                SessionHolder.reestablish(pid_session_holder, 1501)
+                ClientRunnerHelper.resume_runner(client_runner)
+              end, :empty}
+         }},
+        {:responder,
+         %{
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_997},
+               {responder_account, 4_000_000_000_003}
+             )
+         }},
+        {:initiator,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }},
+        {:responder,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }}
+      ]
+    end
+
+    ClientRunner.start_peers(
+      @ae_url,
+      @network_id,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
+      scenario
+    )
+  end
 
   # test "query after reconnect", context do
   #   {alice, bob} = gen_names(context.test)

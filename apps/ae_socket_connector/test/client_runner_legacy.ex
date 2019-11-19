@@ -45,58 +45,6 @@ defmodule ClientRunnerLegacy do
     {jobs_initiator, jobs_responder}
   end
 
-  def reestablish_jobs({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
-    jobs_initiator = [
-      {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
-      {:sync,
-       fn pid, from ->
-         SocketConnector.query_funds(pid, from)
-       end, :empty},
-      {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-      {:local,
-       fn client_runner, pid_session_holder ->
-         SessionHolder.reestablish(pid_session_holder)
-         GenServer.cast(client_runner, {:process_job_lists})
-       end, :empty},
-      sequence_finish_job(runner_pid, initiator)
-    ]
-
-    jobs_responder =
-      empty_jobs(1..2) ++
-        [
-          {:local,
-           fn client_runner, pid_session_holder ->
-             Logger.debug("reestablish 1")
-             SessionHolder.reestablish(pid_session_holder)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end, :empty},
-          pause_job(5000),
-          assert_funds_job(
-            {intiator_account, 6_999_999_999_997},
-            {responder_account, 4_000_000_000_003}
-          ),
-          pause_job(5000),
-          # reestablish without leave
-          {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-          pause_job(5000),
-          {:local,
-           fn client_runner, pid_session_holder ->
-             Logger.debug("reestablish 2")
-             SessionHolder.reestablish(pid_session_holder)
-             GenServer.cast(client_runner, {:process_job_lists})
-           end, :empty},
-          pause_job(5000),
-          assert_funds_job(
-            {intiator_account, 6_999_999_999_997},
-            {responder_account, 4_000_000_000_003}
-          ),
-          # pause_job(5000),
-          sequence_finish_job(runner_pid, responder)
-        ]
-
-    {jobs_initiator, jobs_responder}
-  end
-
   # query after violent reestablish
   def query_after_reconnect({initiator, intiator_account}, {responder, responder_account}, runner_pid) do
     jobs_initiator =
