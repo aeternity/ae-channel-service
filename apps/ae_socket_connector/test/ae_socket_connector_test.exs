@@ -780,7 +780,8 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+           # initiator have put 10 in the contract
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
          }},
         {:responder,
          %{
@@ -789,11 +790,13 @@ defmodule SocketConnectorTest do
            next:
              {:async,
               fn pid ->
+                # responder add 10 (same) in the contract
                 SocketConnector.call_contract(
                   pid,
                   initiator_contract,
                   'join',
-                  ['true']
+                  ['true'],
+                  10
                 )
               end, :empty}
          }},
@@ -946,7 +949,7 @@ defmodule SocketConnectorTest do
              ClientRunnerHelper.assert_funds_job(
                #  initiator have put 10 in the contract
                {intiator_account, 6_999_999_999_987},
-               {responder_account, 4_000_000_000_003}
+               {responder_account, 3_999_999_999_993}
              )
          }},
         {:initiator,
@@ -986,11 +989,11 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           # initiator regained his 10 credits, since he won.
+           # initiator wins the total amount of credits, since he won.
            next:
              ClientRunnerHelper.assert_funds_job(
-               {intiator_account, 6_999_999_999_997},
-               {responder_account, 4_000_000_000_003}
+               {intiator_account, 7_000_000_000_007},
+               {responder_account, 3_999_999_999_993}
              )
          }},
         {:responder,

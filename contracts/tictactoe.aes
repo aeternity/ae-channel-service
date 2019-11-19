@@ -24,6 +24,7 @@ contract TicTacToe =
     require( state.player == state.next, "already 2 players")
     require( state.price_sum > 0, "no price")
     require( state.player != Call.caller, "It's a 2 player game")
+    require( Call.value == state.price_sum, String.concat("To play you need to pay: ", Int.to_str(state.price_sum)))
     switch(start)
         true =>
            put( state{ player = Call.caller,
