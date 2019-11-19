@@ -208,11 +208,10 @@ defmodule Validator do
 
     {module, instance} = :aetx.specialize_callback(aetx)
 
-    case module do
-      :aesc_close_mutual_tx ->
-
-        case poi_hash == get_state_hash(state_tx) do
-          true ->
+    case poi_hash == get_state_hash(state_tx) do
+      true ->
+        case module do
+          :aesc_close_mutual_tx ->
             expected_after_fee = [
               {
                 initiator,
@@ -249,14 +248,18 @@ defmodule Validator do
 
                 :unsecure
             end
+
+          module ->
+            # TODO if we have a POI we could at least check the the root hashes mathes
+            # poi_hash == get_state_hash(tx)
+            Logger.debug("PoI detailed checking not implemented yet for #{inspect(module)}")
+            :ok
         end
 
-      module ->
-        # TODO if we have a POI we could at least check the the root hashes mathes
-        # poi_hash == get_state_hash(tx)
-        # Logger.debug("Poi matches most reasent state_tx #{inspect(module)}")
-        Logger.debug("PoI checking not implemented yet for #{inspect(module)}")
-        :ok
+      false ->
+        Logger.error(
+          "Poi hash missmatch, lets go slashing"
+        )
     end
   end
 

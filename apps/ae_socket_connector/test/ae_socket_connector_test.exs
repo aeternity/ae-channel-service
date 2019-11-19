@@ -383,6 +383,13 @@ defmodule SocketConnectorTest do
               end, :empty},
            fuzzy: 0
          }},
+        {:initiator,
+         %{
+           message: {:sign_approve, 2, "channels.sign.withdraw_tx"},
+           fuzzy: 20,
+           sign: {:check_poi},
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }},
         {:responder,
          %{
            message: {:channels_update, 2, :other, "channels.update"},
