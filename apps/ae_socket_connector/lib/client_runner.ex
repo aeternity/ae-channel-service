@@ -129,7 +129,7 @@ defmodule ClientRunner do
             SessionHolder.run_action(pid_session_holder, fun)
 
           {:check_poi} ->
-            fun = fn pid, from -> SocketConnector.get_poi(pid, from) end
+            fun = &SocketConnector.get_poi/2
             poi = SessionHolder.run_action_sync(pid_session_holder, fun)
             case SessionHolder.verify_poi(pid_session_holder, to_sign, poi) do
               :ok ->
