@@ -119,30 +119,32 @@ defmodule ClientRunner do
         case sign_info do
           {:default} ->
             signed = SessionHolder.sign_message(pid_session_holder, to_sign)
-            fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
+            fun = &(SocketConnector.send_signed_message(&1, elem(message, 2), signed))
             SessionHolder.run_action(pid_session_holder, fun)
 
           {:backchannel, pid_other_session_holder} ->
             signed = SessionHolder.sign_message(pid_session_holder, to_sign)
             signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
-            fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed2) end
+            fun = &(SocketConnector.send_signed_message(&1, elem(message, 2), signed2))
             SessionHolder.run_action(pid_session_holder, fun)
 
           {:check_poi} ->
             fun = &SocketConnector.get_poi/2
             poi = SessionHolder.run_action_sync(pid_session_holder, fun)
+
             case SessionHolder.verify_poi(pid_session_holder, to_sign, poi) do
               :ok ->
                 signed = SessionHolder.sign_message(pid_session_holder, to_sign)
                 fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
                 SessionHolder.run_action(pid_session_holder, fun)
+
               :unsecure ->
                 Logger.warn("POI missmatch, refuse signing")
             end
 
           {:abort, abort_code} ->
             method = elem(message, 2)
-            fun = fn pid -> SocketConnector.abort(pid, method, abort_code, "some message") end
+            fun = &SocketConnector.abort(&1, method, abort_code, "some message")
             SessionHolder.run_action(pid_session_holder, fun)
 
           _ ->
@@ -163,8 +165,7 @@ defmodule ClientRunner do
     {:noreply, %__MODULE__{state | paused: false}}
   end
 
-  def handle_cast({:match_jobs, received_message, _to_sign}, %__MODULE__{paused: paused} = state)
-      when paused == true do
+  def handle_cast({:match_jobs, received_message, _to_sign}, %__MODULE__{paused: true} = state) do
     Logger.debug(
       "PAUSED role: #{inspect(state.role)} ignoring message #{inspect(received_message)}",
       state.color
