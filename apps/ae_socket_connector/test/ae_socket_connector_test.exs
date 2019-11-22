@@ -345,6 +345,7 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :nope
   @tag :reconnect
   test "withdraw after re-connect", context do
     {alice, bob} = gen_names(context.test)
@@ -653,6 +654,7 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :nope
   test "reconnect jobs", context do
     {alice, bob} = gen_names(context.test)
 

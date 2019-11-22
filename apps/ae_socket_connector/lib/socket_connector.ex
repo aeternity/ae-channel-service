@@ -7,6 +7,7 @@ defmodule SocketConnector do
   defstruct pub_key: nil,
             role: nil,
             session: %{},
+            fsm_id: nil,
             color: nil,
             channel_id: nil,
             pending_id: nil,
@@ -105,7 +106,8 @@ defmodule SocketConnector do
           channel_id: channel_id,
           round_and_updates: round_and_updates,
           ws_base: ws_base,
-          pending_round_and_update: pending_round_and_update
+          pending_round_and_update: pending_round_and_update,
+          fsm_id: fsm_id
         } = state_channel_context,
         port,
         color,
@@ -118,7 +120,7 @@ defmodule SocketConnector do
         {false, false} -> throw "cannot reestablish no saved state avaliable"
       end
 
-    session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
+    session_map = init_reestablish_map(channel_id, fsm_id, state_tx, role, ws_base, port)
     ws_url = create_link(state_channel_context.ws_base, session_map)
 
     Logger.debug("start_link reestablish url: #{inspect(ws_url)}",
@@ -848,9 +850,10 @@ defmodule SocketConnector do
 
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=responder
   # ws://localhost:3014/channel?existing_channel_id=ch_s8RwBYpaPCPvUxvDsoLxH9KTgSV6EPGNjSYHfpbb4BL4qudgR&host=localhost&offchain_tx=tx_%2BQENCwH4hLhAP%2BEiPpXFO80MdqGnw6GkaAYpOHCvcP%2FKBKJZ5IIicYBItA9s95zZA%2BRX1DNNheorlbZYKHctN3ZyvKnsFa7HDrhAYqWNrW8oDAaLj0JCUeW0NfNNhs4dKDJoHuuCdWhnX4r802c5ZAFKV7EV%2FmHihVXzgLyaRaI%2FSVw2KS%2Bz471bAriD%2BIEyAaEBsbV3vNMnyznlXmwCa9anShs13mwGUMSuUe%2BrdZ5BW2aGP6olImAAoQFnHFVGRklFdbK0lPZRaCFxBmPYSJPN0tI2A3pUwz7uhIYkYTnKgAACCgCGEjCc5UAAwKCjPk7CXWjSHTO8V2Y9WTad6D%2F5sB8yCR8WumWh0WxWvwdz6zEk&port=12341&protocol=json-rpc&role=initiator
-  def init_reestablish_map(channel_id, offchain_tx, role, _host_url, port) do
+  def init_reestablish_map(channel_id, fsm_id, offchain_tx, role, _host_url, port) do
     same = %{
       existing_channel_id: channel_id,
+      existing_fsm_id: fsm_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
       # TODO this should not be hardcoded.
@@ -1169,6 +1172,18 @@ defmodule SocketConnector do
     quote do
       unquote(stored_id) == nil and unquote(new_id) != nil
     end
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.info",
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+    produce_callback(:channels_info, state, 0, event)
+    {:ok, %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}}
   end
 
   def process_message(
