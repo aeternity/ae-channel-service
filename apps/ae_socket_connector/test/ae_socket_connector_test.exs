@@ -43,7 +43,9 @@ defmodule SocketConnectorTest do
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
         # opening channel
+        {:responder, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
         {:responder, %{message: {:channels_info, 0, :transient, "channel_open"}}},
+        {:initiator, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
         {:initiator, %{message: {:channels_info, 0, :transient, "channel_accept"}}},
         {:initiator, %{message: {:sign_approve, 1, "channels.sign.initiator_sign"}}},
         {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
@@ -203,7 +205,7 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -263,7 +265,7 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -274,7 +276,7 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -345,7 +347,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :nope
+  # reconnect is discontinued
+  @tag :ignore
   @tag :reconnect
   test "withdraw after re-connect", context do
     {alice, bob} = gen_names(context.test)
@@ -427,6 +430,8 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
+  # reconnect is discontinued
+  @tag :ignore
   @tag :backchannel
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
@@ -568,13 +573,13 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
            message: {:channels_update, 2, :self, "channels.update"},
            next: close_solo_job(),
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -612,14 +617,14 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         #  get poi is done under the hood, but this call tests additional code
         {:initiator,
          %{
            message: {:channels_update, 2, :self, "channels.update"},
            next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -654,7 +659,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :nope
+  # reconnect is discontinued
+  @tag :ignore
   test "reconnect jobs", context do
     {alice, bob} = gen_names(context.test)
 
