@@ -145,50 +145,7 @@ defmodule SocketConnector do
     # WebSockex.start_link(ws_url, __MODULE__, %{priv_key: priv_key, pub_key: pub_key, role: role, session: state_channel_context, color: [ansi_color: color]}, name: name)
   end
 
-  # "ws://localhost:3014/channel?port=14035&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuEBxaFk2dtVESM%2BzvaLXl319O%2B3%2FKYeLKk9pTEBCQsdAxR85LmHLHuI7gh7kuDE0X0iU33CymvyZhYREohGQFTIOuFX4U4ICPwGhBhcVvJBxDP091oeKLKHW8agBzefkBFITZPJHUXayn9anAYlpbml0aWF0b3KhASLZizA%2BhxzczTNVDD0TYeYxI0%2BWU4ivbUiUdyc9vIoepDdZMA%3D%3D&role=initiator"
-  # "ws://localhost:3014/channel?port=12340&protocol=json-rpc&reconnect_tx=tx_%2BJ0LAfhCuECn2VH8aS%2Flu0M%2BG%2BegIhFLQMf8BMlD5Id3eoifjVGCXQ%2BTmoiPkobvn%2B2fLpOraNDiBy0TxFrSCUyb3BAsY30JuFX4U4ICPwGhBt42ggNCxlTQE8gU1jomS2%2FgvcVSAVhx%2B1fgSeohtMyNAolyZXNwb25kZXKhAZE5UsWfy1ddJvWjnu35ZY2eucZXvgsPYFDhim%2F8JTtPKShDIw%3D%3D&role=responder"
-  def start_link(
-        :reconnect,
-        signed_reconnect_tx,
-        %__MODULE__{
-        } = state_channel_context,
-        port,
-        color,
-        ws_manager_pid
-      ) do
-    session_map = init_reconnect_map(signed_reconnect_tx, port)
-    ws_url = create_link(state_channel_context.ws_base, session_map)
-    Logger.debug("start_link reeconnect #{inspect(ws_url)}", ansi_color: color)
-
-    {:ok, pid} =
-      WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-        state_channel_context
-        | ws_manager_pid: ws_manager_pid,
-          timer_reference: nil,
-          color: [ansi_color: color]
-      })
-
-    start_ping(pid)
-    {:ok, pid}
-  end
-
-  # inspiration https://github.com/aeternity/aeternity/blob/9506e5e7d7da09f2c714e78cb9337adbb3e28a2a/apps/aechannel/test/aesc_fsm_SUITE.erl#L1650
-  def create_reconnect_tx(channel_id, round, role, pub_key) do
-    {tag, channel} = :aeser_api_encoder.decode(channel_id)
-    {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
-
-    {:ok, aetx} =
-      :aesc_client_reconnect_tx.new(%{
-        channel_id: :aeser_id.create(tag, channel),
-        round: round,
-        role: role,
-        pub_key: :aeser_id.create(:account, puk_key_decoded)
-      })
-
-    aetx
-  end
-
-  # move this and it's buddy (above) to another file
+  # move this and to another file
   def create_solo_close_tx(pub_key, channel_id, state_tx, poienc, nonce, ttl) do
     {_tag, channel} = :aeser_api_encoder.decode(channel_id)
     {:account_pubkey, puk_key_decoded} = :aeser_api_encoder.decode(pub_key)
@@ -874,14 +831,6 @@ defmodule SocketConnector do
       end
 
     Map.merge(same, role_map)
-  end
-
-  def init_reconnect_map(reconnect_tx, port) do
-    %{
-      protocol: "json-rpc",
-      reconnect_tx: reconnect_tx,
-      port: port
-    }
   end
 
   def init_map(

@@ -347,10 +347,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  # reconnect is discontinued
-  @tag :ignore
-  @tag :reconnect
-  test "withdraw after re-connect", context do
+  @tag :reestablish
+  test "withdraw after re-establish", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
@@ -372,7 +370,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder, 1510)
+                SessionHolder.reestablish(pid_session_holder, 1510)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty},
            fuzzy: 0
@@ -430,8 +428,6 @@ defmodule SocketConnectorTest do
   #   )
   # end
 
-  # reconnect is discontinued
-  @tag :ignore
   @tag :backchannel
   test "backchannel jobs", context do
     {alice, bob} = gen_names(context.test)
@@ -505,7 +501,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder, 1233)
+                SessionHolder.reestablish(pid_session_holder, 1233)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -659,9 +655,7 @@ defmodule SocketConnectorTest do
     )
   end
 
-  # reconnect is discontinued
-  @tag :ignore
-  test "reconnect jobs", context do
+  test "reestablish jobs 2", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
@@ -712,7 +706,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder)
+                SessionHolder.reestablish(pid_session_holder, 1602)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},

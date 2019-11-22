@@ -35,10 +35,6 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:reestablish, port})
   end
 
-  def reconnect(pid, port \\ 1502) do
-    GenServer.cast(pid, {:reconnect, port})
-  end
-
   def stop_helper(pid) do
     run_action(pid, fn pid -> SocketConnector.leave(pid) end)
   end
@@ -110,44 +106,6 @@ defmodule SessionHolder do
       end
 
     {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
-  end
-
-  def handle_cast({:reconnect, port}, state) do
-    Logger.debug("about to re-connect connection", ansi_color: state.color)
-
-    socket_connector_state = state.socket_connector_state
-
-    pending_round_and_update = socket_connector_state.pending_round_and_update
-    round_and_updates = socket_connector_state.round_and_updates
-
-    {round, %SocketConnector.Update{}} =
-      case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
-        {true, _} -> Enum.max(pending_round_and_update)
-        {false, true} -> Enum.max(round_and_updates)
-        {false, false} -> throw("cannot reconnect no saved state avaliable")
-      end
-
-    reconnect_tx =
-      SocketConnector.create_reconnect_tx(
-        socket_connector_state.channel_id,
-        round,
-        socket_connector_state.role,
-        socket_connector_state.pub_key
-      )
-
-    signed_reconnect_tx = Signer.sign_aetx(reconnect_tx, state.network_id, state.priv_key)
-
-    {:ok, pid} =
-      SocketConnector.start_link(
-        :reconnect,
-        signed_reconnect_tx,
-        state.socket_connector_state,
-        port,
-        state.color,
-        self()
-      )
-
-    {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
 
   def handle_cast({:reestablish, port}, state) do
