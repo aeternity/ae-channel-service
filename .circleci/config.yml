@@ -105,7 +105,7 @@ jobs:
 
       - run:
           name: Run tests
-          command: docker exec ae-channel-service mix test
+          command: docker exec ae-channel-service mix test --exclude ignore
 
       - store_test_results:
           path: _build/test/lib/ae_socket_connector

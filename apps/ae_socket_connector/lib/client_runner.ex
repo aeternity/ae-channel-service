@@ -10,7 +10,8 @@ defmodule ClientRunner do
             color: nil,
             match_list: nil,
             role: nil,
-            fuzzy_counter: 0
+            fuzzy_counter: 0,
+            paused: false
 
   def start_link(
         {_pub_key, _priv_key, _state_channel_configuration, _ae_url, _network_id, _role, _jobs, _color, _name} =
@@ -20,7 +21,10 @@ defmodule ClientRunner do
   end
 
   defp log_callback(type, round, round_initiator, method, color) do
-    Logger.debug("received: #{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}", color)
+    Logger.debug(
+      "received: #{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}",
+      color
+    )
   end
 
   def connection_callback(callback_pid, color) do
@@ -29,7 +33,7 @@ defmodule ClientRunner do
         Logger.debug(
           ":sign_approve, #{inspect(round)}, #{inspect(method)} extras: to_sign #{inspect(to_sign)} auto_approval: #{
             inspect(auto_approval)
-          }, human: #{inspect(human)}",
+          }, human: #{inspect(human)}, initiator #{inspect(round_initiator)}",
           ansi_color: color
         )
 
@@ -103,34 +107,85 @@ defmodule ClientRunner do
     end
   end
 
-  def process_sign_request(message, to_sign, state) do
-    try do
-      case elem(message, 0) do
-        # TODO how do we descide if we should sign?
-        :sign_approve ->
-          signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-          fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
-          SessionHolder.run_action(state.pid_session_holder, fun)
+  def process_sign_request(message, to_sign, pid_session_holder, mode \\ %{sign: {:default}})
 
-        _ ->
-          :ok
-      end
-    rescue
-      _ignore -> :ok
+  def process_sign_request({}, _to_sign, _pid_session_holder, _mode) do
+    Logger.debug("Empty request")
+  end
+
+  def process_sign_request(message, to_sign, pid_session_holder, %{sign: sign_info}) do
+    case elem(message, 0) do
+      :sign_approve ->
+        case sign_info do
+          {:default} ->
+            signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+            fun = &(SocketConnector.send_signed_message(&1, elem(message, 2), signed))
+            SessionHolder.run_action(pid_session_holder, fun)
+
+          {:backchannel, pid_other_session_holder} ->
+            signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+            signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
+            fun = &(SocketConnector.send_signed_message(&1, elem(message, 2), signed2))
+            SessionHolder.run_action(pid_session_holder, fun)
+
+          {:check_poi} ->
+            fun = &SocketConnector.get_poi/2
+            poi = SessionHolder.run_action_sync(pid_session_holder, fun)
+
+            case SessionHolder.verify_poi(pid_session_holder, to_sign, poi) do
+              :ok ->
+                signed = SessionHolder.sign_message(pid_session_holder, to_sign)
+                fun = fn pid -> SocketConnector.send_signed_message(pid, elem(message, 2), signed) end
+                SessionHolder.run_action(pid_session_holder, fun)
+
+              :unsecure ->
+                Logger.warn("POI missmatch, refuse signing")
+            end
+
+          {:abort, abort_code} ->
+            method = elem(message, 2)
+            fun = &SocketConnector.abort(&1, method, abort_code, "some message")
+            SessionHolder.run_action(pid_session_holder, fun)
+
+          _ ->
+            Logger.debug("Don't sign")
+        end
+
+      _ ->
+        :ok
     end
   end
 
-  # {:responder, :channels_info, 0, :transient, "channel_open"}
-  # def handle_cast({:match_jobs, message}, state)
-  def handle_cast({:match_jobs, received_message, to_sign}, state) do
-    process_sign_request(received_message, to_sign, state)
+  def process_sign_request(message, to_sign, pid_session_holder, _not_sign_request) do
+    process_sign_request(message, to_sign, pid_session_holder)
+  end
 
+  def handle_cast({:end_pause}, state) do
+    GenServer.cast(self(), {:match_jobs, {}, nil})
+    {:noreply, %__MODULE__{state | paused: false}}
+  end
+
+  def handle_cast({:match_jobs, received_message, _to_sign}, %__MODULE__{paused: true} = state) do
+    Logger.debug(
+      "PAUSED role: #{inspect(state.role)} ignoring message #{inspect(received_message)}",
+      state.color
+    )
+
+    {:noreply, state}
+  end
+
+  # message is mandated in every entry
+  def handle_cast({:match_jobs, received_message, to_sign}, state) do
     case state.match_list do
       [%{message: expected} = entry | rest] ->
         Logger.debug(
-          "match: #{inspect(expected == received_message)} role: #{inspect(state.role)} expected #{inspect(expected)} received #{inspect(received_message)}",
+          "match: #{inspect(expected == received_message)} role: #{inspect(state.role)} expected #{
+            inspect(expected)
+          } received #{inspect(received_message)}",
           state.color
         )
+
+        process_sign_request(received_message, to_sign, state.pid_session_holder, entry)
 
         case expected == received_message do
           true ->
@@ -163,10 +218,12 @@ defmodule ClientRunner do
         end
 
       [%{next: _next} = entry | rest] ->
+        process_sign_request(received_message, to_sign, state.pid_session_holder, entry)
         run_next(entry)
         {:noreply, %__MODULE__{state | match_list: rest, fuzzy_counter: 0}}
 
       [] ->
+        process_sign_request(received_message, to_sign, state.pid_session_holder)
         Logger.debug("list reached end", state.color)
         {:noreply, state}
     end
@@ -178,6 +235,7 @@ defmodule ClientRunner do
     case mode do
       :async ->
         SessionHolder.run_action(state.pid_session_holder, fun)
+        {:noreply, state}
 
       :sync ->
         response = SessionHolder.run_action_sync(state.pid_session_holder, fun)
@@ -188,12 +246,17 @@ defmodule ClientRunner do
         end
 
         GenServer.cast(self(), {:match_jobs, {}, nil})
+        {:noreply, state}
 
       :local ->
         fun.(self(), state.pid_session_holder)
-    end
+        {:noreply, state}
 
-    {:noreply, state}
+      :pause ->
+        fun.(self(), state.pid_session_holder)
+        Logger.debug("role: #{inspect(state.role)} entering pause")
+        {:noreply, %__MODULE__{state | paused: true}}
+    end
   end
 
   def gen_name(name, suffix) do

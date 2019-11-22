@@ -22,8 +22,7 @@ defmodule SocketConnector do
             contract_call_in_flight_round: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall,
-            connection_callbacks: nil,
-            backchannel_sign_req_fun: nil
+            connection_callbacks: nil
 
   defmodule(Update,
     do:
@@ -113,10 +112,10 @@ defmodule SocketConnector do
         ws_manager_pid
       ) do
     {_round, %Update{state_tx: state_tx}} =
-      try do
-        Enum.max(round_and_updates)
-      rescue
-        _update_round_pending -> Enum.max(pending_round_and_update)
+      case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
+        {true, _} -> Enum.max(pending_round_and_update)
+        {false, true} -> Enum.max(round_and_updates)
+        {false, false} -> throw "cannot reestablish no saved state avaliable"
       end
 
     session_map = init_reestablish_map(channel_id, state_tx, role, ws_base, port)
@@ -235,11 +234,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:transfer, amount})
   end
 
-  @spec initiate_transfer(pid, integer, backchannel_sign_req_fun) :: :ok
-        when backchannel_sign_req_fun: fun()
-  def initiate_transfer(pid, amount, backchannel_sign_req_fun) do
-    WebSockex.cast(pid, {:transfer, amount, backchannel_sign_req_fun})
+  @spec abort(pid, String.t(), integer, String.t()) :: :ok
+  def abort(pid, method, abort_code, abort_message) do
+    WebSockex.cast(pid, {:abort, method, abort_code, abort_message})
   end
+
 
   @spec deposit(pid, integer) :: :ok
   def deposit(pid, amount) do
@@ -371,18 +370,11 @@ defmodule SocketConnector do
      %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
   end
 
-  def handle_cast({:transfer, amount, backchannel_sign_req_fun}, state) do
-    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
+  def handle_cast({:abort, method, abort_code, _abort_message}, state) do
+    request = build_message(method, %{error: abort_code})
+    Logger.info("=> abort #{inspect(request)}", state.color)
 
-    Logger.info("=> transfer #{inspect(request)}", state.color)
-
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{
-       state
-       | pending_id: Map.get(request, :id, nil),
-         sync_call: sync_call,
-         backchannel_sign_req_fun: backchannel_sign_req_fun
-     }}
+    {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
   def handle_cast({:deposit, amount}, state) do
@@ -449,6 +441,7 @@ defmodule SocketConnector do
 
   def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
     {:ok, map} = :aeso_compiler.file(contract_file)
+    # {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, :aevm}])
 
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
@@ -779,20 +772,6 @@ defmodule SocketConnector do
     end
   end
 
-  def get_poi_response_query(accounts, contracts, fun) when is_function(fun) do
-    make_sync(
-      true,
-      %SyncCall{
-        request:
-          build_request("channels.get.poi", %{
-            accounts: accounts,
-            contracts: contracts
-          }),
-        response: fun
-      }
-    )
-  end
-
   def get_poi_response_query(accounts, contracts, from_pid) do
     make_sync(
       from_pid,
@@ -930,60 +909,13 @@ defmodule SocketConnector do
       when method in [
              "channels.sign.close_solo_sign",
              "channels.sign.slash_tx",
-             "channels.sign.settle_sign"
+             "channels.sign.settle_sign",
+             "channels.sign.shutdown_sign",
+             "channels.sign.shutdown_sign_ack"
            ] do
 
     Validator.notify_sign_transaction(to_sign, method, state)
     {:ok, state}
-  end
-
-  # these dosn't contain round... merge with above
-  def process_message(
-        %{
-          "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign}}
-        } = _message,
-        state
-      )
-      when method in ["channels.sign.shutdown_sign", "channels.sign.shutdown_sign_ack"] do
-    pending_sign_attempt = fn poi ->
-      # TODO need to check that PoI makes any sense to us
-      Logger.debug("POI is: #{inspect(poi)}", state.color)
-
-      # TODO unfinished...
-      signed_tx =
-        Signer.sign_transaction(
-          to_sign,
-          state,
-          Validator.inspect_sign_request_poi(method, poi)
-        )
-
-      build_message(method, %{signed_tx: signed_tx})
-    end
-
-    process_poi = fn %{"result" => result}, state ->
-      {result, state_updated} = process_get_poi_response(result, state)
-      response = pending_sign_attempt.(result)
-      {:reply, {:text, Poison.encode!(response)}, state_updated}
-    end
-
-    sync_call =
-      %SyncCall{request: request} =
-      get_poi_response_query(
-        [
-          state.session.basic_configuration.initiator_id,
-          state.session.basic_configuration.responder_id
-        ],
-        [],
-        process_poi
-      )
-
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{
-       state
-       | pending_id: Map.get(request, :id, nil),
-         sync_call: sync_call
-     }}
   end
 
   @self [
@@ -1130,7 +1062,7 @@ defmodule SocketConnector do
   # This is where we get syncrouns responses back
   def process_message(%{"id" => id} = query_reponse, %__MODULE__{pending_id: pending_id} = state)
       when id == pending_id do
-    return =
+    {_result, updated_state} =
       case state.sync_call do
         %SyncCall{response: response} ->
           case response do
@@ -1147,13 +1079,7 @@ defmodule SocketConnector do
           {:ok, state}
       end
 
-    case return do
-      {:reply, {:text, reply}, state} ->
-        {:reply, {:text, reply}, %__MODULE__{state | sync_call: %{}}}
-
-      {_result, updated_state} ->
-        {:ok, %__MODULE__{updated_state | sync_call: %{}}}
-    end
+    {:ok, %__MODULE__{updated_state | sync_call: %{}}}
   end
 
   # wrong unexpected id in response.
