@@ -8,6 +8,7 @@ defmodule SessionHolder do
             color: nil,
             network_id: nil,
             priv_key: nil,
+            file: nil,
             socket_connector_state: %SocketConnector{}
 
   def start_link(%{
@@ -15,11 +16,25 @@ defmodule SessionHolder do
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
+        log_path: log_path,
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
-    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, color}, name: name)
+    create_log_folder(log_path)
+    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, generate_name(log_path, name), color}, name: name)
+  end
+
+  defp create_log_folder(path) do
+    case File.mkdir(path) do
+      :ok -> :ok
+      {:error, :eexist} -> :ok
+      {:error, error} -> throw "not possible to create log directory #{inspect error}"
+    end
+  end
+
+  defp generate_name(path, name) do
+    String.to_atom(path <> "/" <> inspect(:os.system_time(:millisecond)) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log")
   end
 
   # this is here for tesing purposes
@@ -60,7 +75,8 @@ defmodule SessionHolder do
   end
 
   # Server
-  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, color}) do
+  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, file_name, color}) do
+    :dets.open_file(file_name, [type: :duplicate_bag])
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
 
     {:ok,
@@ -69,7 +85,8 @@ defmodule SessionHolder do
        socket_connector_state: socket_connector_state,
        network_id: network_id,
        priv_key: priv_key,
-       color: color
+       color: color,
+       file: file_name
      }}
   end
 
@@ -78,20 +95,31 @@ defmodule SessionHolder do
     Process.exit(pid, :normal)
   end
 
-  def fetch_state(pid) do
-    SocketConnector.request_state(pid)
+  # this is persent as a helper if you loose your channel id or password, then check this file.
+  defp persist(state, file) do
+    dets_state = %{time: :os.system_time(:millisecond), state: state}
+    case :dets.insert(file, {:connect, dets_state}) do
+      :ok -> :ok
+      error -> throw "logging failed to presist, without persistence reestablish can fail #{inspect error}"
+    end
+  end
 
+  def fetch_state_and_persist(pid, file) do
+    SocketConnector.request_state(pid)
     receive do
-      {:"$gen_cast", {:state_tx_update, %SocketConnector{} = state}} -> state
+      {:"$gen_cast", {:state_tx_update, %SocketConnector{} = socket_connector_state}} ->
+        persist(socket_connector_state, file)
+        socket_connector_state
     end
   end
 
   def handle_cast({:state_tx_update, %SocketConnector{} = socket_connector_state}, state) do
+    persist(socket_connector_state, state.file)
     {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
 
   def handle_cast({:kill_connection}, state) do
-    socket_connector_state = fetch_state(state.socket_connector_pid)
+    socket_connector_state = fetch_state_and_persist(state.socket_connector_pid, state.file)
     kill_connection(state.socket_connector_pid, state.color)
     {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
@@ -102,7 +130,9 @@ defmodule SessionHolder do
 
     socket_connector_state =
       receive do
-        {:"$gen_cast", {:state_tx_update, %SocketConnector{} = state}} -> state
+        {:"$gen_cast", {:state_tx_update, %SocketConnector{} = socket_connector_state}} ->
+          persist(socket_connector_state, state.file)
+          socket_connector_state
       end
 
     {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
@@ -111,16 +141,29 @@ defmodule SessionHolder do
   def handle_cast({:reestablish, port}, state) do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
+    socket_connector_state =
+      case :dets.lookup(state.file, :connect) do
+        [] ->
+          throw "no saved state in dets"
+        dets_state ->
+          {:connect, saved_state} = List.last(dets_state)
+          Logger.debug("re-establish located persisted state #{inspect saved_state.time}", ansi_color: state.color)
+          saved_state.state
+      end
+
+    # ^state = :dets.lookup(state.file, :connect)
+
     {:ok, pid} =
       SocketConnector.start_link(
         :reestablish,
-        state.socket_connector_state,
+        socket_connector_state,
         port,
         state.color,
         self()
       )
 
-    {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
+    {:noreply, %__MODULE__{state | socket_connector_pid: pid, socket_connector_state: socket_connector_state}}
+    # {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
 
   def handle_cast({:action, action}, state) do
@@ -142,7 +185,7 @@ defmodule SessionHolder do
   end
 
   def handle_call({:verify_poi, to_sign, poi}, _from, state) do
-    socket_connector_state = fetch_state(state.socket_connector_pid)
+    socket_connector_state = fetch_state_and_persist(state.socket_connector_pid, state.file)
 
     {_round, %SocketConnector.Update{state_tx: state_tx}} = Enum.max(socket_connector_state.round_and_updates)
 
@@ -159,7 +202,7 @@ defmodule SessionHolder do
         state
       ) do
     # We need the latest SocketConnector state.
-    socket_connector_state = fetch_state(state.socket_connector_pid)
+    socket_connector_state = fetch_state_and_persist(state.socket_connector_pid, state.file)
 
     %SocketConnector.Update{state_tx: state_tx, poi: poi} =
       Map.get(socket_connector_state.round_and_updates, round)

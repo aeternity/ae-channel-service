@@ -1132,7 +1132,10 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
-    {:ok, %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}}
+    # manual sync, this is particullary intersting, this is needed for future reconnects
+    new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
+    sync_state(new_state)
+    {:ok, new_state}
   end
 
   def process_message(

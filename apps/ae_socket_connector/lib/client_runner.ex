@@ -84,6 +84,7 @@ defmodule ClientRunner do
         network_id: network_id,
         priv_key: priv_key,
         color: color,
+        log_path: "log",
         pid_name: name
       })
 
