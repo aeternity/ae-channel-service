@@ -757,7 +757,7 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/tictactoe.aes"}
+      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/tictactoe.aes", %{abi_version: 3, vm_version: 5, backend: :fate}}
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
@@ -1022,7 +1022,7 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes"}
+      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes", %{abi_version: 1, vm_version: 3, backend: :aevm}}
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
@@ -1045,7 +1045,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
          }},
         {:initiator,
          %{

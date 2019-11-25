@@ -229,19 +229,19 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:leave, {}})
   end
 
-  @spec new_contract(pid, {binary(), String.t()}, integer) :: :ok
-  def new_contract(pid, {pub_key, contract_file}, amount \\ 0) do
-    WebSockex.cast(pid, {:new_contract, {pub_key, contract_file}, amount})
+  @spec new_contract(pid, {binary(), String.t(), map()}, integer) :: :ok
+  def new_contract(pid, contract, amount \\ 0) do
+    WebSockex.cast(pid, {:new_contract, contract, amount})
   end
 
-  @spec call_contract(pid, {binary, String.t()}, binary(), binary(), integer) :: :ok
-  def call_contract(pid, {pub_key, contract_file}, fun, args, amount \\ 0) do
-    WebSockex.cast(pid, {:call_contract, {pub_key, contract_file}, fun, args, amount})
+  @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
+  def call_contract(pid, contract, fun, args, amount \\ 0) do
+    WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
   end
 
-  @spec get_contract_reponse(pid, {binary(), String.t()}, binary(), pid) :: :ok
-  def get_contract_reponse(pid, {pub_key, contract_file}, fun, from \\ nil) do
-    WebSockex.cast(pid, {:get_contract_reponse, {pub_key, contract_file}, fun, from})
+  @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
+  def get_contract_reponse(pid, contract, fun, from \\ nil) do
+    WebSockex.cast(pid, {:get_contract_reponse, contract, fun, from})
   end
 
   @spec get_poi(pid, pid) :: :ok
@@ -398,16 +398,14 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
-  def handle_cast({:new_contract, {_pub_key, contract_file}}, state) do
-    {:ok, map} = :aeso_compiler.file(contract_file)
-    # {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, :aevm}])
-
+  def handle_cast({:new_contract, {_pub_key, contract_file, %{backend: backend} = config}, amount}, state) do
+    {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, backend}])
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
-    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [], [{:backend, :fate}])
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [], [{:backend, backend}])
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    request = new_contract_req(encoded_bytecode, encoded_calldata, amount, 3)
+    request = new_contract_req(%{code: encoded_bytecode, call_data: encoded_calldata, deposit: amount, abi_version: config.abi_version, vm_version: config.vm_version})
     Logger.info("=> new contract #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
@@ -432,8 +430,8 @@ defmodule SocketConnector do
   end
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
-  def calculate_contract_address({owner, contract_file}, updates) do
-    {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, :fate}])
+  def calculate_contract_address({owner, contract_file, config}, updates) do
+    {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, config.backend}])
 
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
@@ -476,18 +474,18 @@ defmodule SocketConnector do
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, {pub_key, contract_file}, fun, args, amount}, state) do
-    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [{:backend, :fate}])
+  def handle_cast({:call_contract, {pub_key, contract_file, config} = contract, fun, args, amount}, state) do
+    {:ok, call_data} = :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [{:backend, config.backend}])
 
-    contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
+    contract_list = calculate_contract_address(contract, state.round_and_updates)
 
     [{_max_round, contract_pubkey} | _t] =
       Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-    contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract_file}
+    contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
 
-    request = call_contract_req(contract_pubkey, encoded_calldata, amount)
+    request = call_contract_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
     Logger.info("=> call contract #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)},
@@ -499,8 +497,8 @@ defmodule SocketConnector do
   end
 
   # TODO we know what fun was called. Allow this to get older results?
-  def handle_cast({:get_contract_reponse, {pub_key, contract_file}, _fun, from_pid}, state) do
-    contract_list = calculate_contract_address({pub_key, contract_file}, state.round_and_updates)
+  def handle_cast({:get_contract_reponse, contract, _fun, from_pid}, state) do
+    contract_list = calculate_contract_address(contract, state.round_and_updates)
 
     [{_max_round, contract_pubkey} | _t] = Enum.sort(contract_list, fn {a, _b}, {a2, _b2} -> a > a2 end)
 
@@ -697,19 +695,13 @@ defmodule SocketConnector do
     })
   end
 
-  def new_contract_req(code, call_data, amount, _version) do
-    build_request("channels.update.new_contract", %{
-      abi_version: 3,
-      call_data: call_data,
-      code: code,
-      deposit: amount,
-      vm_version: 5
-    })
+  def new_contract_req(map) do
+    build_request("channels.update.new_contract", map)
   end
 
-  def call_contract_req(address, call_data, amount) do
+  def call_contract_req(address, abi_version, call_data, amount) do
     build_request("channels.update.call_contract", %{
-      abi_version: 3,
+      abi_version: abi_version,
       amount: amount,
       call_data: call_data,
       contract_id: address
@@ -931,7 +923,7 @@ defmodule SocketConnector do
       ) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, contract_file}} =
+    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {pub_key, contract_file, config}}} =
       Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
@@ -940,7 +932,7 @@ defmodule SocketConnector do
         to_charlist(File.read!(contract_file)),
         fun,
         :ok,
-        deserialized_return, [{:backend, :fate}]
+        deserialized_return, [{:backend, config.backend}]
       )
 
     # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
