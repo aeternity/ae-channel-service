@@ -43,8 +43,12 @@ defmodule SocketConnectorTest do
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
         # opening channel
-        {:responder, %{message: {:channels_info, 0, :transient, "channel_open"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "channel_accept"}}},
+        # re-add once the node is updated to use password
+        # {:responder, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "channel_open"}}},
+        # re-add once the node is updated to use password
+        # {:initiator, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "channel_accept"}}},
         {:initiator, %{message: {:sign_approve, 1, "channels.sign.initiator_sign"}}},
         {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
         {:responder, %{message: {:sign_approve, 1, "channels.sign.responder_sign"}}},
@@ -203,7 +207,7 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -263,7 +267,7 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -274,7 +278,7 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 7) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -345,8 +349,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :reconnect
-  test "withdraw after re-connect", context do
+  @tag :reestablish
+  test "withdraw after re-establish", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
@@ -368,7 +372,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder, 1510)
+                SessionHolder.reestablish(pid_session_holder, 1510)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty},
            fuzzy: 0
@@ -499,7 +503,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder, 1233)
+                SessionHolder.reestablish(pid_session_holder, 1233)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -567,13 +571,13 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
            message: {:channels_update, 2, :self, "channels.update"},
            next: close_solo_job(),
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -611,14 +615,14 @@ defmodule SocketConnectorTest do
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         #  get poi is done under the hood, but this call tests additional code
         {:initiator,
          %{
            message: {:channels_update, 2, :self, "channels.update"},
            next: {:sync, fn pid, from -> SocketConnector.get_poi(pid, from) end, :empty},
-           fuzzy: 8
+           fuzzy: 9
          }},
         {:initiator,
          %{
@@ -653,7 +657,7 @@ defmodule SocketConnectorTest do
     )
   end
 
-  test "reconnect jobs", context do
+  test "reestablish jobs 2", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
@@ -704,7 +708,7 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                SessionHolder.reconnect(pid_session_holder)
+                SessionHolder.reestablish(pid_session_holder, 1602)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
