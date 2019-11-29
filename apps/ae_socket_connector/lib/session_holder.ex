@@ -141,13 +141,14 @@ defmodule SessionHolder do
   def handle_cast({:reestablish, port}, state) do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
+    # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
     socket_connector_state =
       case :dets.lookup(state.file, :connect) do
         [] ->
           throw "no saved state in dets"
         dets_state ->
           {:connect, saved_state} = List.last(dets_state)
-          Logger.debug("re-establish located persisted state #{inspect saved_state.time}", ansi_color: state.color)
+          Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
           saved_state.state
       end
 
