@@ -99,21 +99,39 @@ defmodule SocketConnectorTest do
   end
 
   @tag :hello_roboto
+  @tag timeout: 60000 * 20
   test "hello fsm mini", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
+        # {:responder, %{next: ClientRunnerHelper.pause_job(6000)}},
         {:responder,
          %{
-           message: {:channels_update, 1, :self, "channels.update"},
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+          # this is the right way to go :channels_update, 1, :other, "channels.update
+           message: {:channels_info, 0, :transient, "funding_locked"},
+          #  message: {:sign_approve, 1, "channels.sign.responder_sign"},
+           #  message: {:channels_update, 1, :self, "channels.update"},
+           next: ClientRunnerHelper.pause_job(30000),
+          #  next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
            fuzzy: 10
          }},
-         {:responder,
+        {:responder,
          %{
-           message: {:channels_update, 10, :self, "channels.update"},
-           next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+          #  message: {:channels_update, 2, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 100_000_000_000_000_000) end, :empty}
+          #  fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:channels_update, 2, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 200_000_000_000_000_000) end, :empty},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:channels_update, 3, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.shutdown(pid) end, :empty},
            fuzzy: 100
          }}
         # {:responder,
@@ -137,7 +155,16 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 3002, responder_amount: 1000000000000000000, initiator_amount: 1000000000000000000, push_amount: 0, channel_reserve: 0, ttl: 0, lock_period: 10})
+      custom_config(%{}, %{
+        minimum_depth: 0,
+        port: 3011,
+        responder_amount: 1_000_000_000_000_000_000,
+        initiator_amount: 1_000_000_000_000_000_000,
+        push_amount: 0,
+        channel_reserve: 1,
+        ttl: 1000,
+        lock_period: 10
+      })
     )
   end
 
@@ -763,7 +790,9 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/tictactoe.aes", %{abi_version: 3, vm_version: 5, backend: :fate}}
+      initiator_contract =
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/tictactoe.aes",
+         %{abi_version: 3, vm_version: 5, backend: :fate}}
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
@@ -1028,7 +1057,9 @@ defmodule SocketConnectorTest do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes", %{abi_version: 1, vm_version: 3, backend: :aevm}}
+      initiator_contract =
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes",
+         %{abi_version: 1, vm_version: 3, backend: :aevm}}
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
