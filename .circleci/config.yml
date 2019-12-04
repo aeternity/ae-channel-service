@@ -1,10 +1,13 @@
 version: 2.1
 jobs:
   build:
+    parallelism: 1
     docker:
       - image: circleci/elixir:1.9.4
+    working_directory: ~/app
     steps:
       - checkout
+      - setup_remote_docker
       - run: mix local.hex --force
       - run: mix local.rebar --force
       - restore_cache:
