@@ -1,111 +1,35 @@
 version: 2.1
 jobs:
   build:
-    parallelism: 1
     machine:
-      image: ubuntu-1604:201903-01
-
-    working_directory: ~/app
-
+      image: circleci/elixir:1.9.4
     steps:
       - checkout
-
-      - run:
-          name: Setup environment variables
-          command: |
-            echo 'export DOCKER_NETWORK=ae-test-net' >> $BASH_ENV
-            echo 'export AE_NODE_HOSTNAME=aenode' >> $BASH_ENV
-            echo 'export AE_NODE_URL=ws://$AE_NODE_HOSTNAME:3014/channel' >> $BASH_ENV
-            echo 'export AE_NODE_NETWORK_ID=my_test' >> $BASH_ENV
-            echo 'export AETERNITY_CONFIG=/home/aeternity/node/aeternity.yaml' >> $BASH_ENV
-
-      - run:
-          name: Create docker network
-          command: docker network create $DOCKER_NETWORK
-
-      - run:
-          name: Start aeternity node
-          command: |
-            docker run \
-            -p "3013:3013" \
-            -p "3014:3014" \
-            -p "3015:3015" \
-            -p "3113:3113" \
-            --name aenode \
-            --hostname $AE_NODE_HOSTNAME \
-            -e AETERNITY_CONFIG \
-            -v "$PWD/.circleci/accounts_test.json:/home/aeternity/node/data/aecore/.genesis/accounts_test.json" \
-            -v "$PWD/.circleci/aeternity_node_test_config.yml:$AETERNITY_CONFIG" \
-            --network $DOCKER_NETWORK \
-            -u "root:root" \
-            aeternity/aeternity bin/aeternity console -noinput -network -network_id $AE_NODE_NETWORK_ID
-          background: true
-
-      - run:
-          name: Run ae-channel-service container
-          command: |
-            docker run --name ae-channel-service -it \
-            --network $DOCKER_NETWORK \
-            -e AE_NODE_URL \
-            -e AE_NODE_NETWORK_ID \
-            -v ~/app:/opt \
-            -w /opt \
-            debian:bullseye /bin/bash
-          background: true
-
-      - run:
-          name: Wait for ae-channel-service container to start
-          command: sleep 20
-
-      - run:
-          name: Check if the aeternity container responds
-          command: docker exec ae-channel-service ping -c 3 aenode
-
-      - run:
-          name: Update package list
-          command: docker exec ae-channel-service apt-get update
-      - run:
-          name: Install ae-channel-service dependencies
-          command: |
-            docker exec ae-channel-service \
-            apt-get install --no-install-recommends -y build-essential git libsodium-dev erlang elixir ca-certificates
-
-      - run: docker exec ae-channel-service mix local.hex --force
-      - run: docker exec ae-channel-service mix local.rebar --force
-
       - restore_cache:
           keys:
-            - v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
-            - v1-mix-cache-{{ .Branch }}
-            - v1-mix-cache
-      - restore_cache:
-          keys:
+            - v1-build-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
             - v1-build-cache-{{ .Branch }}
             - v1-build-cache
-
       - run:
           name: Build ae-channel-service
-          command: docker exec ae-channel-service make clean deps
-
+          command: make clean deps
       - save_cache:
-          key: v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
-          paths: "deps"
-      - save_cache:
-          key: v1-mix-cache-{{ .Branch }}
-          paths: "deps"
-      - save_cache:
-          key: v1-mix-cache
-          paths: "deps"
+          key: v1-build-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+          paths:
+            - "_build"
+            - "deps"
       - save_cache:
           key: v1-build-cache-{{ .Branch }}
-          paths: "_build"
+          paths:
+            - "_build"
+            - "deps"
       - save_cache:
           key: v1-build-cache
-          paths: "_build"
-
+          paths:
+            - "_build"
+            - "deps"
       - run:
           name: Run tests
-          command: docker exec ae-channel-service mix test --exclude ignore
-
+          command: make test --exclude ignore
       - store_test_results:
           path: _build/test/lib/ae_socket_connector
