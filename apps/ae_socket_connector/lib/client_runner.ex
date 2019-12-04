@@ -350,10 +350,10 @@ defmodule ClientRunner do
 
     state_channel_configuration = configuration.(initiator_pub, responder_pub)
 
-    start_link(
-      {initiator_pub, initiator_priv, state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator,
-       :yellow, name_initiator}
-    )
+    # start_link(
+    #   {initiator_pub, initiator_priv, state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator,
+    #    :yellow, name_initiator}
+    # )
 
     start_link(
       {responder_pub, responder_priv, state_channel_configuration, ae_url, network_id, :responder, jobs_responder,

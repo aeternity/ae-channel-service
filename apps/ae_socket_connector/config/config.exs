@@ -27,8 +27,8 @@ config :logger,
   ]
 
 config :ae_socket_connector, :node,
-  ae_url: System.get_env("AE_NODE_URL") || "ws://localhost:3014/channel",
-  network_id: System.get_env("AE_NODE_NETWORK_ID") || "my_test"
+  ae_url: System.get_env("AE_NODE_URL") || "wss://testnet.aeternity.io:443/channel",
+  network_id: System.get_env("AE_NODE_NETWORK_ID") || "ae_uat"
 
 # config :ae_socket_connector, :urls,
 #   ae_url: "wss://testnet.demo.aeternity.io/channel",

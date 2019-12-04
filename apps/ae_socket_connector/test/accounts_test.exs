@@ -32,7 +32,8 @@ defmodule TestAccounts do
   end
 
   def initiatorPubkeyEncoded do
-    "ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh"
+    "ak_2DDLbYBhHcuAzNg5Un853NRbUr8JVjZeMc6mTUpwmiVzA4ic6X"
+    # "ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh"
   end
 
   def initiatorPrivkey() do

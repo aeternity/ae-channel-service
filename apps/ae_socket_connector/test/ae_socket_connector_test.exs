@@ -98,30 +98,36 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :hello_world_mini
+  @tag :hello_roboto
   test "hello fsm mini", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
-        {:initiator,
-         %{
-           message: {:channels_update, 1, :self, "channels.update"},
-           next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-           fuzzy: 10
-         }},
         {:responder,
          %{
-           message: {:channels_update, 1, :transient, "channels.leave"},
-           fuzzy: 20,
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+           fuzzy: 10
          }},
-        {:initiator,
+         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "died"},
-           fuzzy: 20,
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+           message: {:channels_update, 10, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
+           fuzzy: 100
          }}
+        # {:responder,
+        #  %{
+        #    message: {:channels_update, 1, :transient, "channels.leave"},
+        #    fuzzy: 20,
+        #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+        #  }},
+        # {:initiator,
+        #  %{
+        #    message: {:channels_info, 0, :transient, "died"},
+        #    fuzzy: 20,
+        #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+        #  }}
       ]
     end
 
@@ -131,7 +137,7 @@ defmodule SocketConnectorTest do
       {alice, accounts_initiator()},
       {bob, accounts_responder()},
       scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1401})
+      custom_config(%{}, %{minimum_depth: 0, port: 3002, responder_amount: 1000000000000000000, initiator_amount: 1000000000000000000, push_amount: 0, channel_reserve: 0, ttl: 0, lock_period: 10})
     )
   end
 
