@@ -106,21 +106,21 @@ defmodule SocketConnectorTest do
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
         # {:responder, %{next: ClientRunnerHelper.pause_job(6000)}},
+        # {:responder,
+        #  %{
+        #   # this is the right way to go :channels_update, 1, :other, "channels.update
+        #    message: {:channels_info, 0, :transient, "funding_locked"},
+        #   #  message: {:sign_approve, 1, "channels.sign.responder_sign"},
+        #    #  message: {:channels_update, 1, :self, "channels.update"},
+        #    next: ClientRunnerHelper.pause_job(30000),
+        #   #  next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+        #    fuzzy: 10
+        #  }},
         {:responder,
          %{
-          # this is the right way to go :channels_update, 1, :other, "channels.update
-           message: {:channels_info, 0, :transient, "funding_locked"},
-          #  message: {:sign_approve, 1, "channels.sign.responder_sign"},
-           #  message: {:channels_update, 1, :self, "channels.update"},
-           next: ClientRunnerHelper.pause_job(30000),
-          #  next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5) end, :empty},
+           message: {:channels_update, 1, :other, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 100_000_000_000_000_000) end, :empty},
            fuzzy: 10
-         }},
-        {:responder,
-         %{
-          #  message: {:channels_update, 2, :self, "channels.update"},
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 100_000_000_000_000_000) end, :empty}
-          #  fuzzy: 10
          }},
         {:responder,
          %{
@@ -157,7 +157,7 @@ defmodule SocketConnectorTest do
       scenario,
       custom_config(%{}, %{
         minimum_depth: 0,
-        port: 3011,
+        port: 3050,
         responder_amount: 1_000_000_000_000_000_000,
         initiator_amount: 1_000_000_000_000_000_000,
         push_amount: 0,
