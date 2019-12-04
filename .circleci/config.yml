@@ -1,7 +1,7 @@
 version: 2.1
 jobs:
   build:
-    machine:
+    docker:
       image: circleci/elixir
     steps:
       - checkout
