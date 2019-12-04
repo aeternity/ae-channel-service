@@ -77,7 +77,8 @@ prepare: ## Get and prepare additional dependencies from Aeternity Core
 
 .PHONY: test
 test:
-	docker-compose up -d
+	docker-compose pull
+	docker-compose up -d --force-recreate
 	mix test --exclude ignore
 
 .PHONY: help
