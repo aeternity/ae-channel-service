@@ -2,9 +2,11 @@ version: 2.1
 jobs:
   build:
     docker:
-      image: circleci/elixir
+      - image: circleci/elixir:1.9.4
     steps:
       - checkout
+      - run: mix local.hex --force
+      - run: mix local.rebar --force
       - restore_cache:
           keys:
             - v1-build-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
@@ -14,20 +16,20 @@ jobs:
           name: Build ae-channel-service
           command: make clean deps
       - save_cache:
-          key: v1-build-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
-          paths:
-            - "_build"
-            - "deps"
+          key: v1-mix-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+          paths: "deps"
+      - save_cache:
+          key: v1-mix-cache-{{ .Branch }}
+          paths: "deps"
+      - save_cache:
+          key: v1-mix-cache
+          paths: "deps"
       - save_cache:
           key: v1-build-cache-{{ .Branch }}
-          paths:
-            - "_build"
-            - "deps"
+          paths: "_build"
       - save_cache:
           key: v1-build-cache
-          paths:
-            - "_build"
-            - "deps"
+          paths: "_build"
       - run:
           name: Run tests
           command: make test --exclude ignore
