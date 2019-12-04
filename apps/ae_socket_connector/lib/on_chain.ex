@@ -37,4 +37,3 @@ defmodule OnChain do
     Logger.debug("track transaction curl http://localhost:3013/v2/transactions/" <> tx_hash)
   end
 end
-

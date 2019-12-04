@@ -254,8 +254,7 @@ defmodule SessionHolder do
 
   # used for general signing, sometimes for backchannel purposes
   def handle_call({:sign_request, to_sign}, _from, state) do
-    sign_result =
-      Signer.sign_transaction(to_sign, state.network_id, state.priv_key)
+    sign_result = Signer.sign_transaction(to_sign, state.network_id, state.priv_key)
 
     {:reply, sign_result, state}
   end

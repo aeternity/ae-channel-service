@@ -124,7 +124,7 @@ defmodule SocketConnector do
       case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
         {true, _} -> Enum.max(pending_round_and_update)
         {false, true} -> Enum.max(round_and_updates)
-        {false, false} -> throw "cannot reestablish no saved state avaliable"
+        {false, false} -> throw("cannot reestablish no saved state avaliable")
       end
 
     session_map = init_reestablish_map(channel_id, fsm_id, state_tx, role, ws_base, port)
@@ -205,7 +205,6 @@ defmodule SocketConnector do
   def abort(pid, method, abort_code, abort_message) do
     WebSockex.cast(pid, {:abort, method, abort_code, abort_message})
   end
-
 
   @spec deposit(pid, integer) :: :ok
   def deposit(pid, amount) do
@@ -871,7 +870,6 @@ defmodule SocketConnector do
              "channels.sign.shutdown_sign",
              "channels.sign.shutdown_sign_ack"
            ] do
-
     Validator.notify_sign_transaction(to_sign, method, state)
     {:ok, state}
   end

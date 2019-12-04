@@ -257,9 +257,7 @@ defmodule Validator do
         end
 
       false ->
-        Logger.error(
-          "Poi hash missmatch, lets go slashing"
-        )
+        Logger.error("Poi hash missmatch, lets go slashing")
     end
   end
 
