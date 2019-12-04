@@ -32,6 +32,6 @@ jobs:
           paths: "_build"
       - run:
           name: Run tests
-          command: make test --exclude ignore
+          command: make test
       - store_test_results:
           path: _build/test/lib/ae_socket_connector
