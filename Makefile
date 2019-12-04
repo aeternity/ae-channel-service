@@ -30,7 +30,6 @@ format: ## Format Elixir code
 clean: ## Clean all artifacts
 	$(mix) clean
 	rm -rf \
-		test/ \
 		$(sparse_path)/ \
 		$(aeminer_path)/ \
 		apps/aecore \
