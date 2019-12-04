@@ -7,6 +7,8 @@ jobs:
     working_directory: ~/app
     steps:
       - checkout
+      - run: wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && sudo dpkg -i erlang-solutions_2.0_all.deb
+      - run: sudo apt-get -qq -y update && sudo apt-get -qq -y install esl-erlang && sudo apt-get -qq -y install elixir
       - run: mix local.hex --force
       - run: mix local.rebar --force
       - restore_cache:
