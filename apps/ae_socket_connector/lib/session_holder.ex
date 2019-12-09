@@ -20,9 +20,15 @@ defmodule SessionHolder do
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
-      }) do
+      } = params) do
     create_log_folder(log_path)
-    GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, generate_name(log_path, name), color}, name: name)
+    file_name_and_path = log_path <> "/" <> (Map.get(params, :log_file, generate_filename(name)))
+    case !File.exists?(file_name_and_path) do
+      true ->
+        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, file_name_and_path, :open, color}, name: name)
+      false ->
+        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, file_name_and_path, :reestablish, color}, name: name)
+    end
   end
 
   defp create_log_folder(path) do
@@ -33,8 +39,8 @@ defmodule SessionHolder do
     end
   end
 
-  defp generate_name(path, name) do
-    String.to_atom(path <> "/" <> (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log")
+  defp generate_filename(name) do
+    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log"
   end
 
   # this is here for tesing purposes
@@ -75,9 +81,24 @@ defmodule SessionHolder do
   end
 
   # Server
-  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, file_name, color}) do
-    :dets.open_file(file_name, [type: :duplicate_bag])
+  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, file_name, :open, color}) do
+    :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
+
+    {:ok,
+     %__MODULE__{
+       socket_connector_pid: pid,
+       socket_connector_state: socket_connector_state,
+       network_id: network_id,
+       priv_key: priv_key,
+       color: color,
+       file: file_name
+     }}
+  end
+
+  def init({%SocketConnector{} = _socket_connector_state, _ae_url, network_id, priv_key, file_name, :reestablish, color}) do
+    :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
+    {pid, socket_connector_state} = reestablish_(%__MODULE__{color: color, file: file_name})
 
     {:ok,
      %__MODULE__{
@@ -98,7 +119,7 @@ defmodule SessionHolder do
   # this is persent as a helper if you loose your channel id or password, then check this file.
   defp persist(state, file) do
     dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: state}
-    case :dets.insert(file, {:connect, dets_state}) do
+    case :dets.insert(String.to_atom(file), {:connect, dets_state}) do
       :ok -> :ok
       error -> throw "logging failed to presist, without persistence reestablish can fail #{inspect error}"
     end
@@ -113,12 +134,12 @@ defmodule SessionHolder do
     end
   end
 
-  def reestablish_(port, state) do
+  def reestablish_(state, port \\ 1500) do
     Logger.debug("about to re-establish connection", ansi_color: state.color)
 
     # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
     socket_connector_state =
-      case :dets.lookup(state.file, :connect) do
+      case :dets.lookup(String.to_atom(state.file), :connect) do
         [] ->
           throw "no saved state in dets"
         dets_state ->
@@ -166,7 +187,7 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:reestablish, port}, state) do
-    {pid, socket_connector_state} = reestablish_(port, state)
+    {pid, socket_connector_state} = reestablish_(state, port)
     {:noreply, %__MODULE__{state | socket_connector_pid: pid, socket_connector_state: socket_connector_state}}
   end
 
