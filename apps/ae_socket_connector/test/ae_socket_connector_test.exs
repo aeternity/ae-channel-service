@@ -91,8 +91,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1400})
     )
@@ -128,8 +128,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1401})
     )
@@ -188,8 +188,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1402})
     )
@@ -248,8 +248,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1403})
     )
@@ -342,8 +342,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1404})
     )
@@ -411,8 +411,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1405})
     )
@@ -424,8 +424,8 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     {alice, accounts_initiator()},
-  #     {bob, accounts_responder()},
+  #     {alice, accounts_initiator(), %{}},
+  #     {bob, accounts_responder(), %{}},
   #     &TestScenarios.withdraw_after_reestablish_v2/3
   #   )
   # end
@@ -543,8 +543,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario
     )
   end
@@ -597,8 +597,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1406})
       # custom_config(%{}, %{minimum_depth: 1})
@@ -651,8 +651,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario
     )
   end
@@ -744,8 +744,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1407})
     )
@@ -916,8 +916,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1408})
     )
@@ -1022,8 +1022,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario
     )
   end
@@ -1034,8 +1034,8 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     {alice, accounts_initiator()},
-  #     {bob, accounts_responder()},
+  #     {alice, accounts_initiator(), %{}},
+  #     {bob, accounts_responder(), %{}},
   #     &TestScenarios.query_after_reconnect_v2/3
   #   )
   # end
@@ -1099,8 +1099,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 50, port: 1409})
     )

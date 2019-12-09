@@ -13,16 +13,17 @@ defmodule SessionHolder do
 
   def start_link(%{
         socket_connector: %SocketConnector{} = socket_connector_state,
+        log_config: log_config,
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
-        log_path: log_path,
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
-      } = params) do
+      }) do
+    log_path = Map.get(log_config, :log_path, "log")
     create_log_folder(log_path)
-    file_name_and_path = log_path <> "/" <> (Map.get(params, :log_file, generate_filename(name)))
+    file_name_and_path = log_path <> "/" <> (Map.get(log_config, :log_file, generate_filename(name)))
     case !File.exists?(file_name_and_path) do
       true ->
         GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, file_name_and_path, :open, color}, name: name)

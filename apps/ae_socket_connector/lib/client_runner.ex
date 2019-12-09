@@ -14,7 +14,7 @@ defmodule ClientRunner do
             paused: false
 
   def start_link(
-        {_pub_key, _priv_key, _state_channel_configuration, _ae_url, _network_id, _role, _jobs, _color, _name} =
+        {_pub_key, _priv_key, _state_channel_configuration, _log_config, _ae_url, _network_id, _role, _jobs, _color, _name} =
           params
       ) do
     GenServer.start_link(__MODULE__, params)
@@ -70,21 +70,20 @@ defmodule ClientRunner do
   end
 
   # Server
-  def init({pub_key, priv_key, state_channel_configuration, ae_url, network_id, role, jobs, color, name}) do
+  def init({pub_key, priv_key, state_channel_configuration, log_config, ae_url, network_id, role, jobs, color, name}) do
     {:ok, pid_session_holder} =
       SessionHolder.start_link(%{
         socket_connector: %SocketConnector{
           pub_key: pub_key,
-          # priv_key: priv_key,
           session: state_channel_configuration,
           role: role,
           connection_callbacks: connection_callback(self(), color)
         },
+        log_config: log_config,
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
         color: color,
-        log_path: "log",
         pid_name: name
       })
 
@@ -339,25 +338,25 @@ defmodule ClientRunner do
   def start_peers(
         ae_url,
         network_id,
-        {name_initiator, {initiator_pub, initiator_priv}},
-        {name_responder, {responder_pub, responder_priv}},
+        {name_initiator, {initiator_pub, initiator_priv}, initiator_log_config},
+        {name_responder, {responder_pub, responder_priv}, responder_log_config},
         job_builder,
-        configuration \\ &default_configuration/2
+        channel_configuration \\ &default_configuration/2
       ) do
     Logger.debug("executing test: #{inspect(job_builder)}")
 
     {jobs_initiator, jobs_responder} =
       seperate_jobs(job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self()))
 
-    state_channel_configuration = configuration.(initiator_pub, responder_pub)
+    state_channel_configuration = channel_configuration.(initiator_pub, responder_pub)
 
     start_link(
-      {initiator_pub, initiator_priv, state_channel_configuration, ae_url, network_id, :initiator, jobs_initiator,
+      {initiator_pub, initiator_priv, state_channel_configuration, initiator_log_config, ae_url, network_id, :initiator, jobs_initiator,
        :yellow, name_initiator}
     )
 
     start_link(
-      {responder_pub, responder_priv, state_channel_configuration, ae_url, network_id, :responder, jobs_responder,
+      {responder_pub, responder_priv, state_channel_configuration, responder_log_config, ae_url, network_id, :responder, jobs_responder,
        :blue, name_responder}
     )
 
