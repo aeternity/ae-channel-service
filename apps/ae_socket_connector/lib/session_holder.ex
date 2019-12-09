@@ -34,7 +34,7 @@ defmodule SessionHolder do
   end
 
   defp generate_name(path, name) do
-    String.to_atom(path <> "/" <> inspect(:os.system_time(:millisecond)) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log")
+    String.to_atom(path <> "/" <> (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log")
   end
 
   # this is here for tesing purposes
@@ -97,7 +97,7 @@ defmodule SessionHolder do
 
   # this is persent as a helper if you loose your channel id or password, then check this file.
   defp persist(state, file) do
-    dets_state = %{time: :os.system_time(:millisecond), state: state}
+    dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: state}
     case :dets.insert(file, {:connect, dets_state}) do
       :ok -> :ok
       error -> throw "logging failed to presist, without persistence reestablish can fail #{inspect error}"
@@ -111,6 +111,33 @@ defmodule SessionHolder do
         persist(socket_connector_state, file)
         socket_connector_state
     end
+  end
+
+  def reestablish_(port, state) do
+    Logger.debug("about to re-establish connection", ansi_color: state.color)
+
+    # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
+    socket_connector_state =
+      case :dets.lookup(state.file, :connect) do
+        [] ->
+          throw "no saved state in dets"
+        dets_state ->
+          {:connect, saved_state} = List.last(dets_state)
+          Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
+          saved_state.state
+      end
+
+    # ^state = :dets.lookup(state.file, :connect)
+
+    {:ok, pid} =
+      SocketConnector.start_link(
+        :reestablish,
+        socket_connector_state,
+        port,
+        state.color,
+        self()
+      )
+    {pid, socket_connector_state}
   end
 
   def handle_cast({:state_tx_update, %SocketConnector{} = socket_connector_state}, state) do
@@ -139,32 +166,8 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:reestablish, port}, state) do
-    Logger.debug("about to re-establish connection", ansi_color: state.color)
-
-    # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
-    socket_connector_state =
-      case :dets.lookup(state.file, :connect) do
-        [] ->
-          throw "no saved state in dets"
-        dets_state ->
-          {:connect, saved_state} = List.last(dets_state)
-          Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
-          saved_state.state
-      end
-
-    # ^state = :dets.lookup(state.file, :connect)
-
-    {:ok, pid} =
-      SocketConnector.start_link(
-        :reestablish,
-        socket_connector_state,
-        port,
-        state.color,
-        self()
-      )
-
+    {pid, socket_connector_state} = reestablish_(port, state)
     {:noreply, %__MODULE__{state | socket_connector_pid: pid, socket_connector_state: socket_connector_state}}
-    # {:noreply, %__MODULE__{state | socket_connector_pid: pid}}
   end
 
   def handle_cast({:action, action}, state) do
