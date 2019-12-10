@@ -97,19 +97,19 @@ defmodule SessionHolder do
      }}
   end
 
-  def init({%SocketConnector{} = _socket_connector_state, _ae_url, network_id, priv_key, file_name, :reestablish, color}) do
+  def init({%SocketConnector{} = socket_connector_state, _ae_url, network_id, priv_key, file_name, :reestablish, color}) do
     :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
-    {pid, socket_connector_state} = reestablish_(%__MODULE__{color: color, file: file_name})
-
-    {:ok,
-     %__MODULE__{
-       socket_connector_pid: pid,
-       socket_connector_state: socket_connector_state,
-       network_id: network_id,
-       priv_key: priv_key,
-       color: color,
-       file: file_name
-     }}
+    state =
+      %__MODULE__{
+        # socket_connector_pid: pid,
+        socket_connector_state: socket_connector_state,
+        network_id: network_id,
+        priv_key: priv_key,
+        color: color,
+        file: file_name
+        }
+    {pid, saved_socket_connector_state} = reestablish_(state)
+    {:ok, %__MODULE__{state | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state), socket_connector_pid: pid}}
   end
 
   defp kill_connection(pid, color) do
@@ -136,7 +136,7 @@ defmodule SessionHolder do
   def fetch_state_and_persist(pid, file) do
     SocketConnector.request_state(pid)
     receive do
-      {:"$gen_cast", {:state_tx_update, %SocketConnector{} = socket_connector_state}} ->
+      {:"$gen_cast", {:state_tx_update, socket_connector_state}} ->
         persist(socket_connector_state, file)
         socket_connector_state
     end
@@ -157,19 +157,20 @@ defmodule SessionHolder do
       end
 
     # ^state = :dets.lookup(state.file, :connect)
+    merged_socket_connector_state = Map.merge(state.socket_connector_state, socket_connector_state)
 
     {:ok, pid} =
       SocketConnector.start_link(
         :reestablish,
-        socket_connector_state,
+        merged_socket_connector_state,
         port,
         state.color,
         self()
       )
-    {pid, socket_connector_state}
+    {pid, merged_socket_connector_state}
   end
 
-  def handle_cast({:state_tx_update, %SocketConnector{} = socket_connector_state}, state) do
+  def handle_cast({:state_tx_update, socket_connector_state}, state) do
     persist(socket_connector_state, state.file)
     {:noreply, %__MODULE__{state | socket_connector_state: socket_connector_state}}
   end
@@ -186,7 +187,7 @@ defmodule SessionHolder do
 
     socket_connector_state =
       receive do
-        {:"$gen_cast", {:state_tx_update, %SocketConnector{} = socket_connector_state}} ->
+        {:"$gen_cast", {:state_tx_update, socket_connector_state}} ->
           persist(socket_connector_state, state.file)
           socket_connector_state
       end

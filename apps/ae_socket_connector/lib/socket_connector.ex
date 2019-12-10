@@ -4,21 +4,24 @@ defmodule SocketConnector do
 
   @socket_ping_intervall 50
 
+  @persist_keys [:pub_key, :role, :session, :fsm_id, :channel_id, :round_and_updates, :pending_round_and_update, :ws_base, :network_id]
+
   defstruct pub_key: nil,
             role: nil,
+            # WsConnection
             session: %{},
             fsm_id: nil,
-            color: nil,
             channel_id: nil,
+            round_and_updates: %{},
+            pending_round_and_update: %{},
             pending_id: nil,
+            color: nil,
             # SyncCall{},
             sync_call: %{},
             ws_manager_pid: nil,
             network_id: nil,
             ws_base: nil,
             # {round => %Update{}},
-            round_and_updates: %{},
-            pending_round_and_update: %{},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
             timer_reference: nil,
@@ -788,7 +791,8 @@ defmodule SocketConnector do
   end
 
   def sync_state(state) do
-    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+    sync_state = struct(SocketConnector, Enum.reduce(@persist_keys, %{}, fn(key, acc) -> Map.put(acc, key, Map.get(state, key)) end))
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do

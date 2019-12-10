@@ -17,12 +17,12 @@ defmodule ClientRunner do
         {_pub_key, _priv_key, _state_channel_configuration, _log_config, _ae_url, _network_id, _role, _jobs, _color, _name} =
           params
       ) do
-    GenServer.start_link(__MODULE__, params)
+    {:ok, pid} = GenServer.start_link(__MODULE__, params)
   end
 
   defp log_callback(type, round, round_initiator, method, color) do
     Logger.debug(
-      "received: #{inspect(type)}, #{inspect(round)}, #{inspect(round_initiator)}, #{inspect(method)}",
+      "received: #{inspect {type, round, round_initiator, method}} pid is: #{inspect self()}",
       color
     )
   end

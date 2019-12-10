@@ -45,8 +45,19 @@ defmodule ReuseChannelTest do
     File.rm(Path.join(log_config.log_path, log_config.log_file))
   end
 
-  @tag :yep1
-  test "hello fsm part 1/2", context do
+  def name_test(context, suffix) do
+    %{context | test: String.to_atom(Atom.to_string(context.test) <> suffix)}
+  end
+
+  @tag :dets
+  test "reestablish using dets", context do
+    testname = Atom.to_string(context.test)
+
+    hello_fsm_part_1of2(name_test(context, "_1"))
+    hello_fsm_part_2of2_auto_reestablish(name_test(context, "_2"))
+  end
+
+  def hello_fsm_part_1of2(context) do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
@@ -138,8 +149,7 @@ defmodule ReuseChannelTest do
     )
   end
 
-  @tag :yep2
-  test "hello fsm part 2/2 - auto reestablish", context do
+  def hello_fsm_part_2of2_auto_reestablish(context) do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
