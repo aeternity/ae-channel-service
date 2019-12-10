@@ -121,7 +121,14 @@ defmodule SessionHolder do
   defp persist(state, file) do
     dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: state}
     case :dets.insert(String.to_atom(file), {:connect, dets_state}) do
-      :ok -> :ok
+      :ok ->
+        case (state.channel_id == nil or state.fsm_id == nil) do
+          true ->
+            Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
+          false ->
+            :ok
+        end
+        :ok
       error -> throw "logging failed to presist, without persistence reestablish can fail #{inspect error}"
     end
   end
@@ -145,7 +152,7 @@ defmodule SessionHolder do
           throw "no saved state in dets"
         dets_state ->
           {:connect, saved_state} = List.last(dets_state)
-          Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
+          Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage #{inspect state.file} contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
           saved_state.state
       end
 
