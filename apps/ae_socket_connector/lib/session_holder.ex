@@ -9,14 +9,16 @@ defmodule SessionHolder do
             network_id: nil,
             priv_key: nil,
             file: nil,
-            socket_connector_state: %SocketConnector{}
+            socket_connector_state: nil,
+            connection_callbacks: nil
 
   def start_link(%{
-        socket_connector: %SocketConnector{} = socket_connector_state,
+        socket_connector: socket_connector_state,
         log_config: log_config,
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
+        connection_callbacks: connection_callbacks,
         color: color,
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
@@ -26,9 +28,9 @@ defmodule SessionHolder do
     file_name_and_path = log_path <> "/" <> (Map.get(log_config, :log_file, generate_filename(name)))
     case !File.exists?(file_name_and_path) do
       true ->
-        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, file_name_and_path, :open, color}, name: name)
+        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :open, color}, name: name)
       false ->
-        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, file_name_and_path, :reestablish, color}, name: name)
+        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :reestablish, color}, name: name)
     end
   end
 
@@ -82,9 +84,9 @@ defmodule SessionHolder do
   end
 
   # Server
-  def init({%SocketConnector{} = socket_connector_state, ae_url, network_id, priv_key, file_name, :open, color}) do
+  def init({socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name, :open, color}) do
     :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
-    {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, color, self())
+    {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
     {:ok,
      %__MODULE__{
@@ -92,12 +94,13 @@ defmodule SessionHolder do
        socket_connector_state: socket_connector_state,
        network_id: network_id,
        priv_key: priv_key,
+       connection_callbacks: connection_callbacks,
        color: color,
        file: file_name
      }}
   end
 
-  def init({%SocketConnector{} = socket_connector_state, _ae_url, network_id, priv_key, file_name, :reestablish, color}) do
+  def init({socket_connector_state, _ae_url, network_id, priv_key, connection_callbacks, file_name, :reestablish, color}) do
     :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     state =
       %__MODULE__{
@@ -105,11 +108,12 @@ defmodule SessionHolder do
         socket_connector_state: socket_connector_state,
         network_id: network_id,
         priv_key: priv_key,
+        connection_callbacks: connection_callbacks,
         color: color,
         file: file_name
         }
     {pid, saved_socket_connector_state} = reestablish_(state)
-    {:ok, %__MODULE__{state | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state), socket_connector_pid: pid}}
+    {:ok, %__MODULE__{state | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state), socket_connector_pid: pid, connection_callbacks: connection_callbacks}}
   end
 
   defp kill_connection(pid, color) do
@@ -164,6 +168,7 @@ defmodule SessionHolder do
         :reestablish,
         merged_socket_connector_state,
         port,
+        state.connection_callbacks,
         state.color,
         self()
       )

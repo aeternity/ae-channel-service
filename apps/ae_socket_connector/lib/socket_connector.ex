@@ -71,13 +71,14 @@ defmodule SocketConnector do
   )
 
   def start_link(
-        %__MODULE__{
+        %{
           pub_key: _pub_key,
           session: session,
           role: role
         } = state_channel_context,
         ws_base,
         network_id,
+        connection_callbacks,
         color,
         ws_manager_pid
       ) do
@@ -88,11 +89,12 @@ defmodule SocketConnector do
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-        state_channel_context
+        struct(__MODULE__, state_channel_context)
         | ws_manager_pid: ws_manager_pid,
           ws_base: ws_base,
           network_id: network_id,
           timer_reference: nil,
+          connection_callbacks: connection_callbacks,
           color: [ansi_color: color]
       })
 
@@ -103,16 +105,17 @@ defmodule SocketConnector do
 
   def start_link(
         :reestablish,
-        %__MODULE__{
+        %{
           pub_key: _pub_key,
           role: role,
           channel_id: channel_id,
           round_and_updates: round_and_updates,
           ws_base: ws_base,
           pending_round_and_update: pending_round_and_update,
-          fsm_id: fsm_id
+          fsm_id: fsm_id,
         } = state_channel_context,
         port,
+        connection_callbacks,
         color,
         ws_manager_pid
       ) do
@@ -132,9 +135,10 @@ defmodule SocketConnector do
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-        state_channel_context
+        struct(__MODULE__, state_channel_context)
         | ws_manager_pid: ws_manager_pid,
           timer_reference: nil,
+          connection_callbacks: connection_callbacks,
           color: [ansi_color: color]
       })
 
@@ -791,7 +795,7 @@ defmodule SocketConnector do
   end
 
   def sync_state(state) do
-    sync_state = struct(SocketConnector, Enum.reduce(@persist_keys, %{}, fn(key, acc) -> Map.put(acc, key, Map.get(state, key)) end))
+    sync_state = Enum.reduce(@persist_keys, %{}, fn(key, acc) -> Map.put(acc, key, Map.get(state, key)) end)
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 

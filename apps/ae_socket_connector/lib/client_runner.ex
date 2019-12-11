@@ -17,7 +17,7 @@ defmodule ClientRunner do
         {_pub_key, _priv_key, _state_channel_configuration, _log_config, _ae_url, _network_id, _role, _jobs, _color, _name} =
           params
       ) do
-    {:ok, pid} = GenServer.start_link(__MODULE__, params)
+    GenServer.start_link(__MODULE__, params)
   end
 
   defp log_callback(type, round, round_initiator, method, color) do
@@ -73,16 +73,16 @@ defmodule ClientRunner do
   def init({pub_key, priv_key, state_channel_configuration, log_config, ae_url, network_id, role, jobs, color, name}) do
     {:ok, pid_session_holder} =
       SessionHolder.start_link(%{
-        socket_connector: %SocketConnector{
+        socket_connector: %{
           pub_key: pub_key,
           session: state_channel_configuration,
-          role: role,
-          connection_callbacks: connection_callback(self(), color)
+          role: role
         },
         log_config: log_config,
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
+        connection_callbacks: connection_callback(self(), color),
         color: color,
         pid_name: name
       })
