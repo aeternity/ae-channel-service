@@ -1,8 +1,8 @@
-ExUnit.start
-ExUnit.configure seed: 0
+ExUnit.start()
+ExUnit.configure(seed: 0)
 
 defmodule ReuseChannelTest do
-   # run test consecutive
+  # run test consecutive
 
   use ExUnit.Case
   require ClientRunner
@@ -154,11 +154,13 @@ defmodule ReuseChannelTest do
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
-        # end of opening sequence
-        # leaving
         {:initiator,
          %{
            message: {:channels_info, 0, :transient, "fsm_up"},
+           next: ClientRunnerHelper.pause_job(1000)
+         }},
+        {:initiator,
+         %{
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty}
          }},
         {:responder,
@@ -178,24 +180,6 @@ defmodule ReuseChannelTest do
            fuzzy: 0,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
-        # {:initiator,
-        #  %{
-        #    message: {:channels_info, 0, :transient, "channel_reestablished"},
-        #    next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
-        #    fuzzy: 10
-        #  }},
-        # {:responder,
-        #  %{
-        #    message: {:channels_update, 1, :transient, "channels.leave"},
-        #    fuzzy: 20,
-        #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
-        #  }},
-        # {:initiator,
-        #  %{
-        #    message: {:channels_info, 0, :transient, "died"},
-        #    fuzzy: 20,
-        #    next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
-        #  }}
       ]
     end
 
