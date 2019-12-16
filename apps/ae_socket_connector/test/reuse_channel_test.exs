@@ -42,7 +42,7 @@ defmodule ReuseChannelTest do
   end
 
   def clean_log_config_file(log_config) do
-    File.rm(Path.join(log_config.log_path, log_config.log_file))
+    File.rm(Path.join(log_config.path, log_config.file))
   end
 
   def name_test(context, suffix) do
@@ -134,9 +134,9 @@ defmodule ReuseChannelTest do
       ]
     end
 
-    log_config_initiator = %{log_file: "consecutive_initiator", log_path: "log"}
+    log_config_initiator = %{file: "consecutive_initiator", path: "data"}
     clean_log_config_file(log_config_initiator)
-    log_config_responder = %{log_file: "consecutive_responder", log_path: "log"}
+    log_config_responder = %{file: "consecutive_responder", path: "data"}
     clean_log_config_file(log_config_responder)
 
     ClientRunner.start_peers(
@@ -186,8 +186,8 @@ defmodule ReuseChannelTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{log_file: "consecutive_initiator", log_path: "log"}},
-      {bob, accounts_responder(), %{log_file: "consecutive_responder", log_path: "log"}},
+      {alice, accounts_initiator(), %{file: "consecutive_initiator", path: "data"}},
+      {bob, accounts_responder(), %{file: "consecutive_responder", path: "data"}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1401})
     )

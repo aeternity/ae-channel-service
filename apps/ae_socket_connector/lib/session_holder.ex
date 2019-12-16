@@ -23,9 +23,9 @@ defmodule SessionHolder do
         # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       }) do
-    log_path = Map.get(log_config, :log_path, "data")
-    create_log_folder(log_path)
-    file_name_and_path = Path.join(log_path, (Map.get(log_config, :log_file, generate_filename(name))))
+    path = Map.get(log_config, :path, "data")
+    create_folder(path)
+    file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
     if !File.exists?(file_name_and_path) do
       GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :open, color}, name: name)
     else
@@ -33,7 +33,7 @@ defmodule SessionHolder do
     end
   end
 
-  defp create_log_folder(path) do
+  defp create_folder(path) do
     case File.mkdir(path) do
       :ok -> :ok
       {:error, :eexist} -> :ok
