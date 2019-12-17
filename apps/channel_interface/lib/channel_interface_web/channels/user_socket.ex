@@ -2,6 +2,7 @@ defmodule ChannelInterfaceWeb.UserSocket do
   use Phoenix.Socket
 
   ## Channels
+  channel "socket_connector:lobby", ChannelInterfaceWeb.SocketConnectorChannel
   # channel "room:*", ChannelInterfaceWeb.RoomChannel
 
   # Socket params are passed from the client and can
