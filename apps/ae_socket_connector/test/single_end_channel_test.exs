@@ -7,7 +7,7 @@ defmodule SingleEndChannelTest do
   @network_id ClientRunner.network_id()
 
   def clean_log_config_file(log_config) do
-    File.rm(Path.join(log_config.log_path, log_config.log_file))
+    File.rm(Path.join(log_config.log, log_config.log))
   end
 
   def name_test(context, suffix) do
