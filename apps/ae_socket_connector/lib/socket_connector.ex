@@ -799,7 +799,7 @@ defmodule SocketConnector do
   end
 
   def handle_disconnect(disconnect_map, state) do
-    Logger.info("disconnecting... #{inspect(self())}", state.color)
+    Logger.info("disconnecting... #{inspect({self(), state})}", state.color)
     :timer.cancel(state.timer_reference)
     sync_state(state)
     super(disconnect_map, state)
