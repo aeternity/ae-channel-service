@@ -1,6 +1,7 @@
 defmodule AeChannelInterfaceWeb.UserSocket do
   use Phoenix.Socket
 
+  require Logger
   ## Channels
   channel "socket_connector:lobby", ChannelInterfaceWeb.SocketConnectorChannel
   # channel "room:*", ChannelInterfaceWeb.RoomChannel
@@ -17,6 +18,7 @@ defmodule AeChannelInterfaceWeb.UserSocket do
   # See `Phoenix.Token` documentation for examples in
   # performing token verification on connect.
   def connect(_params, socket, _connect_info) do
+    Logger.error "ALEKS CONNECTED #{inspect socket}"
     {:ok, socket}
   end
 
