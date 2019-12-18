@@ -9,7 +9,8 @@ defmodule ChannelInterface.Application do
     # List all child processes to be supervised
     children = [
       # Start the endpoint when the application starts
-      ChannelInterfaceWeb.Endpoint
+      ChannelInterfaceWeb.Endpoint,
+      {Registry, [keys: :unique, name: Registry.SessionHolder]}
       # Starts a worker by calling: ChannelInterface.Worker.start_link(arg)
       # {ChannelInterface.Worker, arg},
     ]
