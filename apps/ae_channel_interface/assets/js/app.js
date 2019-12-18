@@ -17,11 +17,15 @@ import "phoenix_html"
 import socket from "./socket"
 
 let channel = socket.channel('socket_connector:lobby', {}); // connect to chat "room"
+let my_button = document.getElementById('my-button');
+let msg = document.getElementById('msg');            // message input field
 
 channel.on('shout', function (payload) { // listen to the 'shout' event
     let li = document.createElement("li"); // create new list item DOM element
     let name = payload.name || 'guest';    // get name from payload or set default
     li.innerHTML = '<b>' + name + '</b>: ' + payload.message; // set li contents
+    msg.value = payload.message;
+    my_button.style.backgroundColor = 'red';
     ul.appendChild(li);                    // append to list
 });
 
@@ -30,7 +34,6 @@ channel.join(); // join the channel.
 
 let ul = document.getElementById('msg-list');        // list of messages.
 let name = document.getElementById('name');          // name of message sender
-let msg = document.getElementById('msg');            // message input field
 
 // "listen" for the [Enter] keypress event to send a message:
 msg.addEventListener('keypress', function (event) {
@@ -41,4 +44,11 @@ msg.addEventListener('keypress', function (event) {
         });
         msg.value = '';         // reset the message input field for next message.
     }
+});
+
+my_button.addEventListener('click', function (event) {
+    channel.push('shout', { // send the message to the server on "shout" channel
+        name: name.value,     // get value of "name" of person sending the message
+        message: 'click something'    // get message text (value) from msg input field.
+    });
 });

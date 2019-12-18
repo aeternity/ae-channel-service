@@ -67,8 +67,8 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def join("socket_connector:lobby", payload, socket) do
-    pid_socket_holder = start_session_holder_initiator()
     if authorized?(payload) do
+      pid_socket_holder = start_session_holder_initiator()
       {:ok, assign(socket, :pid_socket_holder, pid_socket_holder)}
     else
       {:error, %{reason: "unauthorized"}}
@@ -94,6 +94,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     true
   end
 
+  # Aleks
   def handle_cast(message, state) do
     broadcast state, "shout", %{message: inspect(message), name: "bot"}
     broadcast state, "shout", %{message: inspect(message), name: "bot2"}
