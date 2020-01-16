@@ -4,21 +4,24 @@ defmodule SocketConnector do
 
   @socket_ping_intervall 50
 
+  @persist_keys [:pub_key, :role, :session, :fsm_id, :channel_id, :round_and_updates, :pending_round_and_update, :ws_base, :network_id]
+
   defstruct pub_key: nil,
             role: nil,
+            # WsConnection
             session: %{},
             fsm_id: nil,
-            color: nil,
             channel_id: nil,
+            round_and_updates: %{},
+            pending_round_and_update: %{},
             pending_id: nil,
+            color: nil,
             # SyncCall{},
             sync_call: %{},
             ws_manager_pid: nil,
             network_id: nil,
             ws_base: nil,
             # {round => %Update{}},
-            round_and_updates: %{},
-            pending_round_and_update: %{},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
             timer_reference: nil,
@@ -68,13 +71,14 @@ defmodule SocketConnector do
   )
 
   def start_link(
-        %__MODULE__{
+        %{
           pub_key: _pub_key,
           session: session,
           role: role
         } = state_channel_context,
         ws_base,
         network_id,
+        connection_callbacks,
         color,
         ws_manager_pid
       ) do
@@ -85,11 +89,12 @@ defmodule SocketConnector do
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-        state_channel_context
+        struct(__MODULE__, state_channel_context)
         | ws_manager_pid: ws_manager_pid,
           ws_base: ws_base,
           network_id: network_id,
           timer_reference: nil,
+          connection_callbacks: connection_callbacks,
           color: [ansi_color: color]
       })
 
@@ -100,16 +105,17 @@ defmodule SocketConnector do
 
   def start_link(
         :reestablish,
-        %__MODULE__{
+        %{
           pub_key: _pub_key,
           role: role,
           channel_id: channel_id,
           round_and_updates: round_and_updates,
           ws_base: ws_base,
           pending_round_and_update: pending_round_and_update,
-          fsm_id: fsm_id
+          fsm_id: fsm_id,
         } = state_channel_context,
         port,
+        connection_callbacks,
         color,
         ws_manager_pid
       ) do
@@ -129,9 +135,10 @@ defmodule SocketConnector do
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
-        state_channel_context
+        struct(__MODULE__, state_channel_context)
         | ws_manager_pid: ws_manager_pid,
           timer_reference: nil,
+          connection_callbacks: connection_callbacks,
           color: [ansi_color: color]
       })
 
@@ -780,7 +787,8 @@ defmodule SocketConnector do
   end
 
   def sync_state(state) do
-    GenServer.cast(state.ws_manager_pid, {:state_tx_update, state})
+    sync_state = Enum.reduce(@persist_keys, %{}, fn(key, acc) -> Map.put(acc, key, Map.get(state, key)) end)
+    GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
   def handle_disconnect(%{reason: {:local, reason}}, state) do
@@ -1124,7 +1132,10 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
-    {:ok, %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}}
+    # manual sync, this is particullary intersting, this is needed for future reconnects
+    new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
+    sync_state(new_state)
+    {:ok, new_state}
   end
 
   def process_message(
