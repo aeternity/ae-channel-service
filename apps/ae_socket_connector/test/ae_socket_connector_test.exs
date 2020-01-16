@@ -1028,14 +1028,17 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1408})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
+
   end
 
   @tag :contract
