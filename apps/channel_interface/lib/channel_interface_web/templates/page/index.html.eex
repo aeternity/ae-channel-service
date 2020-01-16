@@ -20,10 +20,16 @@
     <h2>State channel resources</h2>
     <ul>
       <li>
-        <a href="https://hexdocs.pm/phoenix/overview.html">Guides &amp; Docs</a>
+        <a href="https://github.com/aeternity/protocol/blob/master/node/api/channel_ws_api.md">State channel WebSocket API &amp; Docs</a>
       </li>
       <li>
-        <a href="https://github.com/phoenixframework/phoenix">Source</a>
+        <a href="https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md">Channels - intended usage &amp; Docs</a>
+      </li>
+      <li>
+        <a href="https://github.com/aeternity/aeternity/tree/master/apps/aechannel">Source code aeternity state channels</a>
+      </li>
+      <li>
+        <a href="https://github.com/aeternity/ae-channel-service/">Source code ae-channel-service</a>
       </li>
     </ul>
   </article>
