@@ -752,12 +752,12 @@ defmodule SocketConnectorTest do
   end
 
   # relocate contact files to get this working.
-  @tag :contract
-  test "contract jobs", context do
+  @tag :contract_exp
+  test "contract jobs experiment", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
-      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes"}
+      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/tictactoe.aes", %{abi_version: 3, vm_version: 5, backend: :fate}}
 
       # correct path if started in shell...
       # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
@@ -780,7 +780,272 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract) end, :empty}
+           # initiator have put 10 in the contract
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+         }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           message: {:channels_update, 3, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                # responder add 10 (same) in the contract
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'join',
+                  ['true'],
+                  10
+                )
+              end, :empty}
+         }},
+        {:responder,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 4, :self, "channels.update"},
+           next:
+             {:sync,
+              fn pid, from ->
+                SocketConnector.get_contract_reponse(
+                  pid,
+                  initiator_contract,
+                  'join',
+                  from
+                )
+              end,
+              fn a ->
+                assert a == {:ok, {:tuple, [], []}}
+              end}
+         }},
+        {:responder,
+         %{
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['2', '2']
+                )
+              end, :empty}
+         }},
+        {:responder,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 5, :self, "channels.update"},
+           next:
+             {:sync,
+              fn pid, from ->
+                SocketConnector.get_contract_reponse(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  from
+                )
+              end,
+              fn a ->
+                assert a == {:ok, {:bool, [], false}}
+              end}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 5, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['1', '1']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 6, :self, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['1', '2']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 7, :self, "channels.update"},
+           next:
+             {:sync,
+              fn pid, from ->
+                SocketConnector.get_contract_reponse(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  from
+                )
+              end,
+              fn a ->
+                # TODO, parse "not your turn" from error message
+                assert elem(a, 0) == :error
+              end}
+         }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           message: {:channels_update, 7, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['1', '2']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 8, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['0', '2']
+                )
+              end, :empty}
+         }},
+        {:responder,
+         %{
+           fuzzy: 20,
+           message: {:channels_update, 9, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['2', '1']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               #  initiator have put 10 in the contract
+               {intiator_account, 6_999_999_999_987},
+               {responder_account, 3_999_999_999_993}
+             )
+         }},
+        {:initiator,
+         %{
+           # This is the winning move
+           fuzzy: 10,
+           message: {:channels_update, 10, :other, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.call_contract(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  ['2', '0']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 11, :self, "channels.update"},
+           next:
+             {:sync,
+              fn pid, from ->
+                SocketConnector.get_contract_reponse(
+                  pid,
+                  initiator_contract,
+                  'move',
+                  from
+                )
+              end,
+              fn a ->
+                # we have a winner!
+                assert a == {:ok, {:bool, [], true}}
+              end}
+         }},
+        {:initiator,
+         %{
+           # initiator wins the total amount of credits, since he won.
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 7_000_000_000_007},
+               {responder_account, 3_999_999_999_993}
+             )
+         }},
+        {:responder,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }},
+        {:initiator,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }}
+      ]
+    end
+
+    ClientRunner.start_peers(
+      @ae_url,
+      @network_id,
+      {alice, accounts_initiator()},
+      {bob, accounts_responder()},
+      scenario,
+      custom_config(%{}, %{minimum_depth: 0, port: 1408})
+    )
+  end
+
+  @tag :contract
+  test "contract jobs", context do
+    {alice, bob} = gen_names(context.test)
+
+    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+      initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes", %{abi_version: 1, vm_version: 3, backend: :aevm}}
+
+      # correct path if started in shell...
+      # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
+      [
+        {:initiator,
+         %{
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+           fuzzy: 10
+         }},
+        {:initiator,
+         %{
+           message: {:channels_update, 2, :self, "channels.update"},
+           fuzzy: 3,
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_997},
+               {responder_account, 4_000_000_000_003}
+             )
+         }},
+        {:initiator,
+         %{
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
          }},
         {:initiator,
          %{
@@ -825,6 +1090,7 @@ defmodule SocketConnectorTest do
            message: {:channels_update, 5, :self, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
+               #  reduce by 10 + 3, 10 deposit in contract
                {intiator_account, 6_999_999_999_984},
                {responder_account, 4_000_000_000_006}
              )
@@ -840,7 +1106,6 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            fuzzy: 10,
-           #  TODO bug somewhere, why do we go for transient here?
            message: {:channels_update, 6, :self, "channels.update"},
            next:
              ClientRunnerHelper.assert_funds_job(
