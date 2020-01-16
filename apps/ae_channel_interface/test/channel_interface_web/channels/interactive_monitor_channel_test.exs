@@ -1,10 +1,10 @@
-defmodule ChannelInterfaceWeb.InteractiveMonitorChannelTest do
-  use ChannelInterfaceWeb.ChannelCase
+defmodule AeChannelInterfaceWeb.InteractiveMonitorChannelTest do
+  use AeChannelInterfaceWeb.ChannelCase
 
   # setup do
   #   {:ok, _, socket} =
-  #     socket(ChannelInterfaceWeb.UserSocket, "user_id", %{some: :assign})
-  #     |> subscribe_and_join(ChannelInterfaceWeb.InteractiveMonitorChannel, "interactive_monitor:lobby")
+  #     socket(AeChannelInterfaceWeb.UserSocket, "user_id", %{some: :assign})
+  #     |> subscribe_and_join(AeChannelInterfaceWeb.InteractiveMonitorChannel, "interactive_monitor:lobby")
 
   #   {:ok, socket: socket}
   # end
