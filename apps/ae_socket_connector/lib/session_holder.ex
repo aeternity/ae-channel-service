@@ -42,7 +42,7 @@ defmodule SessionHolder do
   end
 
   defp generate_filename(name) do
-    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log"
+    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(inspect(name), " ", "_") <> ".log"
   end
 
   # this is here for tesing purposes
