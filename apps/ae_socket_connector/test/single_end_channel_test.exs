@@ -20,7 +20,7 @@ defmodule SingleEndChannelTest do
   test "robot_only_responder", context do
     {alice, bob} = SocketConnectorTest.gen_names(context.test)
 
-    scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
+    scenario = fn {_initiator, _intiator_account}, {_responder, _responder_account}, _runner_pid ->
       [
         {:responder,
          %{
