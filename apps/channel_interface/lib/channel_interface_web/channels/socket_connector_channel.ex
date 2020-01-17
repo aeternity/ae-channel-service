@@ -54,11 +54,23 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
     case Registry.lookup(Registry.SessionHolder, role) do
       [{pid, _}] ->
-        Logger.info("Server already running #{inspect pid}")
+        Logger.info("Server already running, stopping #{inspect pid}")
+        SessionHolder.close_connection(pid)
+        Process.exit(pid, :kill)
         # already running
-        pid
+        # pid
 
       _ ->
+        :ok
+    end
+    # SessionHolder.close_connection(pid_session_holder)
+    # case Registry.lookup(Registry.SessionHolder, role) do
+    #   [{pid, _}] ->
+    #     Logger.info("Server already running #{inspect pid}")
+    #     # already running
+    #     pid
+
+    #   _ ->
 
         {pub_key, priv_key} =
           case role do
@@ -89,17 +101,21 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
         Process.unlink(pid_session_holder)
         Logger.error("Server not already running new pid is #{inspect pid_session_holder}")
         pid_session_holder
-    end
+    # end
   end
 
   def join("socket_connector:lobby", payload, socket) do
-    Logger.debug "Connect, payload is #{inspect payload}"
     if authorized?(payload) do
-      pid_session_holder = start_session_holder(String.to_atom(payload["role"]), String.to_integer(payload["port"]))
-      {:ok, assign(socket, :pid_session_holder, pid_session_holder)}
+      {:ok, socket}
     else
       {:error, %{reason: "unauthorized"}}
     end
+  end
+
+  def handle_in("connect", payload, socket) do
+    Logger.debug "Connect, payload is #{inspect payload}"
+    pid_session_holder = start_session_holder(String.to_atom(payload["role"]), String.to_integer(payload["port"]))
+    {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
 
   # Channels can be used in a request/response fashion

@@ -40,6 +40,11 @@
   </article>
 </section>
 
+<div style="display:flex;">
+<button id="connect_initiator_websocket_btn" style="margin-right: 20px">Connect websocket for Initiator</button>
+<button id="connect_responder_websocket_btn" style="margin-right: 20px">Connect websocker for Responder</button>
+</div>
+
 
 <div style="display:flex;">
 <button id="connect_initiator_btn" style="margin-right: 20px">Connect Initiator</button>
