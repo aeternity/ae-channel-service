@@ -34,6 +34,8 @@ let shutdown_btn = document.getElementById('shutdown_btn');
 
 let connect_port = document.getElementById('connect_port');
 
+let connect_initiator_websocket_btn = document.getElementById('connect_initiator_websocket_btn');
+let connect_responder_websocket_btn = document.getElementById('connect_responder_websocket_btn');
 
 // channel.join(); // join the channel.
 
@@ -80,6 +82,14 @@ transfer_btn.addEventListener('click', function (event) {
 });
 
 connect_initiator_btn.addEventListener('click', function (event) {
+    channel.push('connect', { role: "initiator", port: connect_port.value });
+});
+
+connect_responder_btn.addEventListener('click', function (event) {
+    channel.push('connect', { role: "responder", port: connect_port.value });
+});
+
+connect_initiator_websocket_btn.addEventListener('click', function (event) {
     
     channel = socket.channel('socket_connector:lobby', {role: "initiator", port: connect_port.value}); // connect to chat "room"
     channel.join();
@@ -101,7 +111,7 @@ connect_initiator_btn.addEventListener('click', function (event) {
 });
 
 
-connect_responder_btn.addEventListener('click', function (event) {
+connect_responder_websocket_btn.addEventListener('click', function (event) {
 
     channel = socket.channel('socket_connector:lobby', { role: "responder", port: connect_port.value}); // connect to chat "room"
     channel.join();
