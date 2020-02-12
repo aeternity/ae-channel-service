@@ -47,8 +47,7 @@
 
 
 <div style="display:flex;">
-<button id="connect_initiator_btn" style="margin-right: 20px">Connect Initiator</button>
-<button id="connect_responder_btn" style="margin-right: 20px">Connect Responder</button>
+<button id="connect_btn" style="margin-right: 20px">Connect</button>
 <button id="reestablish_btn" style="margin-right: 20px" disabled>Reestablish</button>
 <input id="connect_port" style="margin-right: 20px" type="text" value="1564">
 </div>
