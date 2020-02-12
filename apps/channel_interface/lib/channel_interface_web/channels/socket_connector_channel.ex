@@ -163,7 +163,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
   def join("socket_connector:lobby", payload, socket) do
     if authorized?(payload) do
-      {:ok, socket}
+      {:ok, assign(socket, :role, String.to_atom(payload["role"]))}
     else
       {:error, %{reason: "unauthorized"}}
     end
@@ -171,7 +171,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
   def handle_in("connect", payload, socket) do
     Logger.debug "Connect, payload is #{inspect payload}"
-    pid_session_holder = start_session_holder(String.to_atom(payload["role"]), String.to_integer(payload["port"]))
+    pid_session_holder = start_session_holder(socket.assigns.role, String.to_integer(payload["port"]))
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
 
