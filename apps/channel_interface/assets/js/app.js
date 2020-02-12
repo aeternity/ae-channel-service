@@ -27,8 +27,8 @@ let sign_mthd = document.getElementById('sign_mthd');
 let transfer_btn = document.getElementById('transfer_btn');
 let tranfer_amount = document.getElementById('transfer_amount');
 
-let connect_initiator_btn = document.getElementById('connect_initiator_btn');
-let connect_responder_btn = document.getElementById('connect_responder_btn');
+let connect_btn = document.getElementById('connect_btn');
+// let connect_responder_btn = document.getElementById('connect_responder_btn');
 
 let shutdown_btn = document.getElementById('shutdown_btn');
 
@@ -81,13 +81,13 @@ transfer_btn.addEventListener('click', function (event) {
     });
 });
 
-connect_initiator_btn.addEventListener('click', function (event) {
+connect_btn.addEventListener('click', function (event) {
     channel.push('connect', { role: "initiator", port: connect_port.value });
 });
 
-connect_responder_btn.addEventListener('click', function (event) {
-    channel.push('connect', { role: "responder", port: connect_port.value });
-});
+// connect_responder_btn.addEventListener('click', function (event) {
+//     channel.push('connect', { role: "responder", port: connect_port.value });
+// });
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
     
