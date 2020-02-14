@@ -26,6 +26,7 @@ defmodule SessionHolder do
     path = Map.get(log_config, :path, "data")
     create_folder(path)
     file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
+    Logger.error "File_name is #{inspect file_name_and_path}"
     if !File.exists?(file_name_and_path) do
       GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :open, color}, name: name)
     else
@@ -58,7 +59,7 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:reestablish, port})
   end
 
-  def stop_helper(pid) do
+  def leave(pid) do
     run_action(pid, fn pid -> SocketConnector.leave(pid) end)
   end
 
@@ -84,6 +85,7 @@ defmodule SessionHolder do
 
   # Server
   def init({socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name, :open, color}) do
+    Logger.error("Starting session holder, #{inspect self()}")
     {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
@@ -131,6 +133,7 @@ defmodule SessionHolder do
           true ->
             Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
           false ->
+            Logger.warn("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
             :ok
         end
         :ok
@@ -148,7 +151,7 @@ defmodule SessionHolder do
   end
 
   def reestablish_(state, port \\ 1500) do
-    Logger.debug("about to re-establish connection", ansi_color: state.color)
+    Logger.error("about to re-establish connection", ansi_color: state.color)
 
     # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
     socket_connector_state =
