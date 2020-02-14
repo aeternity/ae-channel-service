@@ -73,5 +73,5 @@
 
 <!-- The list of messages will appear here: -->
 <ul id='msg-list' style='list-style: none; min-height:200px; padding: 10px;'></ul>
-<button id='my-button' type="button">Sign!</button>
+<button id='my-button' type="button">Red button!</button>
 
