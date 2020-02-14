@@ -8,7 +8,7 @@ import css from "../css/app.css"
 // in "webpack.config.js".
 //
 // Import dependencies
-//
+// 
 import "phoenix_html"
 
 // Import local files
@@ -17,6 +17,13 @@ import "phoenix_html"
 import socket from "./socket"
 
 var channel = null;
+
+
+
+
+let reestablish_btn = document.getElementById('reestablish_btn');
+let leave_btn = document.getElementById('leave_btn');
+
 
 let my_button = document.getElementById('my-button');
 
@@ -31,8 +38,11 @@ let connect_btn = document.getElementById('connect_btn');
 // let connect_responder_btn = document.getElementById('connect_responder_btn');
 
 let shutdown_btn = document.getElementById('shutdown_btn');
+let teardown_btn = document.getElementById('teardown_btn');
 
 let connect_port = document.getElementById('connect_port');
+let session_id = document.getElementById('session_id');
+
 
 let connect_initiator_websocket_btn = document.getElementById('connect_initiator_websocket_btn');
 let connect_responder_websocket_btn = document.getElementById('connect_responder_websocket_btn');
@@ -85,13 +95,26 @@ connect_btn.addEventListener('click', function (event) {
     channel.push('connect', { role: "initiator", port: connect_port.value });
 });
 
+leave_btn.addEventListener('click', function (event) {
+    channel.push('leave', {});
+});
+
+reestablish_btn.addEventListener('click', function (event) {
+    channel.push('connect', { port: connect_port.value });
+});
+
+teardown_btn.addEventListener('click', function (event) {
+    channel.push('teardown', {});
+});
+
+
 // connect_responder_btn.addEventListener('click', function (event) {
 //     channel.push('connect', { role: "responder", port: connect_port.value });
 // });
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
     
-    channel = socket.channel('socket_connector:lobby', {role: "initiator", port: connect_port.value}); // connect to chat "room"
+    channel = socket.channel('socket_connector:lobby', {role: "initiator", session_id: session_id.value}); // connect to chat "room"
     channel.join();
 
 
@@ -113,7 +136,7 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
 
 connect_responder_websocket_btn.addEventListener('click', function (event) {
 
-    channel = socket.channel('socket_connector:lobby', { role: "responder", port: connect_port.value}); // connect to chat "room"
+    channel = socket.channel('socket_connector:lobby', { role: "responder", session_id: session_id.value}); // connect to chat "room"
     channel.join();
 
 

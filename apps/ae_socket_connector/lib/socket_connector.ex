@@ -1123,6 +1123,9 @@ defmodule SocketConnector do
     end
   end
 
+
+  # %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => nil, "data" => %{"event" => "fsm_up", "fsm_id" => "ba_fVV9rUl9X6OG/fzAbSsxIjQCqwaPlgxNCgJWIF3cIvOqliqv"}}, "version" => 1}
+
   def process_message(
         %{
           "method" => "channels.info",
@@ -1130,7 +1133,8 @@ defmodule SocketConnector do
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+      do
+      # when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
     # manual sync, this is particullary intersting, this is needed for future reconnects
     new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}

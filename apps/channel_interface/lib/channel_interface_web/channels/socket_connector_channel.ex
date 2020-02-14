@@ -106,7 +106,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     Map.merge(same, role_map)
   end
 
-  def start_session_holder(role, port) when role in [:initiator, :responder] do
+  def start_session_holder(role, port, session_id) when role in [:initiator, :responder] do
     name = {:via, Registry, {Registry.SessionHolder, role}}
 
     case Registry.lookup(Registry.SessionHolder, role) do
@@ -147,7 +147,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
               session: config.(initiator_pub_key, responder_pub_key),
               role: role
             },
-            log_config: %{},
+            log_config: %{file: session_id <> inspect(name)},
             ae_url: ae_url(),
             network_id: network_id(),
             priv_key: priv_key,
@@ -163,7 +163,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
   def join("socket_connector:lobby", payload, socket) do
     if authorized?(payload) do
-      {:ok, assign(socket, :role, String.to_atom(payload["role"]))}
+      {:ok, Phoenix.Socket.assign(socket, role: String.to_atom(payload["role"]), session_id: inspect(payload["session_id"]))}
     else
       {:error, %{reason: "unauthorized"}}
     end
@@ -171,7 +171,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
   def handle_in("connect", payload, socket) do
     Logger.debug "Connect, payload is #{inspect payload}"
-    pid_session_holder = start_session_holder(socket.assigns.role, String.to_integer(payload["port"]))
+    pid_session_holder = start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), socket.assigns.session_id)
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
 
@@ -215,6 +215,19 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     SessionHolder.run_action(socket.assigns.pid_session_holder, fun)
     # sign_message_and_dispatch(socket.assigns.pid_session_holder, payload["method"], payload["to_sign"])
     # broadcast(socket, "shout", payload)
+    {:noreply, socket}
+  end
+
+  def handle_in(action, payload, socket) do
+    socketholder_pid = socket.assigns.pid_session_holder
+    case action do
+      "leave" ->
+        SessionHolder.leave(socketholder_pid)
+      "reestablish" ->
+        SessionHolder.reestablish(socketholder_pid, String.to_integer(payload["port"]))
+      "teardown" ->
+        SessionHolder.close_connection(socketholder_pid)
+    end
     {:noreply, socket}
   end
 
