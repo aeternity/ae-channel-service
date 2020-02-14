@@ -54,68 +54,57 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
     case Registry.lookup(Registry.SessionHolder, role) do
       [{pid, _}] ->
-        Logger.info("Server already running, stopping #{inspect pid}")
+        Logger.info("Server already running, stopping #{inspect(pid)}")
         SessionHolder.close_connection(pid)
         Process.exit(pid, :kill)
-        # already running
-        # pid
-
       _ ->
         :ok
     end
-    # SessionHolder.close_connection(pid_session_holder)
-    # case Registry.lookup(Registry.SessionHolder, role) do
-    #   [{pid, _}] ->
-    #     Logger.info("Server already running #{inspect pid}")
-    #     # already running
-    #     pid
 
-    #   _ ->
+    {pub_key, priv_key} =
+      case role do
+        :initiator -> keypair_initiator()
+        :responder -> keypair_responder()
+      end
 
-        {pub_key, priv_key} =
-          case role do
-            :initiator -> keypair_initiator()
-            :responder -> keypair_responder()
-          end
-        {initiator_pub_key, _responder_priv_key} = keypair_initiator()
-        {responder_pub_key, _responder_priv_key} = keypair_responder()
+    {initiator_pub_key, _responder_priv_key} = keypair_initiator()
+    {responder_pub_key, _responder_priv_key} = keypair_responder()
 
-        color = :yellow
-        config = ClientRunner.custom_config(%{}, %{port: port})
+    color = :yellow
+    config = ClientRunner.custom_config(%{}, %{port: port})
 
-        {:ok, pid_session_holder} =
-          SessionHolder.start_link(%{
-            socket_connector: %{
-              pub_key: pub_key,
-              session: config.(initiator_pub_key, responder_pub_key),
-              role: role
-            },
-            log_config: %{},
-            ae_url: ae_url(),
-            network_id: network_id(),
-            priv_key: priv_key,
-            connection_callbacks: connection_callback(self(), color),
-            color: color,
-            pid_name: name
-          })
-        Process.unlink(pid_session_holder)
-        Logger.error("Server not already running new pid is #{inspect pid_session_holder}")
-        pid_session_holder
+    {:ok, pid_session_holder} =
+      SessionHolder.start_link(%{
+        socket_connector: %{
+          pub_key: pub_key,
+          session: config.(initiator_pub_key, responder_pub_key),
+          role: role
+        },
+        log_config: %{file: session_id <> inspect(name)},
+        ae_url: ae_url(),
+        network_id: network_id(),
+        priv_key: priv_key,
+        connection_callbacks: connection_callback(self(), color),
+        color: color,
+        pid_name: name
+      })
+
+    Process.unlink(pid_session_holder)
+    Logger.error("Server not already running new pid is #{inspect(pid_session_holder)}")
+    pid_session_holder
     # end
   end
 
   def join("socket_connector:lobby", payload, socket) do
     if authorized?(payload) do
-      {:ok, assign(socket, :role, String.to_atom(payload["role"]))}
+      {:ok,
+       Phoenix.Socket.assign(socket,
+         role: String.to_atom(payload["role"]),
+         session_id: inspect(payload["session_id"])
+       )}
     else
       {:error, %{reason: "unauthorized"}}
     end
-  end
-
-  def handle_in("connect", payload, socket) do
-    Logger.debug "Connect, payload is #{inspect payload}"
-    pid_session_holder = start_session_holder(socket.assigns.role, String.to_integer(payload["port"]))
-    {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
 
   # Channels can be used in a request/response fashion
@@ -132,35 +121,40 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     {:noreply, socket}
   end
 
-  def handle_in("sign", payload, socket) do
-    Logger.info("Sign event from web ui #{inspect(payload)} sending to #{inspect(socket.assigns.pid_session_holder)}")
-    sign_message_and_dispatch(socket.assigns.pid_session_holder, payload["method"], payload["to_sign"])
-    # broadcast(socket, "shout", payload)
-    {:noreply, socket}
+  def handle_in("connect", payload, socket) do
+    pid_session_holder =
+      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), socket.assigns.session_id)
+
+    {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
 
-  #  next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 100_000_000_000_000_000) end, :empty},
-  # fun = &SocketConnector.send_signed_message(&1, method, signed)
-  #     SessionHolder.run_action(pid_session_holder, fun)
+  def handle_in(action, payload, socket) do
+    socketholder_pid = socket.assigns.pid_session_holder
 
-  def handle_in("transfer", payload, socket) do
-    Logger.info("Transfer event from web ui #{inspect(payload)}")
-    fun = &SocketConnector.initiate_transfer(&1, payload["amount"])
-    SessionHolder.run_action(socket.assigns.pid_session_holder, fun)
-    # sign_message_and_dispatch(socket.assigns.pid_session_holder, payload["method"], payload["to_sign"])
-    # broadcast(socket, "shout", payload)
+    case action do
+      "leave" ->
+        SessionHolder.leave(socketholder_pid)
+
+      "reestablish" ->
+        SessionHolder.reestablish(socketholder_pid, String.to_integer(payload["port"]))
+
+      "teardown" ->
+        SessionHolder.close_connection(socketholder_pid)
+
+      "shutdown" ->
+        fun = &SocketConnector.shutdown(&1)
+        SessionHolder.run_action(socketholder_pid, fun)
+
+      "transfer" ->
+        fun = &SocketConnector.initiate_transfer(&1, payload["amount"])
+        SessionHolder.run_action(socketholder_pid, fun)
+
+      "sign" ->
+        sign_message_and_dispatch(socketholder_pid, payload["method"], payload["to_sign"])
+    end
+
     {:noreply, socket}
   end
-
-  def handle_in("shutdown", payload, socket) do
-    Logger.info("shutdown #{inspect(payload)}")
-    fun = &SocketConnector.shutdown(&1)
-    SessionHolder.run_action(socket.assigns.pid_session_holder, fun)
-    # sign_message_and_dispatch(socket.assigns.pid_session_holder, payload["method"], payload["to_sign"])
-    # broadcast(socket, "shout", payload)
-    {:noreply, socket}
-  end
-
 
   # Add authorization logic here as required.
   defp authorized?(_payload) do
