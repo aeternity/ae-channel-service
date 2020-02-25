@@ -57,6 +57,9 @@ defmodule ClientRunner do
         )
 
         GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
+      end,
+      connection_update: fn status, reason ->
+        GenServer.cast(callback_pid, {:connection_update, {status, reason}})
       end
     }
   end
@@ -156,6 +159,11 @@ defmodule ClientRunner do
 
   def process_sign_request(message, to_sign, pid_session_holder, _not_sign_request) do
     process_sign_request(message, to_sign, pid_session_holder)
+  end
+
+  def handle_cast({:connection_update, update}, state) do
+    Logger.debug("Connection update, #{inspect update}")
+    {:noreply, state}
   end
 
   def handle_cast({:end_pause}, state) do

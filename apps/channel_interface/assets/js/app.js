@@ -25,7 +25,7 @@ let reestablish_btn = document.getElementById('reestablish_btn');
 let leave_btn = document.getElementById('leave_btn');
 
 
-let my_button = document.getElementById('my-button');
+let connection_status = document.getElementById('connection-status');
 
 let sign_btn = document.getElementById('sign_btn');
 let sign_msg = document.getElementById('sign_msg');
@@ -122,14 +122,20 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
         let li = document.createElement("li"); // create new list item DOM element
         let name = payload.name || 'guest';    // get name from payload or set default
         li.innerHTML = '<b>' + name + '</b>: ' + payload.message; // set li contents
-        // msg.value = payload.message;
-        my_button.style.backgroundColor = 'red';
         ul.appendChild(li);                    // append to list
     });
 
     channel.on('sign', function (payload) {
         sign_msg.value = payload.to_sign
         sign_mthd.value = payload.method
+    });
+
+    channel.on('connected', function (payload) {
+        connection_status.style.backgroundColor = 'green';
+    });
+
+    channel.on('disconnected', function (payload) {
+        connection_status.style.backgroundColor = 'red';
     });
 });
 
@@ -145,13 +151,19 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
         let li = document.createElement("li"); // create new list item DOM element
         let name = payload.name || 'guest';    // get name from payload or set default
         li.innerHTML = '<b>' + name + '</b>: ' + payload.message; // set li contents
-        // msg.value = payload.message;
-        my_button.style.backgroundColor = 'red';
         ul.appendChild(li);                    // append to list
     });
 
     channel.on('sign', function (payload) {
         sign_msg.value = payload.to_sign
         sign_mthd.value = payload.method
+    });
+
+    channel.on('connected', function (payload) {
+        connection_status.style.backgroundColor = 'green';
+    });
+
+    channel.on('disconnected', function (payload) {
+        connection_status.style.backgroundColor = 'red';
     });
 });

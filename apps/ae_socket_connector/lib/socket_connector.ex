@@ -46,7 +46,8 @@ defmodule SocketConnector do
         sign_approve: nil,
         channels_update: nil,
         channels_info: nil,
-        on_chain: nil
+        on_chain: nil,
+        connection_update: nil
       )
   )
 
@@ -285,6 +286,7 @@ defmodule SocketConnector do
 
   def handle_connect(conn, state) do
     Logger.info("Connected! #{inspect(conn)} #{inspect(self())}", state.color)
+    produce_callback(:connection_update, {:connected, nil}, state)
     {:ok, state}
   end
 
@@ -791,17 +793,21 @@ defmodule SocketConnector do
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
+  defp clean_and_exit(state, reason) do
+    :timer.cancel(state.timer_reference)
+    produce_callback(:connection_update, {:disconnected, reason}, state)
+    sync_state(state)
+  end
+
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}", state.color)
-    :timer.cancel(state.timer_reference)
-    sync_state(state)
+    clean_and_exit(state, reason)
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
     Logger.info("disconnecting... #{inspect({self(), state})}", state.color)
-    :timer.cancel(state.timer_reference)
-    sync_state(state)
+    clean_and_exit(state, nil)
     super(disconnect_map, state)
   end
 
@@ -1068,6 +1074,17 @@ defmodule SocketConnector do
 
         callback = Map.get(state.connection_callbacks, type)
         callback.(round_initiator, round, method)
+        :ok
+    end
+  end
+
+  def produce_callback(:connection_update, {action, reason}, state) do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+      _ ->
+        callback = Map.get(state.connection_callbacks, :connection_update)
+        callback.(action, reason)
         :ok
     end
   end
