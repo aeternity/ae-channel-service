@@ -333,6 +333,23 @@ defmodule ClientRunner do
     }
   end
 
+  def custom_config(overide_basic_param, override_custom) do
+    fn initator_pub, responder_pub ->
+      %{basic_configuration: basic_configuration} =
+        Map.merge(
+          ClientRunner.default_configuration(initator_pub, responder_pub),
+          overide_basic_param
+        )
+
+      %{
+        basic_configuration: basic_configuration,
+        custom_param_fun: fn role, host_url ->
+          Map.merge(ClientRunner.custom_connection_setting(role, host_url), override_custom)
+        end
+      }
+    end
+  end
+
   def start_peers(
         ae_url,
         network_id,
