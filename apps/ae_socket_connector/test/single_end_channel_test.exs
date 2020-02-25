@@ -44,7 +44,7 @@ defmodule SingleEndChannelTest do
     end
 
     channel_config =
-      SocketConnectorTest.custom_config(%{}, %{
+      ClientRunner.custom_config(%{}, %{
         minimum_depth: 0,
         port: 3050,
         responder_amount: 1_000_000_000_000_000_000,
