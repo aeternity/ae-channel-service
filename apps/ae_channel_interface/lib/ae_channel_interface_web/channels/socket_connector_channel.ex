@@ -39,6 +39,9 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
         )
 
         GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
+      end,
+      connection_update: fn status, reason ->
+        GenServer.cast(callback_pid, {:connection_update, {status, reason}})
       end
     }
   end
@@ -161,7 +164,13 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     true
   end
 
-  # is this code operational?
+  def handle_cast({:connection_update, {status, reason} = update}, socket) do
+    Logger.info("Connection update, #{inspect update}")
+    push(socket, "shout", %{message: inspect(update), name: "bot"})
+    push(socket, Atom.to_string(status), %{})
+    {:noreply, socket}
+  end
+
   def handle_cast({:match_jobs, {:sign_approve, _round, _round_initator, method}, to_sign} = message, socket) do
     Logger.info("Sign request #{inspect(message)}")
     push(socket, "sign", %{message: inspect(message), method: method, to_sign: to_sign})
