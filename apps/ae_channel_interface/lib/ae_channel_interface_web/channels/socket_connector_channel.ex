@@ -52,7 +52,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     SessionHolder.run_action(pid_session_holder, fun)
   end
 
-  def start_session_holder(role, port, session_id) when role in [:initiator, :responder] do
+  def start_session_holder(role, port, session_id, keypair_initiator, keypair_responder) when role in [:initiator, :responder] do
     name = {:via, Registry, {Registry.SessionHolder, role}}
 
     case Registry.lookup(Registry.SessionHolder, role) do
@@ -66,14 +66,19 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
     {pub_key, priv_key} =
       case role do
-        :initiator -> keypair_initiator()
-        :responder -> keypair_responder()
+        :initiator -> keypair_initiator.()
+        :responder -> keypair_responder.()
       end
 
-    {initiator_pub_key, _responder_priv_key} = keypair_initiator()
-    {responder_pub_key, _responder_priv_key} = keypair_responder()
+    {initiator_pub_key, _responder_priv_key} = keypair_initiator.()
+    {responder_pub_key, _responder_priv_key} = keypair_responder.()
 
-    color = :yellow
+    color =
+      case role do
+        :initiator -> :yellow
+        :responder -> :blue
+      end
+
     config = ClientRunner.custom_config(%{}, %{port: port})
 
     {:ok, pid_session_holder} =
@@ -126,7 +131,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
   def handle_in("connect", payload, socket) do
     pid_session_holder =
-      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), socket.assigns.session_id)
+      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), socket.assigns.session_id, fn -> keypair_initiator() end, fn -> keypair_responder() end)
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
