@@ -125,24 +125,26 @@ defmodule SessionHolder do
   end
 
   # this is persent as a helper if you loose your channel id or password, then check this file.
-  defp persist(state, file_ref) do
-    dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: state}
-    case :dets.insert(file_ref, {:connect, dets_state}) do
-      :ok ->
-        # instant as opposed to lazy.
-        case :dets.sync(file_ref) do
-          :ok -> :ok
-          {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason}")
+  defp persist(socketconnector_state, file_ref) do
+    dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: socketconnector_state}
+
+    case socketconnector_state.channel_id do
+      nil -> Logger.warn("Not persisting to disk, channel_id missing")
+      _ ->
+        case :dets.insert(file_ref, {socketconnector_state.channel_id, dets_state}) do
+          :ok ->
+            case :dets.sync(file_ref) do
+              :ok -> :ok
+                case socketconnector_state.fsm_id == nil do
+                  true ->
+                    Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id}")
+                  false ->
+                    Logger.info("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id}")
+                end
+
+              {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason}")
+            end
         end
-        case (state.channel_id == nil or state.fsm_id == nil) do
-          true ->
-            Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
-          false ->
-            Logger.warn("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
-            :ok
-        end
-        :ok
-      error -> throw "logging failed to presist, without persistence reestablish can fail #{inspect error}"
     end
   end
 
