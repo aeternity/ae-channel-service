@@ -52,7 +52,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     SessionHolder.run_action(pid_session_holder, fun)
   end
 
-  def start_session_holder(role, port, session_id, keypair_initiator, keypair_responder) when role in [:initiator, :responder] do
+  def start_session_holder(role, port, channel_id, keypair_initiator, keypair_responder) when role in [:initiator, :responder] do
     name = {:via, Registry, {Registry.SessionHolder, role}}
 
     case Registry.lookup(Registry.SessionHolder, role) do
@@ -81,8 +81,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
     config = ClientRunner.custom_config(%{}, %{port: port})
 
-    {:ok, pid_session_holder} =
-      SessionHolder.start_link(%{
+    connect_map = %{
         socket_connector: %{
           pub_key: pub_key,
           session: config.(initiator_pub_key, responder_pub_key),
@@ -95,7 +94,17 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
         connection_callbacks: connection_callback(self(), color),
         color: color,
         pid_name: name
-      })
+      }
+    {:ok, pid_session_holder} =
+      case (channel_id == "") do
+        true ->
+          SessionHolder.start_link(connect_map)
+        _ ->
+          SessionHolder.start_link(Map.merge(connect_map, %{channel_id: channel_id}))
+      end
+
+    # {:ok, pid_session_holder} =
+    # SessionHolder.start_link(connect_map)
 
     Process.unlink(pid_session_holder)
     Logger.error("Server not already running new pid is #{inspect(pid_session_holder)}")
@@ -107,8 +116,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     if authorized?(payload) do
       {:ok,
        Phoenix.Socket.assign(socket,
-         role: String.to_atom(payload["role"]),
-         session_id: inspect(payload["session_id"])
+         role: String.to_atom(payload["role"])
        )}
     else
       {:error, %{reason: "unauthorized"}}
@@ -129,9 +137,10 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     {:noreply, socket}
   end
 
+  # also covers reestablish
   def handle_in("connect", payload, socket) do
     pid_session_holder =
-      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), socket.assigns.session_id, fn -> keypair_initiator() end, fn -> keypair_responder() end)
+      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), payload["channel_id"], fn -> keypair_initiator() end, fn -> keypair_responder() end)
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
@@ -143,8 +152,8 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
       "leave" ->
         SessionHolder.leave(socketholder_pid)
 
-      "reestablish" ->
-        SessionHolder.reestablish(socketholder_pid, String.to_integer(payload["port"]))
+      # "reestablish" ->
+      #   SessionHolder.reestablish(socketholder_pid, String.to_integer(payload["port"]))
 
       "teardown" ->
         SessionHolder.close_connection(socketholder_pid)
@@ -169,7 +178,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     true
   end
 
-  def handle_cast({:connection_update, {status, reason} = update}, socket) do
+  def handle_cast({:connection_update, {status, _reason} = update}, socket) do
     Logger.info("Connection update, #{inspect update}")
     push(socket, "shout", %{message: inspect(update), name: "bot"})
     push(socket, Atom.to_string(status), %{})

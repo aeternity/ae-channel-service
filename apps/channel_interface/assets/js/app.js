@@ -114,7 +114,7 @@ teardown_btn.addEventListener('click', function (event) {
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
     
-    channel = socket.channel('socket_connector:lobby', {role: "initiator", fsm_id: fsm_id.value}); // connect to chat "room"
+    channel = socket.channel('socket_connector:lobby', {role: "initiator"}); // connect to chat "room"
     channel.join();
 
 
