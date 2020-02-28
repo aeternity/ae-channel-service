@@ -88,7 +88,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
           session: config.(initiator_pub_key, responder_pub_key),
           role: role
         },
-        log_config: %{file: session_id <> inspect(name)},
+        log_config: %{file: Atom.to_string(role) <> "_" <> pub_key},
         ae_url: ae_url(),
         network_id: network_id(),
         priv_key: priv_key,

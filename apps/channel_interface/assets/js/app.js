@@ -41,7 +41,7 @@ let shutdown_btn = document.getElementById('shutdown_btn');
 let teardown_btn = document.getElementById('teardown_btn');
 
 let connect_port = document.getElementById('connect_port');
-let session_id = document.getElementById('session_id');
+let channel_id = document.getElementById('channel_id');
 
 
 let connect_initiator_websocket_btn = document.getElementById('connect_initiator_websocket_btn');
@@ -92,7 +92,7 @@ transfer_btn.addEventListener('click', function (event) {
 });
 
 connect_btn.addEventListener('click', function (event) {
-    channel.push('connect', { role: "initiator", port: connect_port.value });
+    channel.push('connect', { port: connect_port.value, channel_id: channel_id.value});
 });
 
 leave_btn.addEventListener('click', function (event) {
@@ -100,7 +100,7 @@ leave_btn.addEventListener('click', function (event) {
 });
 
 reestablish_btn.addEventListener('click', function (event) {
-    channel.push('connect', { port: connect_port.value });
+    channel.push('connect', { port: connect_port.value, channel_id: channel_id.value});
 });
 
 teardown_btn.addEventListener('click', function (event) {
@@ -114,7 +114,7 @@ teardown_btn.addEventListener('click', function (event) {
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
     
-    channel = socket.channel('socket_connector:lobby', {role: "initiator", session_id: session_id.value}); // connect to chat "room"
+    channel = socket.channel('socket_connector:lobby', {role: "initiator", fsm_id: fsm_id.value}); // connect to chat "room"
     channel.join();
 
 
@@ -142,7 +142,7 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
 
 connect_responder_websocket_btn.addEventListener('click', function (event) {
 
-    channel = socket.channel('socket_connector:lobby', { role: "responder", session_id: session_id.value}); // connect to chat "room"
+    channel = socket.channel('socket_connector:lobby', { role: "responder", channel_id: channel_id.value}); // connect to chat "room"
     channel.join();
 
 
