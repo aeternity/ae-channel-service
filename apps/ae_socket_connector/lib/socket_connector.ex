@@ -1146,15 +1146,19 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{"channel_id" => _channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
       do
+      # TODO https://github.com/aeternity/aeternity/issues/3027
       # when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
     # manual sync, this is particullary intersting, this is needed for future reconnects
-    new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
+
+    # TODO https://github.com/aeternity/aeternity/issues/3027
+    # new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
+    new_state = %__MODULE__{state | fsm_id: fsm_id}
     sync_state(new_state)
     {:ok, new_state}
   end
