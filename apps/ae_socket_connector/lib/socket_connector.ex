@@ -819,7 +819,6 @@ defmodule SocketConnector do
       existing_fsm_id: fsm_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
-      # TODO this should not be hardcoded.
       port: port,
       role: role
     }
