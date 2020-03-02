@@ -106,6 +106,7 @@ defmodule SessionHolder do
   end
 
   def init({socket_connector_state, _ae_url, network_id, channel_id, priv_key, connection_callbacks, file_name, :reestablish, color}) do
+    Logger.error("Starting session holder in reestablish mode, #{inspect self()}")
     {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     state =
       %__MODULE__{
@@ -243,7 +244,7 @@ defmodule SessionHolder do
   end
 
   def handle_cast({:reestablish, port}, state) do
-    {pid, socket_connector_state} = reestablish_(state, port)
+    {pid, socket_connector_state} = reestablish_(state, state.socket_connector_state.channel_id, port)
     {:noreply, %__MODULE__{state | socket_connector_pid: pid, socket_connector_state: socket_connector_state}}
   end
 
