@@ -100,7 +100,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         true ->
           SessionHolder.start_link(connect_map)
         _ ->
-          SessionHolder.start_link(Map.merge(connect_map, %{channel_id: channel_id}))
+          SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: port}}))
       end
 
     # {:ok, pid_session_holder} =
