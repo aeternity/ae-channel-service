@@ -27,12 +27,13 @@ defmodule SessionHolder do
     create_folder(path)
     file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
     Logger.info "File_name is #{inspect file_name_and_path}"
-    case Map.get(connect_map, :channel_id, nil) do
+    # move pattern mathching to initfuction. This is redundant.
+    case Map.get(connect_map, :reestablish, nil) do
       nil ->
         # new fresh connection
         GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :open, color}, name: name)
-      channel_id ->
-        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, channel_id, priv_key, connection_callbacks, file_name_and_path, :reestablish, color}, name: name)
+      reestablish ->
+        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, reestablish, priv_key, connection_callbacks, file_name_and_path, :reestablish, color}, name: name)
 
     end
   end
@@ -88,7 +89,7 @@ defmodule SessionHolder do
 
   # Server
   def init({socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name, :open, color}) do
-    Logger.error("Starting session holder, #{inspect self()}")
+    Logger.info("Starting session holder, #{inspect self()}")
     {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
@@ -105,8 +106,8 @@ defmodule SessionHolder do
      }}
   end
 
-  def init({socket_connector_state, _ae_url, network_id, channel_id, priv_key, connection_callbacks, file_name, :reestablish, color}) do
-    Logger.error("Starting session holder in reestablish mode, #{inspect self()}")
+  def init({socket_connector_state, _ae_url, network_id, %{channel_id: channel_id, port: port}, priv_key, connection_callbacks, file_name, :reestablish, color}) do
+    Logger.info("Starting session holder in reestablish mode, #{inspect self()}")
     {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     state =
       %__MODULE__{
@@ -119,7 +120,7 @@ defmodule SessionHolder do
         # file: file_name,
         file_ref: ref
         }
-    {pid, saved_socket_connector_state} = reestablish_(state, channel_id)
+    {pid, saved_socket_connector_state} = reestablish_(state, channel_id, port)
     {:ok, %__MODULE__{state | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state), socket_connector_pid: pid, connection_callbacks: connection_callbacks}}
   end
 
