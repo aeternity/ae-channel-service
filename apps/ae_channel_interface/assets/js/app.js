@@ -18,6 +18,8 @@ import socket from "./socket"
 
 var channel = null;
 
+let connect_wallet_btn = document.getElementById('connect_wallet_btn');
+
 let backend_url = document.getElementById('backend_url');
 
 let public_key = document.getElementById('public_key');
@@ -25,7 +27,6 @@ let backend_params = document.getElementById('backend_params');
 let start_backend_btn = document.getElementById('start_backend_btn');
 
 let leave_btn = document.getElementById('leave_btn');
-
 
 let connection_status = document.getElementById('connection-status');
 
@@ -185,7 +186,6 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
     });
 });
 
-
 connect_responder_websocket_btn.addEventListener('click', function (event) {
 
     channel = socket.channel('socket_connector:lobby', { role: "responder", channel_id: channel_id.value}); // connect to chat "room"
@@ -221,3 +221,9 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
 
 updateBackendParams(connect_port.value, channel_id.value, public_key.value)
 connect_btn.disabled = true
+connect_wallet_btn.addEventListener('click', function (event) {
+    Aepp
+        .request
+        .connect()
+        .then(result => console.log(result))
+});
