@@ -135,7 +135,7 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :ignore
+  # @tag :ignore
   @tag :abort
   test "abort transfer", context do
     {alice, bob} = gen_names(context.test)
