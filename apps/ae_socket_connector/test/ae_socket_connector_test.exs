@@ -1010,8 +1010,8 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator()},
-      {bob, accounts_responder()},
+      {alice, accounts_initiator(), %{}},
+      {bob, accounts_responder(), %{}},
       scenario,
       custom_config(%{}, %{minimum_depth: 0, port: 1408})
     )
