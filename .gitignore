@@ -35,3 +35,10 @@ erl_crash.dump
 
 # Also ignore archive artifacts (built via "mix archive.build").
 *.ez
+
+# mix test
+/apps/ae_socket_connector/data
+/data
+
+# mac ds store... 
+.DS_Store

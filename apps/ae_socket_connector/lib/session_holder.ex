@@ -167,14 +167,14 @@ defmodule SessionHolder do
             Logger.error "Cound find value for #{inspect key}"
             nil
           result ->
-            Logger.error "Found value for #{inspect {key, result}}"
+            Logger.info "Found value for #{inspect {key, result}}"
             result
         end
     end
   end
 
   def reestablish_(state, channel_id, port \\ 1500) do
-    Logger.error("about to re-establish connection", ansi_color: state.color)
+    Logger.info("about to re-establish connection", ansi_color: state.color)
 
     # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
     socket_connector_state =

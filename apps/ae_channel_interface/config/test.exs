@@ -7,4 +7,4 @@ config :ae_channel_interface, AeChannelInterfaceWeb.Endpoint,
   server: false
 
 # Print only warnings and errors during test
-config :logger, level: :warn
+# config :logger, level: :warn

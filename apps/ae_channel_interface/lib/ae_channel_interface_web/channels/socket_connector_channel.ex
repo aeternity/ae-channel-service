@@ -70,7 +70,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     # SessionHolder.start_link(connect_map)
 
     Process.unlink(pid_session_holder)
-    Logger.error("Server not already running new pid is #{inspect(pid_session_holder)}")
+    Logger.info("Server not already running new pid is #{inspect(pid_session_holder)}")
     pid_session_holder
     # end
   end
