@@ -16,7 +16,7 @@ defmodule ReuseChannelTest do
   end
 
   @tag :dets
-  @tag :ignore
+  @tag :ignore # We need to modfiy be creative to provide reconnect information in some clever whay, where we save the fsm_id from the first run
   test "reestablish using dets", context do
     hello_fsm_part_1of2(name_test(context, "_1"))
     hello_fsm_part_2of2_auto_reestablish(name_test(context, "_2"))
@@ -108,8 +108,8 @@ defmodule ReuseChannelTest do
       @ae_url,
       @network_id,
       %{
-        initiator: %{name: alice, keypair: SocketConnectorTest.accounts_initiator(), log_config: %{log_file: "consecutive_initiator", log_path: "log"}},
-        responder: %{name: bob, keypair: SocketConnectorTest.accounts_responder(), log_config: %{log_file: "consecutive_responder", log_path: "log"}}
+        initiator: %{name: alice, keypair: SocketConnectorTest.accounts_initiator(), log_config: %{file: "consecutive_initiator", path: "data"}},
+        responder: %{name: bob, keypair: SocketConnectorTest.accounts_responder(), log_config: %{file: "consecutive_responder", path: "data"}}
       },
       scenario
     )
@@ -153,8 +153,8 @@ defmodule ReuseChannelTest do
       @ae_url,
       @network_id,
       %{
-        initiator: %{name: alice, keypair: SocketConnectorTest.accounts_initiator(), log_config: %{log_file: "consecutive_initiator", log_path: "log"}},
-        responder: %{name: bob, keypair: SocketConnectorTest.accounts_responder(), log_config: %{log_file: "consecutive_responder", log_path: "log"}}
+        initiator: %{name: alice, keypair: SocketConnectorTest.accounts_initiator(), log_config: %{file: "consecutive_initiator", path: "data"}},
+        responder: %{name: bob, keypair: SocketConnectorTest.accounts_responder(), log_config: %{file: "consecutive_responder", path: "data"}}
       },
       scenario
     )
