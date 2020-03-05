@@ -74,8 +74,7 @@ defmodule ClientRunner do
         priv_key: priv_key,
         connection_callbacks: connection_callback(self(), color, &log_callback/1),
         color: color,
-        pid_name: name
-      })
+      }, name)
 
     {:ok,
      %__MODULE__{

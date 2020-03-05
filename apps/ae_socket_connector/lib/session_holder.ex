@@ -12,10 +12,12 @@ defmodule SessionHolder do
             socket_connector_state: nil,
             connection_callbacks: nil
 
-  def start_link(%{
-        pid_name: name
-      } = connect_map) do
+  def start_link(connect_map, name) do
     GenServer.start_link(__MODULE__, connect_map, name: name)
+  end
+
+  def start_link(connect_map) do
+    GenServer.start_link(__MODULE__, connect_map)
   end
 
   # this is here for tesing purposes
@@ -57,9 +59,10 @@ defmodule SessionHolder do
 
   # Server
 
-  defp init_storage(log_config, name) do
+  defp init_storage(log_config) do
     path = Map.get(log_config, :path, "data")
     create_folder(path)
+    name = Keyword.get(Process.info(self()), :registered_name, String.to_atom(inspect(self()))) |> Atom.to_string()
     file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
     Logger.info "File_name is #{inspect file_name_and_path}"
     {:ok, ref} = :dets.open_file(String.to_atom(file_name_and_path), [type: :duplicate_bag])
@@ -79,10 +82,10 @@ defmodule SessionHolder do
   end
 
   # reestablish
-  def init(%{log_config: log_config, pid_name: name, socket_connector: socket_connector_state, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, reestablish: %{channel_id: channel_id, port: port}, color: color}) do
+  def init(%{log_config: log_config, socket_connector: socket_connector_state, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, reestablish: %{channel_id: channel_id, port: port}, color: color}) do
   # def init({socket_connector_state, _ae_url, network_id, %{channel_id: channel_id, port: port}, priv_key, connection_callbacks, file_name, :reestablish, color}) do
     Logger.info("Starting session holder in reestablish mode, #{inspect self()}")
-    ref = init_storage(log_config, name )
+    ref = init_storage(log_config)
     state =
       %__MODULE__{
         # socket_connector_pid: pid,
@@ -99,9 +102,10 @@ defmodule SessionHolder do
   end
 
   # open
-  def init(%{log_config: log_config, pid_name: name, socket_connector: socket_connector_state, ae_url: ae_url, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, color: color}) do
+  def init(%{log_config: log_config, socket_connector: socket_connector_state, ae_url: ae_url, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, color: color}) do
     Logger.info("Starting session holder, #{inspect self()}")
-    ref = init_storage(log_config, name)
+    # Keyword.get(Process.info(self()), :registered_name)
+    ref = init_storage(log_config)
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
     {:ok,
