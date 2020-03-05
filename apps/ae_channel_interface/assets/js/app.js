@@ -18,8 +18,11 @@ import socket from "./socket"
 
 var channel = null;
 
+let backend_url = document.getElementById('backend_url');
 
-
+let public_key = document.getElementById('public_key');
+let backend_params = document.getElementById('backend_params');
+let start_backend_btn = document.getElementById('start_backend_btn');
 
 let reestablish_btn = document.getElementById('reestablish_btn');
 let leave_btn = document.getElementById('leave_btn');
@@ -29,7 +32,9 @@ let connection_status = document.getElementById('connection-status');
 
 let sign_btn = document.getElementById('sign_btn');
 let sign_msg = document.getElementById('sign_msg');
-let sign_mthd = document.getElementById('sign_mthd'); 
+let sign_mthd = document.getElementById('sign_mthd');
+let abort_btn = document.getElementById('abort_btn');
+let abort_code = document.getElementById('abort_code');
 
 let transfer_btn = document.getElementById('transfer_btn');
 let tranfer_amount = document.getElementById('transfer_amount');
@@ -71,6 +76,45 @@ let name = document.getElementById('name');          // name of message sender
 //     });
 // });
 
+function encodeQueryData(data) {
+    const ret = [];
+    for (let d in data)
+        if (data[d] != "") {
+            ret.push(encodeURIComponent(d) + '=' + encodeURIComponent(data[d]));
+        }
+    return ret.join('&');
+}
+
+function updateBackendParams(port, channel_id, public_account) {
+    backend_params.value = encodeQueryData({ port: port, channel_id, channel_id, client_account: public_account})
+}
+
+connect_port.addEventListener('input', function (updatevalue) {
+    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+});
+
+channel_id.addEventListener('input', function (updatevalue) {
+    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+});
+
+public_key.addEventListener('input', function (updatevalue) {
+    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+});
+
+function httpGet(theUrl) {
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("GET", theUrl);
+    xmlHttp.send();
+    // coors issue, return is not logged as expected.
+    xmlHttp.onload = function () {
+        let responseObj = xhr.response;
+        console.log(responseObj)
+    };
+}
+
+start_backend_btn.addEventListener('click', function (event) {
+    console.log(httpGet(backend_url.value.concat("?", backend_params.value)))
+});
 
 sign_btn.addEventListener('click', function (event) {
     channel.push('sign', { // send the message to the server on "shout" channel
@@ -80,6 +124,16 @@ sign_btn.addEventListener('click', function (event) {
     sign_mthd.value = '';
     sign_msg.value = '';
 });
+
+abort_btn.addEventListener('click', function (event) {
+    channel.push('abort', { // send the message to the server on "shout" channel
+        method: sign_mthd.value,     // get value of "name" of person sending the message
+        abort_code: abort_code.value
+    });
+    sign_mthd.value = '';
+    sign_msg.value = '';
+});
+
 
 shutdown_btn.addEventListener('click', function (event) {
     channel.push('shutdown', {});
@@ -111,6 +165,8 @@ teardown_btn.addEventListener('click', function (event) {
 // connect_responder_btn.addEventListener('click', function (event) {
 //     channel.push('connect', { role: "responder", port: connect_port.value });
 // });
+
+
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
     
@@ -167,3 +223,5 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
         connection_status.style.backgroundColor = 'red';
     });
 });
+
+updateBackendParams(connect_port.value, channel_id.value, public_key.value)
