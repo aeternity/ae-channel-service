@@ -40,6 +40,21 @@
   </article>
 </section>
 
+<h2>Backend helper (responder)</h2>
+
+<div style="display:flex;">
+<input id="backend_url" style="margin-right: 20px" type="text" value="http://127.0.0.1:4000/connect/new">
+<input id="public_key" style="margin-right: 20px" type="text" value="ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh">
+</div>
+
+
+<div style="display:flex;">
+<button id="start_backend_btn" style="margin-right: 20px">Start backend channel</button>
+<input id="backend_params" style="margin-right: 20px" type="text" value="1564">
+</div>
+
+<h2>Client (initator/responder)</h2>
+
 <div style="display:flex;">
 <button id="connect_initiator_websocket_btn" style="margin-right: 20px">Connect websocket for Initiator</button>
 <button id="connect_responder_websocket_btn" style="margin-right: 20px">Connect websocker for Responder</button>
@@ -50,13 +65,18 @@
 <button id="connect_btn" style="margin-right: 20px">Connect</button>
 <button id="reestablish_btn" style="margin-right: 20px">Reestablish</button>
 <input id="connect_port" style="margin-right: 20px" type="text" value="1564">
-<input id="channel_id" style="margin-right: 20px" type="text" value="">
+<input id="channel_id" style="margin-right: 20px" type="text" value="", placeholder="channel_id: ch_263xZie6pT...">
 </div>
 
 <div style="display:flex;">
 <button id="sign_btn" style="margin-right: 20px">Sign</button>
-<input id="sign_mthd" style="margin-right: 20px" type="text" value="method">
-<input id="sign_msg" type="text" value="transaction">
+<input id="sign_mthd" style="margin-right: 20px" type="text" placeholder="method">
+<input id="sign_msg" type="text" placeholder="transaction">
+</div>
+
+<div style="display:flex;">
+<button id="abort_btn" style="margin-right: 20px">Abort</button>
+<input id="abort_code" type="text", value=128>
 </div>
 
 <div style="display:flex;">

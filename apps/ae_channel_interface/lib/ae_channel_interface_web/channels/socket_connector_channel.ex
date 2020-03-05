@@ -131,6 +131,10 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
       "sign" ->
         sign_message_and_dispatch(socketholder_pid, payload["method"], payload["to_sign"])
+
+      "abort" ->
+        fun = &SocketConnector.abort(&1, payload["method"], String.to_integer(payload["abort_code"]), "")
+        SessionHolder.run_action(socketholder_pid, fun)
     end
 
     {:noreply, socket}
