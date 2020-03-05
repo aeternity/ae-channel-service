@@ -20,45 +20,34 @@ defmodule ClientRunner do
     GenServer.start_link(__MODULE__, params)
   end
 
-  defp log_callback(type, round, round_initiator, method, color) do
-    Logger.debug(
-      "received: #{inspect({type, round, round_initiator, method})} pid is: #{inspect(self())}",
-      color
+  defp log_callback({type, message}) do
+    Logger.info(
+      "received: #{inspect({type, message})} pid is: #{inspect(self())}",
+      ansi_color: Map.get(message, :color, nil)
     )
   end
 
-  def connection_callback(callback_pid, color) do
+  def connection_callback(callback_pid, color, logfun \\ &(&1)) do
     %SocketConnector.ConnectionCallbacks{
       sign_approve: fn round_initiator, round, auto_approval, method, to_sign, human ->
-        Logger.debug(
-          ":sign_approve, #{inspect(round)}, #{inspect(method)} extras: to_sign #{inspect(to_sign)} auto_approval: #{
-            inspect(auto_approval)
-          }, human: #{inspect(human)}, initiator #{inspect(round_initiator)}",
-          ansi_color: color
-        )
-
+        logfun.({:sign_approve, %{round_initator: round_initiator, round: round, auto_approval: auto_approval, method: method, to_sign: to_sign, human: human, color: color}})
         GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, method}, to_sign})
         auto_approval
       end,
       channels_info: fn round_initiator, round, method ->
-        log_callback(:channels_info, round, round_initiator, method, ansi_color: color)
+        logfun.({:channels_info, %{round_initiator: round_initiator, round: round, method: method, color: color}})
         GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
       end,
       channels_update: fn round_initiator, round, method ->
-        log_callback(:channels_update, round, round_initiator, method, ansi_color: color)
+        logfun.({:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}})
         GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
       end,
       on_chain: fn round_initiator, round, method ->
-        Logger.debug(
-          "on_chain received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)} method is #{
-            inspect(method)
-          }}",
-          ansi_color: color
-        )
-
+        logfun.({:on_chain, %{round_initiator: round_initiator, round: round, method: method, color: color}})
         GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
       end,
       connection_update: fn status, reason ->
+        logfun.({:connection_update, %{status: status, reason: reason, color: color}})
         GenServer.cast(callback_pid, {:connection_update, {status, reason}})
       end
     }
@@ -83,7 +72,7 @@ defmodule ClientRunner do
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
-        connection_callbacks: connection_callback(self(), color),
+        connection_callbacks: connection_callback(self(), color, &log_callback/1),
         color: color,
         pid_name: name
       })
