@@ -13,41 +13,9 @@ defmodule SessionHolder do
             connection_callbacks: nil
 
   def start_link(%{
-        socket_connector: socket_connector_state,
-        log_config: log_config,
-        ae_url: ae_url,
-        network_id: network_id,
-        priv_key: priv_key,
-        connection_callbacks: connection_callbacks,
-        color: color,
-        # pid name, of the session holder, which is maintined over re-connect/re-establish
         pid_name: name
       } = connect_map) do
-    path = Map.get(log_config, :path, "data")
-    create_folder(path)
-    file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
-    Logger.info "File_name is #{inspect file_name_and_path}"
-    # move pattern mathching to initfuction. This is redundant.
-    case Map.get(connect_map, :reestablish, nil) do
-      nil ->
-        # new fresh connection
-        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :open, color}, name: name)
-      reestablish ->
-        GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, reestablish, priv_key, connection_callbacks, file_name_and_path, :reestablish, color}, name: name)
-
-    end
-  end
-
-  defp create_folder(path) do
-    case File.mkdir(path) do
-      :ok -> :ok
-      {:error, :eexist} -> :ok
-      {:error, error} -> throw "not possible to create log directory #{inspect error}"
-    end
-  end
-
-  defp generate_filename(name) do
-    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(inspect(name), " ", "_") <> ".log"
+    GenServer.start_link(__MODULE__, connect_map, name: name)
   end
 
   # this is here for tesing purposes
@@ -88,27 +56,33 @@ defmodule SessionHolder do
   end
 
   # Server
-  def init({socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name, :open, color}) do
-    Logger.info("Starting session holder, #{inspect self()}")
-    {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
-    {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
-    {:ok,
-     %__MODULE__{
-       socket_connector_pid: pid,
-       socket_connector_state: socket_connector_state,
-       network_id: network_id,
-       priv_key: priv_key,
-       connection_callbacks: connection_callbacks,
-       color: color,
-      #  file: file_name,
-       file_ref: ref
-     }}
+  defp init_storage(log_config, name) do
+    path = Map.get(log_config, :path, "data")
+    create_folder(path)
+    file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
+    Logger.info "File_name is #{inspect file_name_and_path}"
+    {:ok, ref} = :dets.open_file(String.to_atom(file_name_and_path), [type: :duplicate_bag])
+    ref
   end
 
-  def init({socket_connector_state, _ae_url, network_id, %{channel_id: channel_id, port: port}, priv_key, connection_callbacks, file_name, :reestablish, color}) do
+  defp create_folder(path) do
+    case File.mkdir(path) do
+      :ok -> :ok
+      {:error, :eexist} -> :ok
+      {:error, error} -> throw "not possible to create log directory #{inspect error}"
+    end
+  end
+
+  defp generate_filename(name) do
+    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(inspect(name), " ", "_") <> ".log"
+  end
+
+  # reestablish
+  def init(%{log_config: log_config, pid_name: name, socket_connector: socket_connector_state, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, reestablish: %{channel_id: channel_id, port: port}, color: color}) do
+  # def init({socket_connector_state, _ae_url, network_id, %{channel_id: channel_id, port: port}, priv_key, connection_callbacks, file_name, :reestablish, color}) do
     Logger.info("Starting session holder in reestablish mode, #{inspect self()}")
-    {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
+    ref = init_storage(log_config, name )
     state =
       %__MODULE__{
         # socket_connector_pid: pid,
@@ -122,6 +96,25 @@ defmodule SessionHolder do
         }
     {pid, saved_socket_connector_state} = reestablish_(state, channel_id, port)
     {:ok, %__MODULE__{state | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state), socket_connector_pid: pid, connection_callbacks: connection_callbacks}}
+  end
+
+  # open
+  def init(%{log_config: log_config, pid_name: name, socket_connector: socket_connector_state, ae_url: ae_url, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, color: color}) do
+    Logger.info("Starting session holder, #{inspect self()}")
+    ref = init_storage(log_config, name)
+    {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
+
+    {:ok,
+     %__MODULE__{
+       socket_connector_pid: pid,
+       socket_connector_state: socket_connector_state,
+       network_id: network_id,
+       priv_key: priv_key,
+       connection_callbacks: connection_callbacks,
+       color: color,
+      #  file: file_name,
+       file_ref: ref
+     }}
   end
 
   defp kill_connection(pid, color) do
