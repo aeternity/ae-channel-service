@@ -9,50 +9,13 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
 
   defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
 
-  def connection_callback(callback_pid, color) do
-    %SocketConnector.ConnectionCallbacks{
-      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, human ->
-        Logger.debug(
-          ":sign_approve, #{inspect(round)}, #{inspect(method)} extras: to_sign #{inspect(to_sign)} auto_approval: #{
-            inspect(auto_approval)
-          }, human: #{inspect(human)}, initiator #{inspect(round_initiator)}",
-          ansi_color: color
-        )
-
-        GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, "_not_implemented", method}, to_sign})
-        auto_approval
-      end,
-      channels_info: fn round_initiator, round, method ->
-        # log_callback(:channels_info, round, round_initiator, method, ansi_color: color)
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
-      end,
-      channels_update: fn round_initiator, round, method ->
-        # log_callback(:channels_update, round, round_initiator, method, ansi_color: color)
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
-      end,
-      on_chain: fn round_initiator, round, method ->
-        Logger.debug(
-          "on_chain received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)} method is #{
-            inspect(method)
-          }}",
-          ansi_color: color
-        )
-
-        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
-      end,
-      connection_update: fn status, reason ->
-        GenServer.cast(callback_pid, {:connection_update, {status, reason}})
-      end
-    }
-  end
-
   def sign_message_and_dispatch(pid_session_holder, method, to_sign) do
     signed = SessionHolder.sign_message(pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(pid_session_holder, fun)
   end
 
-  def start_session_holder(role, port, channel_id, keypair_initiator, keypair_responder) when role in [:initiator, :responder] do
+  def start_session_holder(role, port, channel_id, keypair_initiator, keypair_responder, connection_callback_handler) when role in [:initiator, :responder] do
     name = {:via, Registry, {Registry.SessionHolder, role}}
 
     case Registry.lookup(Registry.SessionHolder, role) do
@@ -91,7 +54,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
         ae_url: ae_url(),
         network_id: network_id(),
         priv_key: priv_key,
-        connection_callbacks: connection_callback(self(), color),
+        connection_callbacks: connection_callback_handler,
         color: color,
         pid_name: name
       }
@@ -140,7 +103,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
   # also covers reestablish
   def handle_in("connect", payload, socket) do
     pid_session_holder =
-      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), payload["channel_id"], fn -> keypair_initiator() end, fn -> keypair_responder() end)
+      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), payload["channel_id"], fn -> keypair_initiator() end, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
@@ -185,7 +148,7 @@ defmodule ChannelInterfaceWeb.SocketConnectorChannel do
     {:noreply, socket}
   end
 
-  def handle_cast({:match_jobs, {:sign_approve, _round, _round_initator, method}, to_sign} = message, socket) do
+  def handle_cast({:match_jobs, {:sign_approve, _round, method}, to_sign} = message, socket) do
     Logger.info("Sign request #{inspect(message)}")
     push(socket, "sign", %{message: inspect(message), method: method, to_sign: to_sign})
     push(socket, "shout", %{message: inspect(message), name: "bot"})
