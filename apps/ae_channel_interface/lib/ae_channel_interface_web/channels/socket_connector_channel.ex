@@ -16,16 +16,16 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def start_session_holder(role, port, channel_id, keypair_initiator, keypair_responder, connection_callback_handler) when role in [:initiator, :responder] do
-    name = {:via, Registry, {Registry.SessionHolder, role}}
+    # name = {:via, Registry, {Registry.SessionHolder, role}}
 
-    case Registry.lookup(Registry.SessionHolder, role) do
-      [{pid, _}] ->
-        Logger.info("Server already running, stopping #{inspect(pid)}")
-        SessionHolder.close_connection(pid)
-        Process.exit(pid, :kill)
-      _ ->
-        :ok
-    end
+    # case Registry.lookup(Registry.SessionHolder, role) do
+    #   [{pid, _}] ->
+    #     Logger.info("Server already running, stopping #{inspect(pid)}")
+    #     SessionHolder.close_connection(pid)
+    #     Process.exit(pid, :kill)
+    #   _ ->
+    #     :ok
+    # end
 
     {pub_key, priv_key} =
       case role do
@@ -55,8 +55,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         network_id: network_id(),
         priv_key: priv_key,
         connection_callbacks: connection_callback_handler,
-        color: color,
-        pid_name: name
+        color: color
       }
     {:ok, pid_session_holder} =
       case (channel_id == "") do
@@ -69,7 +68,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     # {:ok, pid_session_holder} =
     # SessionHolder.start_link(connect_map)
 
-    Process.unlink(pid_session_holder)
+    # Process.unlink(pid_session_holder)
     Logger.info("Server not already running new pid is #{inspect(pid_session_holder)}")
     pid_session_holder
     # end

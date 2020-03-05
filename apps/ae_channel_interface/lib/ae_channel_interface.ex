@@ -15,7 +15,7 @@ defmodule ChannelInterface do
 
   def start({_, name}) do
     # GenServer.start_link(__MODULE__, desc_pid, name: name)
-    GenServer.start(__MODULE__, {}, name: name)
+    GenServer.start(__MODULE__, {})
   end
 
   def specify_session_holder(pid, socket_holder) do
@@ -26,6 +26,8 @@ defmodule ChannelInterface do
   def init({}) do
     {:ok, %__MODULE__{}}
   end
+
+  #TODO once we know the channel_id this process should register itself somewhere.
 
   def handle_call({:specify_session_holder, pid_session_holder}, _from, state) do
     {:reply, :ok, %__MODULE__{state | pid_session_holder: pid_session_holder}}
