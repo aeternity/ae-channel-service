@@ -9,10 +9,7 @@ defmodule ChannelInterface do
   use GenServer;
   require Logger;
 
-  defstruct [
-    ets_id_to_raw: nil, desc_pid: nil,
-    ets_id_to_unpacked: nil
-  ]
+  defstruct pid_session_holder: nil
 
   #Client
 
@@ -21,31 +18,36 @@ defmodule ChannelInterface do
     GenServer.start(__MODULE__, {}, name: name)
   end
 
+  def specify_session_holder(pid, socket_holder) do
+    GenServer.call(pid, {:specify_session_holder, socket_holder})
+  end
+
   #Server
   def init({}) do
-    # id_to_raw = :ets.new(CacheTableRaw, [:set, :private])
-    # id_to_unpacked = :ets.new(CacheTableUnpacked, [:set, :private])
-    # {:ok, %__MODULE__{ets_id_to_raw: id_to_raw, ets_id_to_unpacked: id_to_unpacked, desc_pid: desc_pid}}
     {:ok, %__MODULE__{}}
   end
 
-  def handle_cast({:connection_update, {status, _reason} = update}, socket) do
-    Logger.info("Connection update in controller, #{inspect update}")
-    # push(socket, "shout", %{message: inspect(update), name: "bot"})
-    # push(socket, Atom.to_string(status), %{})
-    {:noreply, socket}
+  def handle_call({:specify_session_holder, pid_session_holder}, _from, state) do
+    {:reply, :ok, %__MODULE__{state | pid_session_holder: pid_session_holder}}
   end
 
-  def handle_cast({:match_jobs, {:sign_approve, _round, method}, to_sign} = message, socket) do
-    Logger.info("Sign request in controller #{inspect(message)}")
-    # push(socket, "sign", %{message: inspect(message), method: method, to_sign: to_sign})
-    # push(socket, "shout", %{message: inspect(message), name: "bot"})
-    # broadcast socket, "shout", %{message: inspect(message), name: "bot2"}
-    {:noreply, socket}
+  def handle_cast({:connection_update, {_status, _reason} = update}, state) do
+    Logger.info("Connection update in backend, #{inspect update}")
+    {:noreply, state}
+  end
+
+  # TODO backend just happily signs
+  def handle_cast({:match_jobs, {:sign_approve, _round, method}, to_sign} = message, state) do
+    Logger.info("Sign request in backend #{inspect(message)}")
+    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+    fun = &SocketConnector.send_signed_message(&1, method, signed)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+
+    {:noreply, state}
   end
 
   def handle_cast(message, socket) do
-    # push(socket, "shout", %{message: inspect(message), name: "bot"})
+    Logger.warn("unprocessed message received in backend #{inspect(message)}")
     {:noreply, socket}
   end
 
