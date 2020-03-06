@@ -12,6 +12,7 @@ defmodule SocketConnector do
             session: %{},
             fsm_id: nil,
             channel_id: nil,
+            # {round => %Update{}},
             round_and_updates: %{},
             pending_round_and_update: %{},
             pending_id: nil,
@@ -21,7 +22,6 @@ defmodule SocketConnector do
             ws_manager_pid: nil,
             network_id: nil,
             ws_base: nil,
-            # {round => %Update{}},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
             timer_reference: nil,
@@ -122,8 +122,9 @@ defmodule SocketConnector do
       ) do
     {_round, %Update{state_tx: state_tx}} =
       case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
+        # TODO revisit, won't state_tx always be empty in a peding - non finished round?
+        {_, true} -> Enum.max(round_and_updates)
         {true, _} -> Enum.max(pending_round_and_update)
-        {false, true} -> Enum.max(round_and_updates)
         {false, false} -> throw "cannot reestablish no saved state avaliable"
       end
 
