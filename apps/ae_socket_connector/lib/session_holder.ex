@@ -59,6 +59,7 @@ defmodule SessionHolder do
 
   # Server
 
+  # TODO dets in not thread safe and need to be redesigned.
   defp init_storage(log_config) do
     path = Map.get(log_config, :path, "data")
     create_folder(path)

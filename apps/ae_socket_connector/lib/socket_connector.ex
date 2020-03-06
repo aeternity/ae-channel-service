@@ -1145,7 +1145,7 @@ defmodule SocketConnector do
           "method" => "channels.info",
           "params" => %{"channel_id" => _channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
-        %__MODULE__{channel_id: current_channel_id} = state
+        %__MODULE__{channel_id: _current_channel_id} = state
       )
       do
       # TODO https://github.com/aeternity/aeternity/issues/3027
