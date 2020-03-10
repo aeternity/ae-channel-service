@@ -9,9 +9,10 @@ defmodule AeChannelInterface.Application do
     # List all child processes to be supervised
     children = [
       # Start the endpoint when the application starts
-      AeChannelInterfaceWeb.Endpoint
-      # Starts a worker by calling: ChannelInterface.Worker.start_link(arg)
-      # {ChannelInterface.Worker, arg},
+      AeChannelInterfaceWeb.Endpoint,
+      {Registry, [keys: :unique, name: Registry.SessionHolder]}
+      # Starts a worker by calling: AeChannelInterface.Worker.start_link(arg)
+      # {AeChannelInterface.Worker, arg},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

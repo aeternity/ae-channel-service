@@ -1,5 +1,5 @@
-defmodule ChannelInterfaceWeb.SocketConnectorChannel do
-  use ChannelInterfaceWeb, :channel
+defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
+  use AeChannelInterfaceWeb, :channel
   require Logger
 
   defmacro keypair_initiator, do: Application.get_env(:ae_socket_connector, :accounts)[:initiator]

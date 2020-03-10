@@ -1,5 +1,5 @@
-defmodule ChannelInterfaceWeb.InteractiveMonitorChannel do
-  use ChannelInterfaceWeb, :channel
+defmodule AeChannelInterfaceWeb.InteractiveMonitorChannel do
+  use AeChannelInterfaceWeb, :channel
 
   def join("interactive_monitor:lobby", payload, socket) do
     if authorized?(payload) do

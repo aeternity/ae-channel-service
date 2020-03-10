@@ -1,10 +1,10 @@
-defmodule ChannelInterfaceWeb.SocketConnectorChannelTest do
-  use ChannelInterfaceWeb.ChannelCase
+defmodule AeChannelInterfaceWeb.SocketConnectorChannelTest do
+  use AeChannelInterfaceWeb.ChannelCase
 
   # setup do
   #   {:ok, _, socket} =
-  #     socket(ChannelInterfaceWeb.UserSocket, "user_id", %{some: :assign})
-  #     |> subscribe_and_join(ChannelInterfaceWeb.SocketConnectorChannel, "socket_connector:lobby", %{role: "initator", port: 1654})
+  #     socket(AeChannelInterfaceWeb.UserSocket, "user_id", %{some: :assign})
+  #     |> subscribe_and_join(AeChannelInterfaceWeb.SocketConnectorChannel, "socket_connector:lobby", %{role: "initator", port: 1654})
 
   #   {:ok, socket: socket}
   # end

@@ -3,8 +3,8 @@ defmodule AeChannelInterfaceWeb.UserSocket do
 
   require Logger
   ## Channels
-  channel "socket_connector:lobby", ChannelInterfaceWeb.SocketConnectorChannel
-  # channel "room:*", ChannelInterfaceWeb.RoomChannel
+  channel "socket_connector:lobby", AeChannelInterfaceWeb.SocketConnectorChannel
+  # channel "room:*", AeChannelInterfaceWeb.RoomChannel
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After
