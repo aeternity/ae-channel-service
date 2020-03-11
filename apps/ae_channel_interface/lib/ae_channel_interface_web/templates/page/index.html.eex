@@ -63,7 +63,6 @@
 
 <div style="display:flex;">
 <button id="connect_btn" style="margin-right: 20px">Connect</button>
-<button id="reestablish_btn" style="margin-right: 20px">Reestablish</button>
 <input id="connect_port" style="margin-right: 20px" type="text" value="1564">
 <input id="channel_id" style="margin-right: 20px" type="text" value="", placeholder="channel_id: ch_263xZie6pT...">
 </div>

@@ -73,7 +73,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   # also covers reestablish
-  def handle_in("connect", payload, socket) do
+  def handle_in("connect/reestablish", payload, socket) do
     config = ClientRunner.custom_config(%{}, %{port: payload["port"]})
     pid_session_holder =
       start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
@@ -87,9 +87,6 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     case action do
       "leave" ->
         SessionHolder.leave(socketholder_pid)
-
-      # "reestablish" ->
-      #   SessionHolder.reestablish(socketholder_pid, String.to_integer(payload["port"]))
 
       "teardown" ->
         SessionHolder.close_connection(socketholder_pid)
