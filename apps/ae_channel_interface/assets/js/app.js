@@ -52,28 +52,18 @@ let channel_id = document.getElementById('channel_id');
 let connect_initiator_websocket_btn = document.getElementById('connect_initiator_websocket_btn');
 let connect_responder_websocket_btn = document.getElementById('connect_responder_websocket_btn');
 
-// channel.join(); // join the channel.
-
-
 let ul = document.getElementById('msg-list');        // list of messages.
 let name = document.getElementById('name');          // name of message sender
 
 // "listen" for the [Enter] keypress event to send a message:
 // msg.addEventListener('keypress', function (event) {
 //     if (event.keyCode == 13 && msg.value.length > 0) { // don't sent empty msg.
-//         channel.push('shout', { // send the message to the server on "shout" channel
+//         channel.push('log_event', { // send the message to the server on "shout" channel
 //             name: name.value,     // get value of "name" of person sending the message
 //             message: msg.value    // get message text (value) from msg input field.
 //         });
 //         msg.value = '';         // reset the message input field for next message.
 //     }
-// });
-
-// my_button.addEventListener('click', function (event) {
-//     channel.push('shout', { // send the message to the server on "shout" channel
-//         name: name.value,     // get value of "name" of person sending the message
-//         message: 'click something'    // get message text (value) from msg input field.
-//     });
 // });
 
 function encodeQueryData(data) {
@@ -128,7 +118,7 @@ sign_btn.addEventListener('click', function (event) {
 abort_btn.addEventListener('click', function (event) {
     channel.push('abort', { // send the message to the server on "shout" channel
         method: sign_mthd.value,     // get value of "name" of person sending the message
-        abort_code: abort_code.value
+        abort_code: parseInt(abort_code.value)
     });
     sign_mthd.value = '';
     sign_msg.value = '';
@@ -141,12 +131,12 @@ shutdown_btn.addEventListener('click', function (event) {
 
 transfer_btn.addEventListener('click', function (event) {
     channel.push('transfer', { // send the message to the server on "shout" channel
-        amount: parseInt(tranfer_amount.value, 10),     // get value of "name" of person sending the message
+        amount: parseInt(tranfer_amount.value),     // get value of "name" of person sending the message
     });
 });
 
 connect_btn.addEventListener('click', function (event) {
-    channel.push('connect', { port: connect_port.value, channel_id: channel_id.value});
+    channel.push('connect', { port: parseInt(connect_port.value), channel_id: channel_id.value});
 });
 
 leave_btn.addEventListener('click', function (event) {
@@ -154,18 +144,12 @@ leave_btn.addEventListener('click', function (event) {
 });
 
 reestablish_btn.addEventListener('click', function (event) {
-    channel.push('connect', { port: connect_port.value, channel_id: channel_id.value});
+    channel.push('connect', { port: parseInt(connect_port.value), channel_id: channel_id.value});
 });
 
 teardown_btn.addEventListener('click', function (event) {
     channel.push('teardown', {});
 });
-
-
-// connect_responder_btn.addEventListener('click', function (event) {
-//     channel.push('connect', { role: "responder", port: connect_port.value });
-// });
-
 
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
@@ -174,7 +158,7 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
     channel.join();
 
 
-    channel.on('shout', function (payload) { // listen to the 'shout' event
+    channel.on('log_event', function (payload) { // listen to the 'log_event' event
         let li = document.createElement("li"); // create new list item DOM element
         let name = payload.name || 'guest';    // get name from payload or set default
         li.innerHTML = '<b>' + name + '</b>: ' + payload.message; // set li contents
@@ -202,7 +186,7 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
     channel.join();
 
 
-    channel.on('shout', function (payload) { // listen to the 'shout' event
+    channel.on('log_event', function (payload) { // listen to the 'log_event' event
         console.log("some message");
         let li = document.createElement("li"); // create new list item DOM element
         let name = payload.name || 'guest';    // get name from payload or set default

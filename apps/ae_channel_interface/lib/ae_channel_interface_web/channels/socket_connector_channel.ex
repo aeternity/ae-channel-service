@@ -15,7 +15,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     SessionHolder.run_action(pid_session_holder, fun)
   end
 
-  def start_session_holder(role, port, channel_id, keypair_initiator, keypair_responder, connection_callback_handler) when role in [:initiator, :responder] do
+  def start_session_holder(role, config, {_channel_id, _reestablish_port} = reestablish, keypair_initiator, keypair_responder, connection_callback_handler) when role in [:initiator, :responder] do
 
     {pub_key, priv_key} =
       case role do
@@ -32,8 +32,6 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         :responder -> :blue
       end
 
-    config = ClientRunner.custom_config(%{}, %{port: port})
-
     connect_map = %{
         socket_connector: %{
           pub_key: pub_key,
@@ -48,14 +46,12 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         color: color
       }
     {:ok, pid_session_holder} =
-      case (channel_id == "") do
-        true ->
+      case (reestablish) do
+        {"", _reestablish_port} ->
           SessionHolder.start_link(connect_map)
-        _ ->
-          SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: port}}))
+        {channel_id, reestablish_port} ->
+          SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}}))
       end
-
-    Logger.info("Server not already running new pid is #{inspect(pid_session_holder)}")
     pid_session_holder
   end
 
@@ -76,18 +72,11 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     {:reply, {:ok, payload}, socket}
   end
 
-  # It is also common to receive messages from the client and
-  # broadcast to everyone in the current topic (socket_connector:lobby).
-  def handle_in("shout", payload, socket) do
-    socket.assigns.pid_session_holder
-    push(socket, "shout", payload)
-    {:noreply, socket}
-  end
-
   # also covers reestablish
   def handle_in("connect", payload, socket) do
+    config = ClientRunner.custom_config(%{}, %{port: payload["port"]})
     pid_session_holder =
-      start_session_holder(socket.assigns.role, String.to_integer(payload["port"]), payload["channel_id"], fn -> keypair_initiator() end, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
+      start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
@@ -117,7 +106,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         sign_message_and_dispatch(socketholder_pid, payload["method"], payload["to_sign"])
 
       "abort" ->
-        fun = &SocketConnector.abort(&1, payload["method"], String.to_integer(payload["abort_code"]), "")
+        fun = &SocketConnector.abort(&1, payload["method"], payload["abort_code"], "")
         SessionHolder.run_action(socketholder_pid, fun)
     end
 
@@ -131,7 +120,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
   def handle_cast({:connection_update, {status, _reason} = update}, socket) do
     Logger.info("Connection update, #{inspect update}")
-    push(socket, "shout", %{message: inspect(update), name: "bot"})
+    push(socket, "log_event", %{message: inspect(update), name: "bot"})
     push(socket, Atom.to_string(status), %{})
     {:noreply, socket}
   end
@@ -139,13 +128,13 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   def handle_cast({:match_jobs, {:sign_approve, _round, method}, to_sign} = message, socket) do
     Logger.info("Sign request #{inspect(message)}")
     push(socket, "sign", %{message: inspect(message), method: method, to_sign: to_sign})
-    push(socket, "shout", %{message: inspect(message), name: "bot"})
-    # broadcast socket, "shout", %{message: inspect(message), name: "bot2"}
+    push(socket, "log_event", %{message: inspect(message), name: "bot"})
+    # broadcast socket, "log_event", %{message: inspect(message), name: "bot2"}
     {:noreply, socket}
   end
 
   def handle_cast(message, socket) do
-    push(socket, "shout", %{message: inspect(message), name: "bot"})
+    push(socket, "log_event", %{message: inspect(message), name: "bot"})
     {:noreply, socket}
   end
 end
