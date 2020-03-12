@@ -1,5 +1,8 @@
 defmodule SessionHolderHelper do
 
+  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
+
   def connection_callback(callback_pid, color, logfun \\ &(&1)) do
     %SocketConnector.ConnectionCallbacks{
       sign_approve: fn round_initiator, round, auto_approval, method, to_sign, human ->

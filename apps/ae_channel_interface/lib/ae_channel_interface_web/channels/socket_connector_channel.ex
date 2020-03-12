@@ -5,10 +5,6 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   defmacro keypair_initiator, do: Application.get_env(:ae_socket_connector, :accounts)[:initiator]
   defmacro keypair_responder, do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
 
-  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
-
-  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
-
   def sign_message_and_dispatch(pid_session_holder, method, to_sign) do
     signed = SessionHolder.sign_message(pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
@@ -34,9 +30,9 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
   # also covers reestablish
   def handle_in("connect/reestablish", payload, socket) do
-    config = ClientRunner.custom_config(%{}, %{port: payload["port"]})
+    config = SessionHolderHelper.custom_config(%{}, %{port: payload["port"]})
     {:ok, pid_session_holder} =
-      start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
+      SessionHolderHelper.start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), "yellow"))
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
