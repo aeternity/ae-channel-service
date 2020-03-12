@@ -22,7 +22,7 @@ defmodule BackendSession do
 
   #Client
 
-  def start_link(params) do
+  def start_link({params, _manager}) do
     GenServer.start_link(__MODULE__, params)
   end
 

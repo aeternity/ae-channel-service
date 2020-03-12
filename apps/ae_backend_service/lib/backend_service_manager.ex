@@ -14,10 +14,21 @@ defmodule BackendServiceManager do
   # Client
 
   def start_link(_arg) do
-    GenServer.start_link(__MODULE__, {})
+    GenServer.start_link(__MODULE__, {}, name: __MODULE__)
   end
 
-  def start_channel(
+  def start_channel(params) do
+    GenServer.call(__MODULE__, {:start_channel, params})
+  end
+
+
+
+  # Server
+  def init({}) do
+    {:ok, %__MODULE__{}}
+  end
+
+  defp start_channel_local(
         {
           role,
           _config,
@@ -26,12 +37,11 @@ defmodule BackendServiceManager do
         } = params
       )
       when role in [:initiator, :responder] do
-    {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [params])
-    pid
+    Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, self()}])
   end
 
-  # Server
-  def init({}) do
-    {:ok, %__MODULE__{}}
+  def handle_call({:start_channel, params}, _from, state) do
+    {:ok, pid} = start_channel_local(params)
+    {:reply, pid, state}
   end
 end
