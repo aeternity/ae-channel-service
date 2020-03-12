@@ -45,14 +45,12 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         connection_callbacks: connection_callback_handler,
         color: color
       }
-    {:ok, pid_session_holder} =
-      case (reestablish) do
-        {"", _reestablish_port} ->
-          SessionHolder.start_link(connect_map)
-        {channel_id, reestablish_port} ->
-          SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}}))
-      end
-    pid_session_holder
+    case (reestablish) do
+      {"", _reestablish_port} ->
+        SessionHolder.start_link(connect_map)
+      {channel_id, reestablish_port} ->
+        SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}}))
+    end
   end
 
   def join("socket_connector:lobby", payload, socket) do
@@ -75,7 +73,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   # also covers reestablish
   def handle_in("connect/reestablish", payload, socket) do
     config = ClientRunner.custom_config(%{}, %{port: payload["port"]})
-    pid_session_holder =
+    {:ok, pid_session_holder} =
       start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
