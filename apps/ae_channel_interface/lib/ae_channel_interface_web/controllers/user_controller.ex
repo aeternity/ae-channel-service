@@ -15,7 +15,7 @@ defmodule AeChannelInterfaceWeb.ConnectController do
   def new(conn, %{"client_account" => client_account, "port" => port, "channel_id" => channel_id} = params) do
     # {:ok, backend_runner_pid} = BackendServiceManager.start_channel({"bogus", :some_name})
     reestablish_port = String.to_integer(port)
-    channel_config = ClientRunner.custom_config(%{}, %{})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{})
     BackendServiceManager.start_channel({:responder, channel_config, {channel_id, reestablish_port}, fn -> {client_account, "not for you to have"} end})
     json conn, %{account: public_key(), client_account: client_account, channel_id: channel_id, type: "reestablish", client: params}
   end
@@ -24,7 +24,7 @@ defmodule AeChannelInterfaceWeb.ConnectController do
   # this is a brand new connection
   def new(conn, %{"client_account" => client_account, "port" => port} = params) do
     open_port = String.to_integer(port)
-    channel_config = ClientRunner.custom_config(%{}, %{port: open_port})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{port: open_port})
     BackendServiceManager.start_channel({:responder, channel_config, {"", 0}, fn -> {client_account, "not for you to have"} end})
     json conn, %{account: public_key(), client_account: client_account, type: "connect", client: params}
   end

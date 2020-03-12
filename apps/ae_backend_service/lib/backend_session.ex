@@ -29,7 +29,7 @@ defmodule BackendSession do
   #Server
   def init({role, channel_config, {_channel_id, _reestablish_port} = reestablish, initiator_keypair} = params) do
     Logger.info("Starting backend session #{inspect params} pid is #{inspect self()}")
-    {:ok, pid} = start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
+    {:ok, pid} = SessionHolderHelper.start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), "yellow"))
     {:ok, %__MODULE__{pid_session_holder: pid}}
   end
 
