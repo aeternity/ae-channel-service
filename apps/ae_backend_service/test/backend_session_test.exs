@@ -1,6 +1,6 @@
 defmodule AeBackendServiceTest do
   use ExUnit.Case
-  doctest AeBackendService
+  doctest BackendSession
 
   # test "greets the world" do
   #   assert AeBackendService.hello() == :world
