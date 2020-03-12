@@ -53,43 +53,4 @@ defmodule BackendSession do
     Logger.warn("unprocessed message received in backend #{inspect(message)}")
     {:noreply, socket}
   end
-
-  # this code is duplicated, typically a bad thing.
-  def start_session_holder(role, config, {_channel_id, _reestablish_port} = reestablish, keypair_initiator, keypair_responder, connection_callback_handler) when role in [:initiator, :responder] do
-
-    {pub_key, priv_key} =
-      case role do
-        :initiator -> keypair_initiator.()
-        :responder -> keypair_responder.()
-      end
-
-    {initiator_pub_key, _responder_priv_key} = keypair_initiator.()
-    {responder_pub_key, _responder_priv_key} = keypair_responder.()
-
-    color =
-      case role do
-        :initiator -> :yellow
-        :responder -> :blue
-      end
-
-    connect_map = %{
-        socket_connector: %{
-          pub_key: pub_key,
-          session: config.(initiator_pub_key, responder_pub_key),
-          role: role
-        },
-        log_config: %{file: Atom.to_string(role) <> "_" <> pub_key},
-        ae_url: ae_url(),
-        network_id: network_id(),
-        priv_key: priv_key,
-        connection_callbacks: connection_callback_handler,
-        color: color
-      }
-    case (reestablish) do
-      {"", _reestablish_port} ->
-        SessionHolder.start_link(connect_map)
-      {channel_id, reestablish_port} ->
-        SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}}))
-    end
-  end
 end
