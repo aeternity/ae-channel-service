@@ -13,24 +13,19 @@ defmodule AeChannelInterfaceWeb.ConnectController do
   # http://127.0.0.1:4000/connect/new?client_account=ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh&port=1610&channel_id=ch_263xZie6pTq7zXCFfyntnkScxG3sCW7CYiVLXWjqmxxtx6mh6n
   # this is a reestablish
   def new(conn, %{"client_account" => client_account, "port" => port, "channel_id" => channel_id} = params) do
-    {:ok, backend_runner_pid} = AeBackendService.start({"bogus", :some_name})
+    # {:ok, backend_runner_pid} = BackendServiceManager.start_channel({"bogus", :some_name})
     reestablish_port = String.to_integer(port)
     channel_config = ClientRunner.custom_config(%{}, %{})
-    pid = SocketConnectorChannel.start_session_holder(:responder, channel_config, {channel_id, reestablish_port}, fn -> {client_account, "not for you to have"} end, fn -> SocketConnectorChannel.keypair_responder() end, ClientRunner.connection_callback(backend_runner_pid, "yellow"))
-    # TODO are we exposed to race here
-    AeBackendService.specify_session_holder(backend_runner_pid, pid)
+    BackendServiceManager.start_channel({:responder, channel_config, {channel_id, reestablish_port}, fn -> {client_account, "not for you to have"} end})
     json conn, %{account: public_key(), client_account: client_account, channel_id: channel_id, type: "reestablish", client: params}
   end
 
   # http://127.0.0.1:4000/connect/new?client_account=ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh&port=1610
   # this is a brand new connection
   def new(conn, %{"client_account" => client_account, "port" => port} = params) do
-    {:ok, backend_runner_pid} = AeBackendService.start({"bogus", :some_name})
     open_port = String.to_integer(port)
     channel_config = ClientRunner.custom_config(%{}, %{port: open_port})
-    pid = SocketConnectorChannel.start_session_holder(:responder, channel_config, {"", 0}, fn -> {client_account, "not for you to have"} end, fn -> SocketConnectorChannel.keypair_responder() end, ClientRunner.connection_callback(backend_runner_pid, "yellow"))
-    # TODO are we exposed to race here
-    AeBackendService.specify_session_holder(backend_runner_pid, pid)
+    BackendServiceManager.start_channel({:responder, channel_config, {"", 0}, fn -> {client_account, "not for you to have"} end})
     json conn, %{account: public_key(), client_account: client_account, type: "connect", client: params}
   end
 
