@@ -27,8 +27,9 @@ defmodule BackendSession do
   end
 
   #Server
-  def init({role, channel_config, {_channel_id, _reestablish_port} = reestablish, initiator_keypair}) do
-    pid = start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
+  def init({role, channel_config, {_channel_id, _reestablish_port} = reestablish, initiator_keypair} = params) do
+    Logger.info("Starting backend session #{inspect params} pid is #{inspect self()}")
+    {:ok, pid} = start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, ClientRunner.connection_callback(self(), "yellow"))
     {:ok, %__MODULE__{pid_session_holder: pid}}
   end
 
@@ -54,15 +55,8 @@ defmodule BackendSession do
   end
 
   # this code is duplicated, typically a bad thing.
-  def start_session_holder(
-        role,
-        config,
-        {_channel_id, _reestablish_port} = reestablish,
-        keypair_initiator,
-        keypair_responder,
-        connection_callback_handler
-      )
-      when role in [:initiator, :responder] do
+  def start_session_holder(role, config, {_channel_id, _reestablish_port} = reestablish, keypair_initiator, keypair_responder, connection_callback_handler) when role in [:initiator, :responder] do
+
     {pub_key, priv_key} =
       case role do
         :initiator -> keypair_initiator.()
@@ -79,31 +73,23 @@ defmodule BackendSession do
       end
 
     connect_map = %{
-      socket_connector: %{
-        pub_key: pub_key,
-        session: config.(initiator_pub_key, responder_pub_key),
-        role: role
-      },
-      log_config: %{file: Atom.to_string(role) <> "_" <> pub_key},
-      ae_url: ae_url(),
-      network_id: network_id(),
-      priv_key: priv_key,
-      connection_callbacks: connection_callback_handler,
-      color: color
-    }
-
-    {:ok, pid_session_holder} =
-      case reestablish do
-        {"", _reestablish_port} ->
-          SessionHolder.start_link(connect_map)
-
-        {channel_id, reestablish_port} ->
-          SessionHolder.start_link(
-            Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}})
-          )
-      end
-
-    pid_session_holder
+        socket_connector: %{
+          pub_key: pub_key,
+          session: config.(initiator_pub_key, responder_pub_key),
+          role: role
+        },
+        log_config: %{file: Atom.to_string(role) <> "_" <> pub_key},
+        ae_url: ae_url(),
+        network_id: network_id(),
+        priv_key: priv_key,
+        connection_callbacks: connection_callback_handler,
+        color: color
+      }
+    case (reestablish) do
+      {"", _reestablish_port} ->
+        SessionHolder.start_link(connect_map)
+      {channel_id, reestablish_port} ->
+        SessionHolder.start_link(Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}}))
+    end
   end
-
 end
