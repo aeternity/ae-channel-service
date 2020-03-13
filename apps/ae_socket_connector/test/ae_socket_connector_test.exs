@@ -1,10 +1,12 @@
 defmodule SocketConnectorTest do
   use ExUnit.Case
-  require ClientRunner
   require Logger
+  # require ClientRunner
 
-  @ae_url ClientRunner.ae_url()
-  @network_id ClientRunner.network_id()
+  # Code.require_file "client_runner.ex", __DIR__
+
+  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  @network_id Application.get_env(:ae_socket_connector, :node)[:network_id]
 
   def gen_names(id) do
     clean_id = Atom.to_string(id)
@@ -209,13 +211,13 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = OnChain.nonce(intiator_account)
-                height = OnChain.current_height()
+                nonce = ChannelService.OnChain.nonce(@ae_url, intiator_account)
+                height = ChannelService.OnChain.current_height(@ae_url)
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
                 transaction = SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
 
-                OnChain.post_solo_close(transaction)
+                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -282,8 +284,8 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = OnChain.nonce(intiator_account)
-                height = OnChain.current_height()
+                nonce = ChannelService.OnChain.nonce(@ae_url,intiator_account)
+                height = ChannelService.OnChain.current_height(@ae_url)
 
                 transaction =
                   GenServer.call(
@@ -291,7 +293,7 @@ defmodule SocketConnectorTest do
                     {:solo_close_transaction, 2, nonce + 1, height}
                   )
 
-                OnChain.post_solo_close(transaction)
+                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},

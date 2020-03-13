@@ -37,6 +37,7 @@ defmodule BackendServiceManager do
         } = params
       )
       when role in [:initiator, :responder] do
+    # TODO only supervise reestablish - and maybe not those either...
     Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, self()}])
   end
 
