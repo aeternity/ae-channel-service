@@ -55,7 +55,28 @@ Start the samples at your prompt by doing
 mix test
 ```
 
+or for testnet
+```bash
+AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" mix test
+```
+
 Scenarios executed can be found [here](apps/ae_socket_connector/test/ae_socket_connector_test.exs)
+
+> test are designed to execute on a quick mining node, thus the test will 
+fail when directed to testnet. This is however keps as referense.
+
+
+## Run sample interactive web client
+
+```bash
+AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
+```
+
+point your browser to `http://localhost:4000/`
+> testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recomended worksround is to host your own node.
+
+> if your interface is missing CSS you need to:  
+`cd apps/ae_channel_interface/assets && npm install && cd -`
 
 ## Refence to node api
 
