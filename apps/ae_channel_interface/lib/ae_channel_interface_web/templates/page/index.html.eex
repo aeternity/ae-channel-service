@@ -53,7 +53,7 @@
 <input id="backend_params" type="text" value="1564">
 </div>
 
-<h2>Client (initator/responder)</h2>
+<h2>Client (initiator/responder)</h2>
 
 <div style="display:flex;">
 <button id="connect_initiator_websocket_btn" style="margin-right: 20px">Connect websocket for Initiator</button>
