@@ -1,10 +1,9 @@
 defmodule SingleEndChannelTest do
   use ExUnit.Case
-  require ClientRunner
   require Logger
 
-  @ae_url ClientRunner.ae_url()
-  @network_id ClientRunner.network_id()
+  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  @network_id Application.get_env(:ae_socket_connector, :node)[:network_id]
 
   def clean_log_config_file(log_config) do
     File.rm(Path.join(log_config.log, log_config.log))

@@ -178,7 +178,7 @@ defmodule Validator do
   end
 
   @ae_transaction_path "/v2/transactions/"
-  # shot this curl to check wheater onchain is alright....
+  # shot this curl to check wheater ChannelService.OnChain is alright....
   def verify_on_chain(tx, ws_url) do
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, tx)
     deserialized_tx = :aetx_sign.deserialize_from_binary(signed_tx)
