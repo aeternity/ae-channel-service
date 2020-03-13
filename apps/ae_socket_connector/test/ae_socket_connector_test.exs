@@ -187,7 +187,7 @@ defmodule SocketConnectorTest do
   end
 
   # this test works locally again and again, but temporary removed for circle ci
-  @tag :ignore
+  # @tag :ignore
   @tag :close_on_chain
   test "close on chain", context do
     {alice, bob} = gen_names(context.test)
@@ -249,7 +249,7 @@ defmodule SocketConnectorTest do
   end
 
   # this test works locally again and again, but temporary removed for circle ci
-  @tag :ignore
+  # @tag :ignore
   @tag :close_on_chain_mal
   test "close on chain maliscous", context do
     {alice, bob} = gen_names(context.test)
