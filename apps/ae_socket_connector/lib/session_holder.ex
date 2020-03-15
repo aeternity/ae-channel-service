@@ -26,6 +26,7 @@ defmodule SessionHolder do
     path = Map.get(log_config, :path, "data")
     create_folder(path)
     file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
+    Logger.error "File_name is #{inspect file_name_and_path}"
     if !File.exists?(file_name_and_path) do
       GenServer.start_link(__MODULE__, {socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name_and_path, :open, color}, name: name)
     else
@@ -42,7 +43,7 @@ defmodule SessionHolder do
   end
 
   defp generate_filename(name) do
-    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(to_string(name), " ", "_") <> ".log"
+    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(inspect(name), " ", "_") <> ".log"
   end
 
   # this is here for tesing purposes
@@ -58,7 +59,7 @@ defmodule SessionHolder do
     GenServer.cast(pid, {:reestablish, port})
   end
 
-  def stop_helper(pid) do
+  def leave(pid) do
     run_action(pid, fn pid -> SocketConnector.leave(pid) end)
   end
 
@@ -84,6 +85,7 @@ defmodule SessionHolder do
 
   # Server
   def init({socket_connector_state, ae_url, network_id, priv_key, connection_callbacks, file_name, :open, color}) do
+    Logger.error("Starting session holder, #{inspect self()}")
     {:ok, ref} = :dets.open_file(String.to_atom(file_name), [type: :duplicate_bag])
     {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
@@ -127,10 +129,16 @@ defmodule SessionHolder do
     dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: state}
     case :dets.insert(file_ref, {:connect, dets_state}) do
       :ok ->
+        # instant as opposed to lazy.
+        case :dets.sync(file_ref) do
+          :ok -> :ok
+          {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason}")
+        end
         case (state.channel_id == nil or state.fsm_id == nil) do
           true ->
             Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
           false ->
+            Logger.warn("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect state.fsm_id} channel_id #{inspect state.channel_id}")
             :ok
         end
         :ok
@@ -147,18 +155,46 @@ defmodule SessionHolder do
     end
   end
 
+  defp get_most_recent(list, key) do
+    Logger.warn("Missing key #{inspect key}, fetching from old entry... #{inspect list}")
+    case Enum.find(Enum.reverse(list), fn({_, entry}) -> Map.get(entry.state, key) != nil end) do
+      nil ->
+        Logger.error "Error could not find value for #{inspect key}"
+        nil
+      {:connect, dets_entry} ->
+        case Map.get(dets_entry.state, key) do
+          nil ->
+            Logger.error "Cound find value for #{inspect key}"
+            nil
+          result ->
+            Logger.error "Found value for #{inspect {key, result}}"
+            result
+        end
+    end
+  end
+
   def reestablish_(state, port \\ 1500) do
-    Logger.debug("about to re-establish connection", ansi_color: state.color)
+    Logger.error("about to re-establish connection", ansi_color: state.color)
 
     # we used stored data as opposed to in mem data. This is to verify that reestablish is operation from a cold start.
     socket_connector_state =
       case :dets.lookup(state.file_ref, :connect) do
         [] ->
+          Logger.error "no saved state in dets, #{inspect state.file_ref}"
           throw "no saved state in dets"
         dets_state ->
           {:connect, saved_state} = List.last(dets_state)
           Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage #{inspect state.file_ref} contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
-          saved_state.state
+          case {Map.get(saved_state, :channel_id, nil), Map.get(saved_state, :fsm_id, nil)} do
+            {nil, nil} ->
+              %{saved_state.state | channel_id: get_most_recent(dets_state, :channel_id), fsm_id: get_most_recent(dets_state, :fsm_id)}
+            {nil, _} ->
+              %{saved_state.state | channel_id: get_most_recent(dets_state, :channel_id)}
+            {_, nil} ->
+              %{saved_state.state | fsm_id: get_most_recent(dets_state, :fsm_id)}
+            _ ->
+              saved_state.state
+          end
       end
 
     # ^state = :dets.lookup(state.file_ref, :connect)

@@ -11,23 +11,6 @@ defmodule SocketConnectorTest do
     {String.to_atom("alice " <> clean_id), String.to_atom("bob " <> clean_id)}
   end
 
-  def custom_config(overide_basic_param, override_custom) do
-    fn initator_pub, responder_pub ->
-      %{basic_configuration: basic_configuration} =
-        Map.merge(
-          ClientRunner.default_configuration(initator_pub, responder_pub),
-          overide_basic_param
-        )
-
-      %{
-        basic_configuration: basic_configuration,
-        custom_param_fun: fn role, host_url ->
-          Map.merge(ClientRunner.custom_connection_setting(role, host_url), override_custom)
-        end
-      }
-    end
-  end
-
   def accounts_initiator() do
     {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()}
   end
@@ -88,13 +71,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1400})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -125,13 +110,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1401})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1401})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -185,13 +172,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1402})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1402})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -245,13 +234,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1403})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1403})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -339,13 +330,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1404})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1404})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -408,13 +401,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1405})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1405})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -424,8 +419,10 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     {alice, accounts_initiator(), %{}},
-  #     {bob, accounts_responder(), %{}},
+  #     %{
+      #   initiator: %{name: alice, keypair: accounts_initiator()},
+      #   responder: %{name: bob, keypair: accounts_responder()}
+      # },
   #     &TestScenarios.withdraw_after_reestablish_v2/3
   #   )
   # end
@@ -543,8 +540,10 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator()},
+        responder: %{name: bob, keypair: accounts_responder()}
+      },
       scenario
     )
   end
@@ -594,14 +593,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1406})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1406})
-      # custom_config(%{}, %{minimum_depth: 1})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -651,8 +651,10 @@ defmodule SocketConnectorTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator()},
+        responder: %{name: bob, keypair: accounts_responder()}
+      },
       scenario
     )
   end
@@ -741,13 +743,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1407})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1407})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -1007,14 +1011,17 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1408})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
+
   end
 
   @tag :contract
@@ -1178,13 +1185,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1408})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 
@@ -1284,11 +1293,14 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator()},
+        responder: %{name: bob, keypair: accounts_responder()}
+      },
       scenario
     )
   end
@@ -1299,8 +1311,10 @@ defmodule SocketConnectorTest do
   #   ClientRunner.start_peers(
   #     @ae_url,
   #     @network_id,
-  #     {alice, accounts_initiator(), %{}},
-  #     {bob, accounts_responder(), %{}},
+  #     %{
+      #   initiator: %{name: alice, keypair: accounts_initiator()},
+      #   responder: %{name: bob, keypair: accounts_responder()}
+      # },
   #     &TestScenarios.query_after_reconnect_v2/3
   #   )
   # end
@@ -1361,13 +1375,15 @@ defmodule SocketConnectorTest do
       ]
     end
 
+    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 50, port: 1409})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{}},
-      {bob, accounts_responder(), %{}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 50, port: 1409})
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
     )
   end
 

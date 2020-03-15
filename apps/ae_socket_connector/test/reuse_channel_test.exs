@@ -1,8 +1,4 @@
-ExUnit.start()
-ExUnit.configure(seed: 0)
-
 defmodule ReuseChannelTest do
-  # run test consecutive
 
   use ExUnit.Case
   require ClientRunner
@@ -10,36 +6,6 @@ defmodule ReuseChannelTest do
 
   @ae_url ClientRunner.ae_url()
   @network_id ClientRunner.network_id()
-
-  def gen_names(id) do
-    clean_id = Atom.to_string(id)
-    {String.to_atom("alice " <> clean_id), String.to_atom("bob " <> clean_id)}
-  end
-
-  def custom_config(overide_basic_param, override_custom) do
-    fn initator_pub, responder_pub ->
-      %{basic_configuration: basic_configuration} =
-        Map.merge(
-          ClientRunner.default_configuration(initator_pub, responder_pub),
-          overide_basic_param
-        )
-
-      %{
-        basic_configuration: basic_configuration,
-        custom_param_fun: fn role, host_url ->
-          Map.merge(ClientRunner.custom_connection_setting(role, host_url), override_custom)
-        end
-      }
-    end
-  end
-
-  def accounts_initiator() do
-    {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()}
-  end
-
-  def accounts_responder() do
-    {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}
-  end
 
   def clean_log_config_file(log_config) do
     File.rm(Path.join(log_config.path, log_config.file))
@@ -50,15 +16,14 @@ defmodule ReuseChannelTest do
   end
 
   @tag :dets
+  @tag :ignore
   test "reestablish using dets", context do
-    testname = Atom.to_string(context.test)
-
     hello_fsm_part_1of2(name_test(context, "_1"))
     hello_fsm_part_2of2_auto_reestablish(name_test(context, "_2"))
   end
 
   def hello_fsm_part_1of2(context) do
-    {alice, bob} = gen_names(context.test)
+    {alice, bob} = SocketConnectorTest.gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
@@ -142,15 +107,16 @@ defmodule ReuseChannelTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), log_config_initiator},
-      {bob, accounts_responder(), log_config_responder},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1400})
+      %{
+        initiator: %{name: alice, keypair: SocketConnectorTest.accounts_initiator(), log_config: %{log_file: "consecutive_initiator", log_path: "log"}},
+        responder: %{name: bob, keypair: SocketConnectorTest.accounts_responder(), log_config: %{log_file: "consecutive_responder", log_path: "log"}}
+      },
+      scenario
     )
   end
 
   def hello_fsm_part_2of2_auto_reestablish(context) do
-    {alice, bob} = gen_names(context.test)
+    {alice, bob} = SocketConnectorTest.gen_names(context.test)
 
     scenario = fn {initiator, _intiator_account}, {responder, _responder_account}, runner_pid ->
       [
@@ -186,10 +152,11 @@ defmodule ReuseChannelTest do
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
-      {alice, accounts_initiator(), %{file: "consecutive_initiator", path: "data"}},
-      {bob, accounts_responder(), %{file: "consecutive_responder", path: "data"}},
-      scenario,
-      custom_config(%{}, %{minimum_depth: 0, port: 1401})
+      %{
+        initiator: %{name: alice, keypair: SocketConnectorTest.accounts_initiator(), log_config: %{log_file: "consecutive_initiator", log_path: "log"}},
+        responder: %{name: bob, keypair: SocketConnectorTest.accounts_responder(), log_config: %{log_file: "consecutive_responder", log_path: "log"}}
+      },
+      scenario
     )
   end
 end

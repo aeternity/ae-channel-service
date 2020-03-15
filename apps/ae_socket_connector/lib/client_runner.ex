@@ -14,15 +14,15 @@ defmodule ClientRunner do
             paused: false
 
   def start_link(
-        {_pub_key, _priv_key, _state_channel_configuration, _log_config, _ae_url, _network_id, _role, _jobs, _color, _name} =
-          params
+        {_pub_key, _priv_key, _state_channel_configuration, _log_config, _ae_url, _network_id, _role, _jobs,
+         _color, _name} = params
       ) do
     GenServer.start_link(__MODULE__, params)
   end
 
   defp log_callback(type, round, round_initiator, method, color) do
     Logger.debug(
-      "received: #{inspect {type, round, round_initiator, method}} pid is: #{inspect self()}",
+      "received: #{inspect({type, round, round_initiator, method})} pid is: #{inspect(self())}",
       color
     )
   end
@@ -57,12 +57,11 @@ defmodule ClientRunner do
         )
 
         GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
+      end,
+      connection_update: fn status, reason ->
+        GenServer.cast(callback_pid, {:connection_update, {status, reason}})
       end
     }
-  end
-
-  def seperate_jobs(job_list) do
-    {filter_jobs(job_list, :initiator), filter_jobs(job_list, :responder)}
   end
 
   def filter_jobs(job_list, role) do
@@ -70,7 +69,9 @@ defmodule ClientRunner do
   end
 
   # Server
-  def init({pub_key, priv_key, state_channel_configuration, log_config, ae_url, network_id, role, jobs, color, name}) do
+  def init(
+        {pub_key, priv_key, state_channel_configuration, log_config, ae_url, network_id, role, jobs, color, name}
+      ) do
     {:ok, pid_session_holder} =
       SessionHolder.start_link(%{
         socket_connector: %{
@@ -119,13 +120,13 @@ defmodule ClientRunner do
         case sign_info do
           {:default} ->
             signed = SessionHolder.sign_message(pid_session_holder, to_sign)
-            fun = &(SocketConnector.send_signed_message(&1, elem(message, 2), signed))
+            fun = &SocketConnector.send_signed_message(&1, elem(message, 2), signed)
             SessionHolder.run_action(pid_session_holder, fun)
 
           {:backchannel, pid_other_session_holder} ->
             signed = SessionHolder.sign_message(pid_session_holder, to_sign)
             signed2 = SessionHolder.sign_message(pid_other_session_holder, signed)
-            fun = &(SocketConnector.send_signed_message(&1, elem(message, 2), signed2))
+            fun = &SocketConnector.send_signed_message(&1, elem(message, 2), signed2)
             SessionHolder.run_action(pid_session_holder, fun)
 
           {:check_poi} ->
@@ -158,6 +159,11 @@ defmodule ClientRunner do
 
   def process_sign_request(message, to_sign, pid_session_holder, _not_sign_request) do
     process_sign_request(message, to_sign, pid_session_holder)
+  end
+
+  def handle_cast({:connection_update, update}, state) do
+    Logger.debug("Connection update, #{inspect update}")
+    {:noreply, state}
   end
 
   def handle_cast({:end_pause}, state) do
@@ -259,28 +265,28 @@ defmodule ClientRunner do
     end
   end
 
-  def gen_name(name, suffix) do
-    String.to_atom(to_string(name) <> Integer.to_string(suffix))
-  end
+  # def gen_name(name, suffix) do
+  #   String.to_atom(to_string(name) <> Integer.to_string(suffix))
+  # end
 
   # elimiation overlap yields issues, need to be investigated
-  @grace_period_ms 2000
+  # @grace_period_ms 2000
 
-  def start_helper(ae_url, network_id, initiator_keys, responder_keys, joblist) do
-    Enum.each(Enum.zip(joblist, 1..Enum.count(joblist)), fn {fun, suffix} ->
-      Logger.info("Launching next job in queue")
+  # def start_helper(ae_url, network_id, initiator_keys, responder_keys, joblist) do
+  #   Enum.each(Enum.zip(joblist, 1..Enum.count(joblist)), fn {fun, suffix} ->
+  #     Logger.info("Launching next job in queue")
 
-      start_peers(
-        ae_url,
-        network_id,
-        {gen_name(:alice, suffix), initiator_keys},
-        {gen_name(:bob, suffix), responder_keys},
-        fun
-      )
+  #     start_peers(
+  #       ae_url,
+  #       network_id,
+  #       {gen_name(:alice, suffix), initiator_keys},
+  #       {gen_name(:bob, suffix), responder_keys},
+  #       fun
+  #     )
 
-      Process.sleep(@grace_period_ms)
-    end)
-  end
+  #     Process.sleep(@grace_period_ms)
+  #   end)
+  # end
 
   def await_finish([]) do
     Logger.debug("Scenario reached end")
@@ -335,30 +341,57 @@ defmodule ClientRunner do
     }
   end
 
+  def custom_config(overide_basic_param, override_custom) do
+    fn initator_pub, responder_pub ->
+      %{basic_configuration: basic_configuration} =
+        Map.merge(
+          ClientRunner.default_configuration(initator_pub, responder_pub),
+          overide_basic_param
+        )
+
+      %{
+        basic_configuration: basic_configuration,
+        custom_param_fun: fn role, host_url ->
+          Map.merge(ClientRunner.custom_connection_setting(role, host_url), override_custom)
+        end
+      }
+    end
+  end
+
   def start_peers(
         ae_url,
         network_id,
-        {name_initiator, {initiator_pub, initiator_priv}, initiator_log_config},
-        {name_responder, {responder_pub, responder_priv}, responder_log_config},
-        job_builder,
-        channel_configuration \\ &default_configuration/2
+        %{
+          initiator: %{name: name_initiator, keypair: {initiator_pub, _initiator_priv}},
+          responder: %{name: name_responder, keypair: {responder_pub, _responder_priv}}
+        } = clients,
+        job_builder
       ) do
     Logger.debug("executing test: #{inspect(job_builder)}")
 
-    {jobs_initiator, jobs_responder} =
-      seperate_jobs(job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self()))
+    job_list = job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self())
 
-    state_channel_configuration = channel_configuration.(initiator_pub, responder_pub)
+    Enum.map(clients, fn{role, %{name: name, keypair: {pub, priv}} = config} ->
+      channel_configuration = Map.get(config, :custom_configuration, &default_configuration/2)
+      case Map.get(config, :start, true) do
+        true ->
+          color =
+            case role do
+              :initiator -> :yellow
+              :responder -> :blue
+            end
 
-    start_link(
-      {initiator_pub, initiator_priv, state_channel_configuration, initiator_log_config, ae_url, network_id, :initiator, jobs_initiator,
-       :yellow, name_initiator}
-    )
+          start_link(
+            {pub, priv, channel_configuration.(initiator_pub, responder_pub),
+            Map.get(config, :log_config, %{}), ae_url, network_id, role, filter_jobs(job_list, role), color,
+            name}
+          )
 
-    start_link(
-      {responder_pub, responder_priv, state_channel_configuration, responder_log_config, ae_url, network_id, :responder, jobs_responder,
-       :blue, name_responder}
-    )
+        false ->
+          # test running with only one client
+          :ok
+      end
+    end)
 
     await_finish([name_initiator, name_responder])
   end

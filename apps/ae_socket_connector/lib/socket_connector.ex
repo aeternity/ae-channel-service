@@ -46,7 +46,8 @@ defmodule SocketConnector do
         sign_approve: nil,
         channels_update: nil,
         channels_info: nil,
-        on_chain: nil
+        on_chain: nil,
+        connection_update: nil
       )
   )
 
@@ -285,6 +286,7 @@ defmodule SocketConnector do
 
   def handle_connect(conn, state) do
     Logger.info("Connected! #{inspect(conn)} #{inspect(self())}", state.color)
+    produce_callback(:connection_update, {:connected, nil}, state)
     {:ok, state}
   end
 
@@ -782,7 +784,7 @@ defmodule SocketConnector do
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
 
-    # Logger.info("Received Message: #{inspect(msg)} #{inspect(message)} #{inspect(self())}", state.color)
+    Logger.info("Received Message: #{inspect(msg)} #{inspect(message)} #{inspect(self())}", state.color)
     process_message(message, state)
   end
 
@@ -791,17 +793,21 @@ defmodule SocketConnector do
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
+  defp clean_and_exit(state, reason) do
+    :timer.cancel(state.timer_reference)
+    produce_callback(:connection_update, {:disconnected, reason}, state)
+    sync_state(state)
+  end
+
   def handle_disconnect(%{reason: {:local, reason}}, state) do
     Logger.info("Local close with reason: #{inspect(reason)}", state.color)
-    :timer.cancel(state.timer_reference)
-    sync_state(state)
+    clean_and_exit(state, reason)
     {:ok, state}
   end
 
   def handle_disconnect(disconnect_map, state) do
-    Logger.info("disconnecting... #{inspect(self())}", state.color)
-    :timer.cancel(state.timer_reference)
-    sync_state(state)
+    Logger.info("disconnecting... #{inspect({self(), state})}", state.color)
+    clean_and_exit(state, nil)
     super(disconnect_map, state)
   end
 
@@ -1072,6 +1078,17 @@ defmodule SocketConnector do
     end
   end
 
+  def produce_callback(:connection_update, {action, reason}, state) do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+      _ ->
+        callback = Map.get(state.connection_callbacks, :connection_update)
+        callback.(action, reason)
+        :ok
+    end
+  end
+
   def process_message(
         %{
           "method" => method,
@@ -1123,6 +1140,9 @@ defmodule SocketConnector do
     end
   end
 
+
+  # %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => nil, "data" => %{"event" => "fsm_up", "fsm_id" => "ba_fVV9rUl9X6OG/fzAbSsxIjQCqwaPlgxNCgJWIF3cIvOqliqv"}}, "version" => 1}
+
   def process_message(
         %{
           "method" => "channels.info",
@@ -1130,7 +1150,8 @@ defmodule SocketConnector do
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
-      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+      do
+      # when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
     # manual sync, this is particullary intersting, this is needed for future reconnects
     new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
@@ -1147,7 +1168,9 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
-    {:ok, %__MODULE__{state | channel_id: channel_id}}
+    new_state = %__MODULE__{state | channel_id: channel_id}
+    sync_state(new_state)
+    {:ok, new_state}
   end
 
   def process_message(

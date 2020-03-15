@@ -30,6 +30,14 @@ config :ae_socket_connector, :node,
   ae_url: System.get_env("AE_NODE_URL") || "ws://localhost:3014/channel",
   network_id: System.get_env("AE_NODE_NETWORK_ID") || "my_test"
 
+import_config "../test/accounts_test.exs"
+
+config :ae_socket_connector, :accounts,
+  initiator: {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()},
+  responder: {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}
+
+
+
 # config :ae_socket_connector, :urls,
 #   ae_url: "wss://testnet.demo.aeternity.io/channel",
 #   network_id: "ae_uat"
