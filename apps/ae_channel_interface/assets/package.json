@@ -1,6 +1,6 @@
 {
   "repository": {},
-  "license": "MIT",
+  "license": "ICS",
   "scripts": {
     "deploy": "webpack --mode production",
     "watch": "webpack --mode development --watch"
