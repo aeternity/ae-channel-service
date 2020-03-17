@@ -8,7 +8,10 @@ jobs:
     steps:
       - checkout
       - run: wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && sudo dpkg -i erlang-solutions_2.0_all.deb
-      - run: sudo apt-get -qq -y update && sudo apt-get -qq -y install esl-erlang && sudo apt-get -qq -y install elixir
+      - run: sudo apt-get -qq -y update && apt-get install -y build-essential && apt-get -qq -y install curl
+      - run: sudo apt-get -qq -y install esl-erlang && sudo apt-get -qq -y install elixir
+      - run: curl -O https://download.libsodium.org/libsodium/releases/libsodium-1.0.17.tar.gz
+      - run: tar -xf libsodium-1.0.17.tar.gz && libsodium-1.0.17/configure  && make && make install && ldconfig
       - run: mix local.hex --force
       - run: mix local.rebar --force
       - restore_cache:
