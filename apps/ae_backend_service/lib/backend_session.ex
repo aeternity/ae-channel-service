@@ -18,19 +18,20 @@ defmodule BackendSession do
 
 
 
-  defstruct pid_session_holder: nil
+  defstruct pid_session_holder: nil,
+            pid_backend_manager: nil
 
   #Client
 
-  def start_link({params, _manager}) do
-    GenServer.start_link(__MODULE__, params)
+  def start_link({params, pid_manager}) do
+    GenServer.start_link(__MODULE__, {params, pid_manager})
   end
 
   #Server
-  def init({role, channel_config, {_channel_id, _reestablish_port} = reestablish, initiator_keypair} = params) do
+  def init({{role, channel_config, {_channel_id, _reestablish_port} = reestablish, initiator_keypair} = params, pid_manager}) do
     Logger.info("Starting backend session #{inspect params} pid is #{inspect self()}")
     {:ok, pid} = SessionHolderHelper.start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), "yellow"))
-    {:ok, %__MODULE__{pid_session_holder: pid}}
+    {:ok, %__MODULE__{pid_session_holder: pid, pid_backend_manager: pid_manager}}
   end
 
   #TODO once we know the channel_id this process should register itself somewhere.

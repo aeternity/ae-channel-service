@@ -28,17 +28,29 @@ defmodule BackendServiceManager do
     {:ok, %__MODULE__{}}
   end
 
+  defp is_reestablish(reestablish) do
+    case reestablish do
+      {"", 0} ->
+        false
+      _ -> true
+    end
+  end
+
   defp start_channel_local(
         {
           role,
           _config,
-          {_channel_id, _reestablish_port},
+          {channel_id, reestablish_port} = reestablish,
           _keypair_initiator
         } = params
       )
       when role in [:initiator, :responder] do
-    # TODO only supervise reestablish - and maybe not those either...
-    Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, self()}])
+    if is_reestablish(reestablish) do
+      # only superview reestablished sessions, no way to relocate a fsm without channel_id and fsm_id
+      Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, self()}])
+    else
+      BackendSession.start_link({params, self()})
+    end
   end
 
   def handle_call({:start_channel, params}, _from, state) do
