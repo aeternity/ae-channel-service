@@ -2,6 +2,8 @@
 version: '3'
 services:
   aenode:
+    environment:
+      - network_id=ae_channel_service_test
     image: aeternity/aeternity
     ports:
       - "3013:3013"

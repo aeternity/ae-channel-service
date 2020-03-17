@@ -78,7 +78,7 @@ prepare: ## Get and prepare additional dependencies from Aeternity Core
 test:
 	docker-compose pull
 	docker-compose up -d --force-recreate
-	mix test --exclude ignore
+	AE_NODE_NETWORK_ID="ae_channel_service_test" mix test --exclude ignore
 
 .PHONY: help
 help:
