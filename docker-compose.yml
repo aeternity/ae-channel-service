@@ -1,0 +1,13 @@
+---
+version: '3'
+services:
+  aenode:
+    image: aeternity/aeternity
+    ports:
+      - "3013:3013"
+      - "3014:3014"
+      - "3015:3015"
+      - "3113:3113"
+    volumes:
+      - "./test/accounts_test.json:/home/aeternity/node/data/aecore/.genesis/accounts_test.json"
+      - "./test/aeternity_node_test_config.yml:/home/aeternity/node/aeternity.yaml"

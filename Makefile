@@ -30,7 +30,6 @@ format: ## Format Elixir code
 clean: ## Clean all artifacts
 	$(mix) clean
 	rm -rf \
-		test/ \
 		$(sparse_path)/ \
 		$(aeminer_path)/ \
 		apps/aecore \
@@ -74,6 +73,12 @@ prepare: $(sparse_path)/ $(aeminer_path)/
 prepare: ## Get and prepare additional dependencies from Aeternity Core
 	cp -r $(sparse_path)/apps .
 	$(foreach p,$(wildcard ./patches/*.patch),git apply ${p};)
+
+.PHONY: test
+test:
+	docker-compose pull
+	docker-compose up -d --force-recreate
+	AE_NODE_NETWORK_ID="ae_channel_service_test" mix test --exclude ignore
 
 .PHONY: help
 help:
