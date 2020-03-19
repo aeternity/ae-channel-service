@@ -64,7 +64,7 @@ NODE_CONFIGURATION=/test/aeternity_node_normal_test_config.yml docker-compose up
 AE_NODE_NETWORK_ID="ae_channel_service_test" iex -S mix phx.server
 ```
 
-Now, point you brower to [http://localhost:4000/](http://localhost:4000/)
+Now, point your browser to [http://localhost:4000/](http://localhost:4000/)
 
 > if your interface is missing CSS you need to:  
 `cd apps/ae_channel_interface/assets && npm install && cd -`
