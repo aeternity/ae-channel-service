@@ -132,7 +132,7 @@ defmodule SessionHolder do
     dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: socketconnector_state}
 
     case socketconnector_state.channel_id do
-      nil -> Logger.warn("Not persisting to disk, channel_id missing")
+      nil -> Logger.warn("Not persisting to disk, channel_id missing, role #{inspect socketconnector_state.role}")
       _ ->
         case :dets.insert(file_ref, {socketconnector_state.channel_id, dets_state}) do
           :ok ->
@@ -140,12 +140,12 @@ defmodule SessionHolder do
               :ok -> :ok
                 case socketconnector_state.fsm_id == nil do
                   true ->
-                    Logger.warn("Persisted data not satisfying reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id}")
+                    Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
                   false ->
-                    Logger.info("Persisted data SATISFYING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id}")
+                    Logger.info("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
                 end
 
-              {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason}")
+              {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason} role #{inspect socketconnector_state.role}")
             end
         end
     end

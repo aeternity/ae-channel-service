@@ -783,7 +783,7 @@ defmodule SocketConnector do
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
 
-    Logger.info("Received Message: #{inspect(msg)} #{inspect(message)} #{inspect(self())}", state.color)
+    Logger.info("Received Message: #{inspect(message)} #{inspect(self())} role #{inspect state.role}", state.color)
     process_message(message, state)
   end
 
@@ -854,7 +854,13 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # these doesn't contain round...
+  # IMPORTANT!
+  # The message channels.sign.initiator_sign and channels.sign.responder_sign  nitiator_sign are of extra importance
+  # because once arrive the clinet have all credentials needed for a reestablish, allowing the client
+  # to disconnect. Keys are channel_id, fsm_id, and the state_tx. Remember the keep these _and_ update them
+  # accordingly.
+  #
+  # Note, these doesn't contain round...
   def process_message(
         %{
           "method" => method,
@@ -889,7 +895,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
+          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}, "channel_id" => channel_id}
         } = _message,
         state
       )
@@ -911,14 +917,15 @@ defmodule SocketConnector do
 
     Validator.notify_sign_transaction(pending_update, method, state)
 
-    {:ok,
-     %__MODULE__{
+    new_state = %__MODULE__{
        state
        | pending_round_and_update: %{
            #  TODO not sure on state_tx naming here...
            Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: nil}
-         }
-     }}
+         }, channel_id: channel_id
+     }
+    sync_state(new_state)
+    {:ok, new_state}
   end
 
   def process_get_settle_reponse(
@@ -1111,6 +1118,7 @@ defmodule SocketConnector do
       | round_and_updates: Map.merge(state.round_and_updates, updates),
         pending_round_and_update: %{}
     }
+    sync_state(new_state)
 
     {:ok, new_state}
   end
@@ -1140,21 +1148,20 @@ defmodule SocketConnector do
 
   # %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => nil, "data" => %{"event" => "fsm_up", "fsm_id" => "ba_fVV9rUl9X6OG/fzAbSsxIjQCqwaPlgxNCgJWIF3cIvOqliqv"}}, "version" => 1}
 
+  # IMPORTANT
+  # The fsm_id changes on every reestablish and need to be saved/persisted by the client in order to be able to
+  # perform reestablish.
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => _channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
-        %__MODULE__{channel_id: _current_channel_id} = state
+        %__MODULE__{channel_id: current_channel_id} = state
       )
-      do
-      # TODO https://github.com/aeternity/aeternity/issues/3027
-      # when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
     # manual sync, this is particullary intersting, this is needed for future reconnects
 
-    # TODO https://github.com/aeternity/aeternity/issues/3027
-    # new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
     new_state = %__MODULE__{state | fsm_id: fsm_id}
     sync_state(new_state)
     {:ok, new_state}
@@ -1169,9 +1176,7 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
-    new_state = %__MODULE__{state | channel_id: channel_id}
-    sync_state(new_state)
-    {:ok, new_state}
+    {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
   def process_message(
