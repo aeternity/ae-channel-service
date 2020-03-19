@@ -10,4 +10,4 @@ services:
       - "3113:3113"
     volumes:
       - "./test/accounts_test.json:/home/aeternity/node/data/aecore/.genesis/accounts_test.json"
-      - "./test/aeternity_node_test_config.yml:/home/aeternity/node/aeternity.yaml"
+      - "${NODE_CONFIGURATION:-./test/aeternity_node_fast_test_config.yml}:/home/aeternity/node/aeternity.yaml"

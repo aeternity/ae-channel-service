@@ -1,0 +1,44 @@
+peers:
+    - "aenode://pp_2i8N6XsjCGe1wkdMhDRs7t7xzijrjJDN4xA22RoNGCgt6ay9QB@31.13.249.70:3011" # wrong port
+
+fork_management:
+    network_id: "ae_channel_service_test"
+chain:
+    # Do not write chain data to disk.
+    persist: false
+    # Hard forks
+    hard_forks:
+      "1": 0
+mining:
+    # Start mining automatically.
+    autostart: true
+    # Expected mine rate (milliseconds) between blocks. Make it fast :)
+    # expected_mine_rate: 100
+    expected_mine_rate: 180000
+    # Public key of beneficiary account that will receive fees from mining on a node. This doesn't really matter for the test, as long as it is a valid address
+    beneficiary: "ak_2df9FTmhbcQ1huwEBTV1s8WkJ9xhTb3eM6yn9pqopGj7bZmoXF"
+    min_miner_gas_price: 1000000
+    # min_miner_gas_price: 10000
+    cuckoo:
+        miner:
+            # Use the fast executable binary of the miner.
+            executable: mean15-generic
+            # Extra arguments to pass to the miner executable binary.
+            extra_args: "-t 1"
+            # Use the smaller graph for faster mining
+            edge_bits: 15
+sync:
+    # Use a different internal port used for P2P communication
+    port: 9015
+    # Port used for P2P communication
+    # Make sure this port is reachable from you public facing IP.
+    # It will be the same as the `port` option if not specified.
+    external_port: 9015
+websocket:
+  channel:
+    port: 3014
+    listen_address: "0.0.0.0"
+regulators:
+    sc_ws_handlers:
+        counter: 100
+        max_size: 5

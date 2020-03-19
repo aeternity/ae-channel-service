@@ -48,7 +48,7 @@ default can be found in you node config [here](https://github.com/aeternity/aete
 
 more documentation on node configuration can be found [here](https://github.com/aeternity/aeternity/blob/master/docs/configuration.md)
 
-## Run
+## Run testscenarios
 
 Start the samples at your prompt by doing 
 ```bash
@@ -56,6 +56,18 @@ mix test
 ```
 
 Scenarios executed can be found [here](apps/ae_socket_connector/test/ae_socket_connector_test.exs)
+
+## Run interactive test client (local)
+
+```bash
+NODE_CONFIGURATION=/test/aeternity_node_normal_test_config.yml docker-compose up
+AE_NODE_NETWORK_ID="ae_channel_service_test" iex -S mix phx.server
+```
+
+Now, point your browser to [http://localhost:4000/](http://localhost:4000/)
+
+> if your interface is missing CSS you need to:  
+`cd apps/ae_channel_interface/assets && npm install && cd -`
 
 ## Refence to node api
 
