@@ -21,6 +21,28 @@ defmodule SocketConnectorTest do
     {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}
   end
 
+  @tag :override
+  test "override basic params" do
+    expect_default = %{
+      basic_configuration: %SocketConnector.WsConnection{
+        initiator_amount: 7000000000000,
+        initiator_id: "hej",
+        responder_amount: 4000000000000,
+        responder_id: "hopp"
+      }
+    }
+    assert expect_default.basic_configuration == SessionHolderHelper.custom_config(%{}, %{}).("hej", "hopp").basic_configuration
+    expect = %{
+      basic_configuration: %SocketConnector.WsConnection{
+        initiator_amount: 7000000000000,
+        initiator_id: "hej",
+        responder_amount: 23,
+        responder_id: "hopp"
+      }
+    }
+    assert expect.basic_configuration == SessionHolderHelper.custom_config(%{responder_amount: 23}, %{}).("hej", "hopp").basic_configuration
+  end
+
   @tag :hello_world
   test "hello fsm", context do
     {alice, bob} = gen_names(context.test)

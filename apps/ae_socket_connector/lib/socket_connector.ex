@@ -57,8 +57,7 @@ defmodule SocketConnector do
         initiator_id: nil,
         responder_id: nil,
         initiator_amount: nil,
-        responder_amount: nil,
-        custom_param_fun: nil
+        responder_amount: nil
       )
   )
 
@@ -935,7 +934,7 @@ defmodule SocketConnector do
       ) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {pub_key, contract_file, config}}} =
+    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
       Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates

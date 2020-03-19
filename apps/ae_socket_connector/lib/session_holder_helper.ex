@@ -69,14 +69,8 @@ defmodule SessionHolderHelper do
 
   def custom_config(overide_basic_param, override_custom) do
     fn initator_pub, responder_pub ->
-      %{basic_configuration: basic_configuration} =
-        Map.merge(
-          SessionHolderHelper.default_configuration(initator_pub, responder_pub),
-          overide_basic_param
-        )
-
       %{
-        basic_configuration: basic_configuration,
+        basic_configuration: struct(SessionHolderHelper.default_configuration(initator_pub, responder_pub).basic_configuration, overide_basic_param),
         custom_param_fun: fn role, host_url ->
           Map.merge(SessionHolderHelper.custom_connection_setting(role, host_url), override_custom)
         end
