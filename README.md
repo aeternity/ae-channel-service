@@ -63,7 +63,7 @@ AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat"
 Scenarios executed can be found [here](apps/ae_socket_connector/test/ae_socket_connector_test.exs)
 
 > tests are designed to execute on a quick mining node, thus the test will 
-fail when directed to testnet. This is however keps as referense.
+fail when directed to testnet. This however is kept as reference.
 
 
 ## Run interactive test client (local)
