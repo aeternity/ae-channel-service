@@ -3,7 +3,7 @@
 This is a reference client implementaion using the aeternity state channels. State channels allows secure transaction at very low fees.
 Extensive documentation on aeternity state channels can be found [here](https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md).
 
-The project consist of the following applications
+The project consists of the following applications
 * ae_socket_connector<br />
 implements the FSM protocol and manages the websocket to the FSM (node connection).
 * ae_channel_interface<br />
