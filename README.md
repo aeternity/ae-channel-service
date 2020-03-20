@@ -9,7 +9,7 @@ implements the FSM protocol and manages the websocket to the FSM (node connectio
 * ae_channel_interface<br />
 an interactive web interface which visualizes channel messages with the intention to ease onboarding.
 * ae_backend_service<br />
-sample backend service which could orchstrate a number of channels.
+sample backend service which could orchestrate a number of channels.
 
 >ae_socket_connector benefits by being able to call erlang functions used by the aeternity node.
 
