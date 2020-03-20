@@ -43,7 +43,8 @@ defmodule AeChannelInterface.MixProject do
       {:gettext, "~> 0.11"},
       {:jason, "~> 1.0"},
       {:plug_cowboy, "~> 2.0"},
-      {:ae_socket_connector, in_umbrella: true}
+      {:ae_socket_connector, in_umbrella: true},
+      {:ae_backend_service, in_umbrella: true}
     ]
   end
 end

@@ -1,10 +1,12 @@
 defmodule SocketConnectorTest do
   use ExUnit.Case
-  require ClientRunner
   require Logger
+  # require ClientRunner
 
-  @ae_url ClientRunner.ae_url()
-  @network_id ClientRunner.network_id()
+  # Code.require_file "client_runner.ex", __DIR__
+
+  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  @network_id Application.get_env(:ae_socket_connector, :node)[:network_id]
 
   def gen_names(id) do
     clean_id = Atom.to_string(id)
@@ -17,6 +19,28 @@ defmodule SocketConnectorTest do
 
   def accounts_responder() do
     {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}
+  end
+
+  @tag :override
+  test "override basic params" do
+    expect_default = %{
+      basic_configuration: %SocketConnector.WsConnection{
+        initiator_amount: 7000000000000,
+        initiator_id: "hej",
+        responder_amount: 4000000000000,
+        responder_id: "hopp"
+      }
+    }
+    assert expect_default.basic_configuration == SessionHolderHelper.custom_config(%{}, %{}).("hej", "hopp").basic_configuration
+    expect = %{
+      basic_configuration: %SocketConnector.WsConnection{
+        initiator_amount: 7000000000000,
+        initiator_id: "hej",
+        responder_amount: 23,
+        responder_id: "hopp"
+      }
+    }
+    assert expect.basic_configuration == SessionHolderHelper.custom_config(%{responder_amount: 23}, %{}).("hej", "hopp").basic_configuration
   end
 
   @tag :hello_world
@@ -71,7 +95,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1400})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1400})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -110,7 +134,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1401})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1401})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -172,7 +196,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1402})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1402})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -209,13 +233,13 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = OnChain.nonce(intiator_account)
-                height = OnChain.current_height()
+                nonce = ChannelService.OnChain.nonce(@ae_url, intiator_account)
+                height = ChannelService.OnChain.current_height(@ae_url)
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
                 transaction = SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
 
-                OnChain.post_solo_close(transaction)
+                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -234,7 +258,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1403})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1403})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -282,8 +306,8 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = OnChain.nonce(intiator_account)
-                height = OnChain.current_height()
+                nonce = ChannelService.OnChain.nonce(@ae_url,intiator_account)
+                height = ChannelService.OnChain.current_height(@ae_url)
 
                 transaction =
                   GenServer.call(
@@ -291,7 +315,7 @@ defmodule SocketConnectorTest do
                     {:solo_close_transaction, 2, nonce + 1, height}
                   )
 
-                OnChain.post_solo_close(transaction)
+                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -330,7 +354,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1404})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1404})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -401,7 +425,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1405})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1405})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -593,7 +617,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1406})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1406})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -743,7 +767,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1407})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1407})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -1011,7 +1035,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1408})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -1185,7 +1209,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1408})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -1293,7 +1317,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 0, port: 1408})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,
@@ -1375,7 +1399,7 @@ defmodule SocketConnectorTest do
       ]
     end
 
-    channel_config = ClientRunner.custom_config(%{}, %{minimum_depth: 50, port: 1409})
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 50, port: 1409})
     ClientRunner.start_peers(
       @ae_url,
       @network_id,

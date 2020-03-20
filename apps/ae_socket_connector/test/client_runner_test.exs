@@ -3,7 +3,6 @@ defmodule ClientRunner do
   require Logger
 
   defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
-
   defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
 
   defstruct pid_session_holder: nil,
@@ -20,48 +19,11 @@ defmodule ClientRunner do
     GenServer.start_link(__MODULE__, params)
   end
 
-  defp log_callback(type, round, round_initiator, method, color) do
-    Logger.debug(
-      "received: #{inspect({type, round, round_initiator, method})} pid is: #{inspect(self())}",
-      color
+  defp log_callback({type, message}) do
+    Logger.info(
+      "received: #{inspect({type, message})} pid is: #{inspect(self())}",
+      ansi_color: Map.get(message, :color, nil)
     )
-  end
-
-  def connection_callback(callback_pid, color) do
-    %SocketConnector.ConnectionCallbacks{
-      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, human ->
-        Logger.debug(
-          ":sign_approve, #{inspect(round)}, #{inspect(method)} extras: to_sign #{inspect(to_sign)} auto_approval: #{
-            inspect(auto_approval)
-          }, human: #{inspect(human)}, initiator #{inspect(round_initiator)}",
-          ansi_color: color
-        )
-
-        GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, method}, to_sign})
-        auto_approval
-      end,
-      channels_info: fn round_initiator, round, method ->
-        log_callback(:channels_info, round, round_initiator, method, ansi_color: color)
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
-      end,
-      channels_update: fn round_initiator, round, method ->
-        log_callback(:channels_update, round, round_initiator, method, ansi_color: color)
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
-      end,
-      on_chain: fn round_initiator, round, method ->
-        Logger.debug(
-          "on_chain received round is: #{inspect(round)}, initated by: #{inspect(round_initiator)} method is #{
-            inspect(method)
-          }}",
-          ansi_color: color
-        )
-
-        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
-      end,
-      connection_update: fn status, reason ->
-        GenServer.cast(callback_pid, {:connection_update, {status, reason}})
-      end
-    }
   end
 
   def filter_jobs(job_list, role) do
@@ -83,10 +45,9 @@ defmodule ClientRunner do
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
-        connection_callbacks: connection_callback(self(), color),
+        connection_callbacks: SessionHolderHelper.connection_callback(self(), color, &log_callback/1),
         color: color,
-        pid_name: name
-      })
+      }, name)
 
     {:ok,
      %__MODULE__{
@@ -303,61 +264,6 @@ defmodule ClientRunner do
     end
   end
 
-  def custom_connection_setting(role, _host_url) do
-    same = %{
-      channel_reserve: "2",
-      lock_period: "10",
-      port: "1500",
-      protocol: "json-rpc",
-      push_amount: "1",
-      minimum_depth: 0,
-      role: role
-    }
-
-    role_map =
-      case role do
-        :initiator ->
-          # %URI{host: host} = URI.parse(host_url)
-          # TODO Worksound to be able to connect to testnet
-          # %{host: host, role: "initiator"}
-          %{host: "localhost"}
-
-        _ ->
-          %{}
-      end
-
-    Map.merge(same, role_map)
-  end
-
-  def default_configuration(initiator_pub, responder_pub) do
-    %{
-      basic_configuration: %SocketConnector.WsConnection{
-        initiator_id: initiator_pub,
-        initiator_amount: 7_000_000_000_000,
-        responder_id: responder_pub,
-        responder_amount: 4_000_000_000_000
-      },
-      custom_param_fun: &custom_connection_setting/2
-    }
-  end
-
-  def custom_config(overide_basic_param, override_custom) do
-    fn initator_pub, responder_pub ->
-      %{basic_configuration: basic_configuration} =
-        Map.merge(
-          ClientRunner.default_configuration(initator_pub, responder_pub),
-          overide_basic_param
-        )
-
-      %{
-        basic_configuration: basic_configuration,
-        custom_param_fun: fn role, host_url ->
-          Map.merge(ClientRunner.custom_connection_setting(role, host_url), override_custom)
-        end
-      }
-    end
-  end
-
   def start_peers(
         ae_url,
         network_id,
@@ -372,7 +278,7 @@ defmodule ClientRunner do
     job_list = job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self())
 
     Enum.map(clients, fn{role, %{name: name, keypair: {pub, priv}} = config} ->
-      channel_configuration = Map.get(config, :custom_configuration, &default_configuration/2)
+      channel_configuration = Map.get(config, :custom_configuration, &SessionHolderHelper.default_configuration/2)
       case Map.get(config, :start, true) do
         true ->
           color =

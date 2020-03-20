@@ -12,6 +12,7 @@ defmodule SocketConnector do
             session: %{},
             fsm_id: nil,
             channel_id: nil,
+            # {round => %Update{}},
             round_and_updates: %{},
             pending_round_and_update: %{},
             pending_id: nil,
@@ -21,7 +22,6 @@ defmodule SocketConnector do
             ws_manager_pid: nil,
             network_id: nil,
             ws_base: nil,
-            # {round => %Update{}},
             contract_call_in_flight: nil,
             contract_call_in_flight_round: nil,
             timer_reference: nil,
@@ -57,8 +57,7 @@ defmodule SocketConnector do
         initiator_id: nil,
         responder_id: nil,
         initiator_amount: nil,
-        responder_amount: nil,
-        custom_param_fun: nil
+        responder_amount: nil
       )
   )
 
@@ -122,8 +121,9 @@ defmodule SocketConnector do
       ) do
     {_round, %Update{state_tx: state_tx}} =
       case {!Enum.empty?(pending_round_and_update), !Enum.empty?(round_and_updates)} do
+        # TODO revisit, won't state_tx always be empty in a peding - non finished round?
+        {_, true} -> Enum.max(round_and_updates)
         {true, _} -> Enum.max(pending_round_and_update)
-        {false, true} -> Enum.max(round_and_updates)
         {false, false} -> throw("cannot reestablish no saved state avaliable")
       end
 
@@ -818,7 +818,6 @@ defmodule SocketConnector do
       existing_fsm_id: fsm_id,
       offchain_tx: offchain_tx,
       protocol: "json-rpc",
-      # TODO this should not be hardcoded.
       port: port,
       role: role
     }
@@ -935,7 +934,7 @@ defmodule SocketConnector do
       ) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {pub_key, contract_file, config}}} =
+    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
       Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
@@ -1144,15 +1143,19 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{"channel_id" => _channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
-        %__MODULE__{channel_id: current_channel_id} = state
+        %__MODULE__{channel_id: _current_channel_id} = state
       )
       do
+      # TODO https://github.com/aeternity/aeternity/issues/3027
       # when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     produce_callback(:channels_info, state, 0, event)
     # manual sync, this is particullary intersting, this is needed for future reconnects
-    new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
+
+    # TODO https://github.com/aeternity/aeternity/issues/3027
+    # new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
+    new_state = %__MODULE__{state | fsm_id: fsm_id}
     sync_state(new_state)
     {:ok, new_state}
   end
