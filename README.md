@@ -82,7 +82,7 @@ AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat"
 ```
 
 point your browser to `http://localhost:4000/`
-> testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recomended worksround is to host your own node.
+> testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recommended workaround is to host your own node.
 
 > if your interface is missing CSS you need to:  
 `cd apps/ae_channel_interface/assets && npm install && cd -`
