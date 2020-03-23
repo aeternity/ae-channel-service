@@ -3,10 +3,36 @@ defmodule SessionHolderHelper do
   defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
   defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
 
-  def connection_callback(callback_pid, color, logfun \\ &(&1)) do
+  def connection_callback(callback_pid, color, logfun \\ &(&1)) when is_atom(color) do
     %SocketConnector.ConnectionCallbacks{
-      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, human ->
-        logfun.({:sign_approve, %{round_initator: round_initiator, round: round, auto_approval: auto_approval, method: method, to_sign: to_sign, human: human, color: color}})
+      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, channel_id, human ->
+        logfun.({:sign_approve, %{round_initator: round_initiator, round: round, auto_approval: auto_approval, method: method, to_sign: to_sign, channel_id: channel_id, human: human, color: color}})
+        GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, round_initiator, method, channel_id}, to_sign})
+        auto_approval
+      end,
+      channels_info: fn round_initiator, round, method ->
+        logfun.({:channels_info, %{round_initiator: round_initiator, round: round, method: method, color: color}})
+        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
+      end,
+      channels_update: fn round_initiator, round, method ->
+        logfun.({:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}})
+        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
+      end,
+      on_chain: fn round_initiator, round, method ->
+        logfun.({:on_chain, %{round_initiator: round_initiator, round: round, method: method, color: color}})
+        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, round, round_initiator, method}, nil})
+      end,
+      connection_update: fn status, reason ->
+        logfun.({:connection_update, %{status: status, reason: reason, color: color}})
+        GenServer.cast(callback_pid, {:connection_update, {status, reason}})
+      end
+    }
+  end
+
+  def connection_callback_runner(callback_pid, color, logfun \\ &(&1)) when is_atom(color) do
+    %SocketConnector.ConnectionCallbacks{
+      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, channel_id, human ->
+        logfun.({:sign_approve, %{round_initator: round_initiator, round: round, auto_approval: auto_approval, method: method, to_sign: to_sign, channel_id: channel_id, human: human, color: color}})
         GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, method}, to_sign})
         auto_approval
       end,

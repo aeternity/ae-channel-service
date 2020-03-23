@@ -27,25 +27,34 @@ defmodule BackendSession do
     GenServer.start_link(__MODULE__, {params, pid_manager})
   end
 
+  defp log_callback({type, message}) do
+    Logger.info(
+      "backend service: #{inspect({type, message})} pid is: #{inspect(self())}",
+      ansi_color: Map.get(message, :color, nil)
+    )
+  end
+
   #Server
   def init({{role, channel_config, {_channel_id, _reestablish_port} = reestablish, initiator_keypair} = params, pid_manager}) do
     Logger.info("Starting backend session #{inspect params} pid is #{inspect self()}")
-    {:ok, pid} = SessionHolderHelper.start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), "yellow"))
+    {:ok, pid} = SessionHolderHelper.start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), :blue, &log_callback/1))
     {:ok, %__MODULE__{pid_session_holder: pid, pid_backend_manager: pid_manager}}
   end
 
   #TODO once we know the channel_id this process should register itself somewhere.
-  def handle_cast({:connection_update, {_status, _reason} = update}, state) do
-    Logger.info("Connection update in backend, #{inspect update}")
+  def handle_cast({:connection_update, {_status, _reason} = _update}, state) do
     {:noreply, state}
   end
 
   # TODO backend just happily signs
-  def handle_cast({:match_jobs, {:sign_approve, _round, method}, to_sign} = message, state) do
-    Logger.info("Sign request in backend #{inspect(message)}")
+  def handle_cast({:match_jobs, {:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message, state) do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
+
+    if method == "channels.sign.responder_sign" do
+
+    end
 
     {:noreply, state}
   end

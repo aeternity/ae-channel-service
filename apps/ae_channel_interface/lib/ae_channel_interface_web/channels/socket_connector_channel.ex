@@ -22,6 +22,13 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     end
   end
 
+  defp log_callback({type, message}) do
+    Logger.info(
+      "interactive client: #{inspect({type, message})} pid is: #{inspect(self())}",
+      ansi_color: Map.get(message, :color, nil)
+    )
+  end
+
   # Channels can be used in a request/response fashion
   # by sending replies to requests from the client
   def handle_in("ping", payload, socket) do
@@ -32,7 +39,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   def handle_in("connect/reestablish", payload, socket) do
     config = SessionHolderHelper.custom_config(%{}, %{port: payload["port"]})
     {:ok, pid_session_holder} =
-      SessionHolderHelper.start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), "yellow"))
+      SessionHolderHelper.start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), :yellow, &log_callback/1))
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
@@ -78,9 +85,9 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     {:noreply, socket}
   end
 
-  def handle_cast({:match_jobs, {:sign_approve, _round, method}, to_sign} = message, socket) do
+  def handle_cast({:match_jobs, {:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message, socket) do
     Logger.info("Sign request #{inspect(message)}")
-    push(socket, "sign", %{message: inspect(message), method: method, to_sign: to_sign})
+    push(socket, "sign", %{message: inspect(message), method: method, to_sign: to_sign, channel_id: channel_id})
     push(socket, "log_event", %{message: inspect(message), name: "bot"})
     # broadcast socket, "log_event", %{message: inspect(message), name: "bot2"}
     {:noreply, socket}

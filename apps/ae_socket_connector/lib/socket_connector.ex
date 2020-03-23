@@ -854,12 +854,6 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # IMPORTANT!
-  # The message channels.sign.initiator_sign and channels.sign.responder_sign  nitiator_sign are of extra importance
-  # because once arrive the clinet have all credentials needed for a reestablish, allowing the client
-  # to disconnect. Keys are channel_id, fsm_id, and the state_tx. Remember the keep these _and_ update them
-  # accordingly.
-  #
   # Note, these doesn't contain round...
   def process_message(
         %{
@@ -875,7 +869,7 @@ defmodule SocketConnector do
              "channels.sign.shutdown_sign",
              "channels.sign.shutdown_sign_ack"
            ] do
-    Validator.notify_sign_transaction(to_sign, method, state)
+    Validator.notify_sign_transaction(to_sign, method, state.channel_id, state)
     {:ok, state}
   end
 
@@ -892,6 +886,12 @@ defmodule SocketConnector do
     "channels.sign.withdraw_ack"
   ]
 
+  # IMPORTANT!
+  # The message channels.sign.initiator_sign and channels.sign.responder_sign  nitiator_sign are of extra importance
+  # because once arrive the clinet have all credentials needed for a reestablish, allowing the client
+  # to disconnect. Keys are channel_id, fsm_id, and the state_tx. Remember the keep these _and_ update them
+  # accordingly.
+  #
   def process_message(
         %{
           "method" => method,
@@ -915,7 +915,7 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    Validator.notify_sign_transaction(pending_update, method, state)
+    Validator.notify_sign_transaction(pending_update, method, channel_id, state)
 
     new_state = %__MODULE__{
        state

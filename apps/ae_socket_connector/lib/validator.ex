@@ -56,7 +56,7 @@ defmodule Validator do
   #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
   # end
 
-  defp send_approval_request(to_sign, round_initiator, method, auto_approval, state) do
+  defp send_approval_request(to_sign, round_initiator, method, channel_id, auto_approval, state) do
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
     # returns #aetx
     deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
@@ -78,16 +78,16 @@ defmodule Validator do
           :aesc_close_mutual_tx ->
             Logger.debug("Close mutual #{inspect(instance)}", state.color)
             # round = apply(module, :nonce, [instance])
-            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
 
           :aesc_slash_tx ->
             # todo code missing there. we should get the round somehow.
-            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
 
           # apply(module, :for_client, [instance])
           :aesc_settle_tx ->
             # todo code missing there. we should get the round somehow.
-            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
 
           # apply(module, :for_client, [instance])
 
@@ -98,11 +98,11 @@ defmodule Validator do
             aetx = :aetx_sign.tx(deserialized_signed_tx)
             {module, instance} = :aetx.specialize_callback(aetx)
             round = apply(module, :round, [instance])
-            sign_approve.(round_initiator, round, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, round, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
 
           _ ->
             round = apply(module, :round, [instance])
-            sign_approve.(round_initiator, round, auto_approval, method, to_sign, :aetx.serialize_for_client(aetx))
+            sign_approve.(round_initiator, round, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
         end
     end
   end
@@ -110,12 +110,14 @@ defmodule Validator do
   def notify_sign_transaction(
         to_sign,
         method,
+        channel_id,
         state
       )
 
   def notify_sign_transaction(
         %Update{} = pending_update,
         method,
+        channel_id,
         state
       ) do
     %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
@@ -123,7 +125,7 @@ defmodule Validator do
     # The idea here is that if we initiated the round we can automatically confirm that the sign request contians what we intended. Grab code from inspect_sign_request
     auto_approval = :ok
 
-    case send_approval_request(to_sign, round_initiator, method, auto_approval, state) do
+    case send_approval_request(to_sign, round_initiator, method, channel_id, auto_approval, state) do
       :ok -> :ok
       _ -> :unsecure
     end
@@ -132,11 +134,13 @@ defmodule Validator do
   def notify_sign_transaction(
         to_sign,
         method,
+        channel_id,
         state
       ) do
     notify_sign_transaction(
       %Update{tx: to_sign, round_initiator: :not_implemented},
       method,
+      channel_id,
       state
     )
   end
@@ -171,7 +175,7 @@ defmodule Validator do
           :ok
       end
 
-    case send_approval_request(aetx, round_initiator, method, auto_approval, state) do
+    case send_approval_request(aetx, round_initiator, method, nil, auto_approval, state) do
       :ok -> :ok
       _ -> :unsecure
     end

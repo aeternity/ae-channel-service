@@ -174,6 +174,8 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
     channel.on('sign', function (payload) {
         sign_msg.value = payload.to_sign
         sign_mthd.value = payload.method
+        channel_id.value = payload.channel_id
+        connect_btn.textContent = "Reestablish"
     });
 
     channel.on('connected', function (payload) {
