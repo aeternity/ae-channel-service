@@ -2,9 +2,6 @@ defmodule ClientRunner do
   use GenServer
   require Logger
 
-  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
-
   defstruct pid_session_holder: nil,
             color: nil,
             match_list: nil,

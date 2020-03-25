@@ -1,10 +1,6 @@
 defmodule SingleEndChannelTest do
   use ExUnit.Case
   require Logger
-
-  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  @network_id Application.get_env(:ae_socket_connector, :node)[:network_id]
-
   def clean_log_config_file(log_config) do
     File.rm(Path.join(log_config.log, log_config.log))
   end
@@ -55,8 +51,8 @@ defmodule SingleEndChannelTest do
       })
 
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SocketConnectorHelper.ae_url(),
+      SockerConnectorHelper.network_id(),
       %{
         initiator: %{
           name: alice,

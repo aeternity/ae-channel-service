@@ -6,6 +6,9 @@ defmodule AeChannelInterfaceWeb.ConnectController do
   require Logger
   require SessionHolderHelper
 
+  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
+
+
   def public_key() do
     {responder_pub_key, _responder_priv_key} = SocketConnectorChannel.keypair_responder()
     responder_pub_key
@@ -29,7 +32,7 @@ defmodule AeChannelInterfaceWeb.ConnectController do
     open_port = String.to_integer(port)
     channel_config = SessionHolderHelper.custom_config(%{}, %{port: open_port})
     basic_params = channel_config.(client_account, public_key())
-    custom_params = channel_config.(client_account, public_key()).custom_param_fun.(:initiator, SessionHolderHelper.ae_url())
+    custom_params = channel_config.(client_account, public_key()).custom_param_fun.(:initiator, @ae_url)
     BackendServiceManager.start_channel({:responder, channel_config, {"", 0}, fn -> {client_account, "not for you to have"} end})
     json conn, %{account: public_key(), client_account: client_account, api_endpoint: "connect", client: params,  expected_initiator_configuration: %{basic: Map.from_struct(basic_params.basic_configuration), custom: custom_params}}
   end

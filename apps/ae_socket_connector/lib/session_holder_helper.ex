@@ -1,7 +1,12 @@
 defmodule SessionHolderHelper do
 
-  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
+  def ae_url() do
+    Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  end
+
+  def network_id() do
+    Application.get_env(:ae_socket_connector, :node)[:network_id]
+  end
 
   def connection_callback(callback_pid, color, logfun \\ &(&1)) when is_atom(color) do
     %SocketConnector.ConnectionCallbacks{

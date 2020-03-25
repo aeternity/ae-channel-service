@@ -85,7 +85,7 @@ defmodule SocketConnector do
     session_map = init_map(session, role, ws_base)
 
     ws_url = create_link(ws_base, session_map)
-    Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
+    Logger.error("start_link #{inspect(ws_url)}", ansi_color: color)
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{

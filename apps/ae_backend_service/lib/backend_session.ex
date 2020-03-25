@@ -12,7 +12,7 @@ defmodule BackendSession do
   defmacro keypair_initiator, do: Application.get_env(:ae_socket_connector, :accounts)[:initiator]
   defmacro keypair_responder, do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
 
-  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
+  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
 
   defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
 
@@ -63,10 +63,6 @@ defmodule BackendSession do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
-
-    if method == "channels.sign.responder_sign" do
-
-    end
 
     {:noreply, state}
   end

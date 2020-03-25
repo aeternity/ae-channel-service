@@ -5,9 +5,6 @@ defmodule SocketConnectorTest do
 
   # Code.require_file "client_runner.ex", __DIR__
 
-  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  @network_id Application.get_env(:ae_socket_connector, :node)[:network_id]
-
   def gen_names(id) do
     clean_id = Atom.to_string(id)
     {String.to_atom("alice " <> clean_id), String.to_atom("bob " <> clean_id)}
@@ -97,8 +94,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1400})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -136,8 +133,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1401})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -198,8 +195,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1402})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -233,13 +230,13 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = ChannelService.OnChain.nonce(@ae_url, intiator_account)
-                height = ChannelService.OnChain.current_height(@ae_url)
+                nonce = ChannelService.OnChain.nonce(SessionHolderHelper.ae_url(), intiator_account)
+                height = ChannelService.OnChain.current_height(SessionHolderHelper.ae_url())
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
                 transaction = SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
 
-                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
+                ChannelService.OnChain.post_solo_close(SessionHolderHelper.ae_url(), transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -260,8 +257,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1403})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -306,8 +303,8 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = ChannelService.OnChain.nonce(@ae_url,intiator_account)
-                height = ChannelService.OnChain.current_height(@ae_url)
+                nonce = ChannelService.OnChain.nonce(SessionHolderHelper.ae_url(),intiator_account)
+                height = ChannelService.OnChain.current_height(SessionHolderHelper.ae_url())
 
                 transaction =
                   GenServer.call(
@@ -315,7 +312,7 @@ defmodule SocketConnectorTest do
                     {:solo_close_transaction, 2, nonce + 1, height}
                   )
 
-                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
+                ChannelService.OnChain.post_solo_close(SessionHolderHelper.ae_url(), transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
@@ -356,8 +353,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1404})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -427,8 +424,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1405})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -441,8 +438,8 @@ defmodule SocketConnectorTest do
   #   {alice, bob} = gen_names(context.test)
 
   #   ClientRunner.start_peers(
-  #     @ae_url,
-  #     @network_id,
+  #     SessionHolderHelper.ae_url(),
+  #     SessionHolderHelper.network_id(),
   #     %{
       #   initiator: %{name: alice, keypair: accounts_initiator()},
       #   responder: %{name: bob, keypair: accounts_responder()}
@@ -562,8 +559,8 @@ defmodule SocketConnectorTest do
     end
 
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator()},
         responder: %{name: bob, keypair: accounts_responder()}
@@ -619,8 +616,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1406})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -673,8 +670,8 @@ defmodule SocketConnectorTest do
     end
 
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator()},
         responder: %{name: bob, keypair: accounts_responder()}
@@ -769,8 +766,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1407})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -1037,8 +1034,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -1211,8 +1208,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -1319,8 +1316,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator()},
         responder: %{name: bob, keypair: accounts_responder()}
@@ -1333,8 +1330,8 @@ defmodule SocketConnectorTest do
   #   {alice, bob} = gen_names(context.test)
 
   #   ClientRunner.start_peers(
-  #     @ae_url,
-  #     @network_id,
+  #     SessionHolderHelper.ae_url(),
+  #     SessionHolderHelper.network_id(),
   #     %{
       #   initiator: %{name: alice, keypair: accounts_initiator()},
       #   responder: %{name: bob, keypair: accounts_responder()}
@@ -1401,8 +1398,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 50, port: 1409})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
