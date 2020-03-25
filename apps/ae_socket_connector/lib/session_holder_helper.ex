@@ -15,9 +15,9 @@ defmodule SessionHolderHelper do
         GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, round_initiator, method, channel_id}, to_sign})
         auto_approval
       end,
-      channels_info: fn round_initiator, round, method ->
-        logfun.({:channels_info, %{round_initiator: round_initiator, round: round, method: method, color: color}})
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
+      channels_info: fn round_initiator, round, method, channel_id ->
+        logfun.({:channels_info, %{round_initiator: round_initiator, round: round, method: method, channel_id: channel_id, color: color}})
+        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method, channel_id}, nil})
       end,
       channels_update: fn round_initiator, round, method ->
         logfun.({:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}})
@@ -41,8 +41,8 @@ defmodule SessionHolderHelper do
         GenServer.cast(callback_pid, {:match_jobs, {:sign_approve, round, method}, to_sign})
         auto_approval
       end,
-      channels_info: fn round_initiator, round, method ->
-        logfun.({:channels_info, %{round_initiator: round_initiator, round: round, method: method, color: color}})
+      channels_info: fn round_initiator, round, method, channel_id ->
+        logfun.({:channels_info, %{round_initiator: round_initiator, round: round, method: method, channel_id: channel_id, color: color}})
         GenServer.cast(callback_pid, {:match_jobs, {:channels_info, round, round_initiator, method}, nil})
       end,
       channels_update: fn round_initiator, round, method ->

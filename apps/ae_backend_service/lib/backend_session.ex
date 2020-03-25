@@ -12,12 +12,6 @@ defmodule BackendSession do
   defmacro keypair_initiator, do: Application.get_env(:ae_socket_connector, :accounts)[:initiator]
   defmacro keypair_responder, do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
 
-  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
-
-  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
-
-
-
   defstruct pid_session_holder: nil,
             pid_backend_manager: nil,
             identifier: nil,
@@ -49,21 +43,24 @@ defmodule BackendSession do
     {:noreply, %__MODULE__{state | pid_session_holder: pid, port: port}}
   end
 
-  #TODO once we know the channel_id this process should register itself somewhere.
   def handle_cast({:connection_update, {_status, _reason} = _update}, state) do
     {:noreply, state}
   end
 
   # TODO backend just happily signs
-  def handle_cast({:match_jobs, {:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = _message, state) do
-    if (method == "channels.sign.responder_sign") do
-      BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
-    end
-
+  def handle_cast({:match_jobs, {:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message, state) do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, state}
+  end
 
+  {:match_jobs, {:channels_info, 0, :transient, "funding_created", "ch_2hSRxVW6GKKuKTgLCMGhYHgFD5w8TsR83LiTUk7LDgE
+cLyMDas"}, nil}
+
+  # once this occured we should be able to reconnect.
+  def handle_cast({:match_jobs, {:channels_info, _round, _round_initiator, method, channel_id}, _}, state) when method in ["funding_signed", "funding_created"] do
+    BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
     {:noreply, state}
   end
 

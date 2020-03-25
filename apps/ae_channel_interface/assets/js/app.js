@@ -171,9 +171,12 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
         ul.appendChild(li);                    // append to list
     });
 
-    channel.on('sign', function (payload) {
+    channel.on('sign_approve', function (payload) {
         sign_msg.value = payload.to_sign
         sign_mthd.value = payload.method
+    });
+
+    channel.on('channels_info', function (payload) {
         channel_id.value = payload.channel_id
         connect_btn.textContent = "Reestablish"
     });
@@ -207,9 +210,14 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
         ul.appendChild(li);                    // append to list
     });
 
-    channel.on('sign', function (payload) {
+    channel.on('sign_approve', function (payload) {
         sign_msg.value = payload.to_sign
         sign_mthd.value = payload.method
+    });
+
+    channel.on('channels_info', function (payload) {
+        channel_id.value = payload.channel_id
+        connect_btn.textContent = "Reestablish"
     });
 
     channel.on('connected', function (payload) {

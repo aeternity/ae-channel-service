@@ -886,12 +886,6 @@ defmodule SocketConnector do
     "channels.sign.withdraw_ack"
   ]
 
-  # IMPORTANT!
-  # The message channels.sign.initiator_sign and channels.sign.responder_sign  nitiator_sign are of extra importance
-  # because once arrive the clinet have all credentials needed for a reestablish, allowing the client
-  # to disconnect. Keys are channel_id, fsm_id, and the state_tx. Remember the keep these _and_ update them
-  # accordingly.
-  #
   def process_message(
         %{
           "method" => method,
@@ -1067,7 +1061,7 @@ defmodule SocketConnector do
   end
 
   def produce_callback(type, state, round, method)
-      when type in [:channels_update, :channels_info, :on_chain] do
+      when type in [:channels_update, :on_chain] do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1081,6 +1075,23 @@ defmodule SocketConnector do
         :ok
     end
   end
+
+  def produce_callback(type, state, round, method, channel_id)
+      when type in [:channels_info] do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+
+      _ ->
+        %Update{round_initiator: round_initiator} =
+          Map.get(state.pending_round_and_update, round, %Update{round_initiator: :transient})
+
+        callback = Map.get(state.connection_callbacks, type)
+        callback.(round_initiator, round, method, channel_id)
+        :ok
+    end
+  end
+
 
   def produce_callback(:connection_update, {action, reason}, state) do
     case state.connection_callbacks do
@@ -1148,7 +1159,7 @@ defmodule SocketConnector do
 
   # %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => nil, "data" => %{"event" => "fsm_up", "fsm_id" => "ba_fVV9rUl9X6OG/fzAbSsxIjQCqwaPlgxNCgJWIF3cIvOqliqv"}}, "version" => 1}
 
-  # IMPORTANT
+  # IMPORTANT!
   # The fsm_id changes on every reestablish and need to be saved/persisted by the client in order to be able to
   # perform reestablish.
   def process_message(
@@ -1159,10 +1170,29 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-    produce_callback(:channels_info, state, 0, event)
+    produce_callback(:channels_info, state, 0, event, channel_id)
     # manual sync, this is particullary intersting, this is needed for future reconnects
 
     new_state = %__MODULE__{state | fsm_id: fsm_id}
+    sync_state(new_state)
+    {:ok, new_state}
+  end
+
+  # IMPORTANT!
+  # The event funding_signed and funding_created are of extra importance. Once the message arrives the client
+  # have all credentials needed for a reestablish, allowing the client to disconnect.
+  # Keys are channel_id, fsm_id, and the state_tx. Remember the keep these _and_ update them
+  # accordingly.
+  def process_message(
+        %{
+          "method" => "channels.info",
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event, "fsm_id" => fsm_id}}
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when (channel_id == current_channel_id or is_first_update(current_channel_id, channel_id)) and event in ["funding_signed", "funding_created"] do
+    produce_callback(:channels_info, state, 0, event, channel_id)
+    new_state = %__MODULE__{state | fsm_id: fsm_id, channel_id: channel_id}
     sync_state(new_state)
     {:ok, new_state}
   end
@@ -1175,7 +1205,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-    produce_callback(:channels_info, state, 0, event)
+    produce_callback(:channels_info, state, 0, event, channel_id)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
