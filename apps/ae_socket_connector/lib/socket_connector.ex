@@ -1009,9 +1009,19 @@ defmodule SocketConnector do
     {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
+  # can be removed once this is fixed
+  # https://github.com/aeternity/aeternity/issues/3186
+  def process_message(%{"channel_id" => _channel_id, "error" => %{"data" => %{"message" => "Invalid fsm id"}}} = error, state) do
+    Logger.error("error")
+    Logger.error("<= error unprocessed message: #{inspect(error)}", state.color)
+    clean_and_exit(state, error)
+    {:error, state}
+  end
+
+
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("error")
-    Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
+    Logger.error("<= error unprocessed message: #{inspect(error)}", state.color)
     {:error, state}
   end
 
@@ -1168,8 +1178,7 @@ defmodule SocketConnector do
           "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
-      )
-      when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
+      ) do
     produce_callback(:channels_info, state, 0, event, channel_id)
     # manual sync, this is particullary intersting, this is needed for future reconnects
 
