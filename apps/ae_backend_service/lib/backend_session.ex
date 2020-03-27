@@ -15,6 +15,7 @@ defmodule BackendSession do
   defstruct pid_session_holder: nil,
             pid_backend_manager: nil,
             identifier: nil,
+            params: nil,
             port: nil
 
   #Client
@@ -34,7 +35,7 @@ defmodule BackendSession do
   def init({params, {pid_manager, identifier}}) do
     Logger.info("Starting backend session #{inspect {params, identifier}} pid is #{inspect self()}")
     GenServer.cast(self(), {:resume_init, params})
-    {:ok, %__MODULE__{pid_backend_manager: pid_manager, identifier: identifier}}
+    {:ok, %__MODULE__{pid_backend_manager: pid_manager, identifier: identifier, params: params}}
   end
 
   def handle_cast({:resume_init, {role, channel_config, _reestablish, initiator_keypair}}, state) do
@@ -42,6 +43,14 @@ defmodule BackendSession do
     {:ok, pid} = SessionHolderHelper.start_session_holder(role, channel_config, reestablish, initiator_keypair, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), :blue, &log_callback/1))
     {:noreply, %__MODULE__{state | pid_session_holder: pid, port: port}}
   end
+
+  # This can end up in an never successfull connection (endless loop), beware.
+  def handle_cast({:connection_update, {:disconnected, _reason} = update}, state) do
+    Logger.warn("Backend disconnected, attempting reestablish #{inspect update}")
+    GenServer.cast(self(), {:resume_init, state.params})
+    {:noreply, state}
+  end
+
 
   def handle_cast({:connection_update, {_status, _reason} = _update}, state) do
     {:noreply, state}
@@ -54,9 +63,6 @@ defmodule BackendSession do
     SessionHolder.run_action(state.pid_session_holder, fun)
     {:noreply, state}
   end
-
-  {:match_jobs, {:channels_info, 0, :transient, "funding_created", "ch_2hSRxVW6GKKuKTgLCMGhYHgFD5w8TsR83LiTUk7LDgE
-cLyMDas"}, nil}
 
   # once this occured we should be able to reconnect.
   def handle_cast({:match_jobs, {:channels_info, _round, _round_initiator, method, channel_id}, _}, state) when method in ["funding_signed", "funding_created"] do
