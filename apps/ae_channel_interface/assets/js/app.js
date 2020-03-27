@@ -82,6 +82,10 @@ connect_port.addEventListener('input', function (updatevalue) {
     updateBackendParams(connect_port.value, channel_id.value, public_key.value)
 });
 
+channel_id.addEventListener('change', function (updatevalue) {
+    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+});
+
 channel_id.addEventListener('input', function (updatevalue) {
     if (channel_id.value == "") {
         connect_btn.textContent = "Connect"
@@ -173,12 +177,14 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
 
     channel.on('sign_approve', function (payload) {
         sign_msg.value = payload.to_sign
-        sign_mthd.value = payload.method
+        sign_mthd.value = payload.method        
     });
 
     channel.on('channels_info', function (payload) {
         channel_id.value = payload.channel_id
         connect_btn.textContent = "Reestablish"
+        var event = new Event('input');
+        channel_id.dispatchEvent(event);
     });
 
     channel.on('connected', function (payload) {
@@ -218,6 +224,8 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
     channel.on('channels_info', function (payload) {
         channel_id.value = payload.channel_id
         connect_btn.textContent = "Reestablish"
+        var event = new Event('input');
+        channel_id.dispatchEvent(event);
     });
 
     channel.on('connected', function (payload) {
