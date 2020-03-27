@@ -39,8 +39,8 @@ defmodule AeChannelInterfaceWeb.Endpoint do
   # Set :encryption_salt if you would also like to encrypt it.
   plug Plug.Session,
     store: :cookie,
-    key: "_ae_channel_interface_key",
-    signing_salt: "37O4Mnmk"
+    key: Application.get_env(:ae_channel_interface, __MODULE__)[:cookie_key],
+    signing_salt: Application.get_env(:ae_channel_interface, __MODULE__)[:signing_salt]
 
   plug AeChannelInterfaceWeb.Router
 end

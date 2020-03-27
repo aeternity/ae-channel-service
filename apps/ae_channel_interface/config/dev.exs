@@ -19,7 +19,10 @@ config :ae_channel_interface, AeChannelInterfaceWeb.Endpoint,
       "--watch-stdin",
       cd: Path.expand("../assets", __DIR__)
     ]
-  ]
+  ],
+  secret_key_base: System.get_env("SECRET_KEY_BASE", "KmiLveFrbi3Zn4MCPdXza9hu+I38jI47ql/jasWqa3pWJTWm0RgHtI+JOG6I9t/l"),
+  signing_salt: System.get_env("SIGNING_SALT", "37O4Mnmk"),
+  cookie_key: System.get_env("COOKIE_KEY", "_ae_channel_interface_key")
 
 # ## SSL Support
 #

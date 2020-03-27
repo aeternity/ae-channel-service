@@ -4,7 +4,9 @@ use Mix.Config
 # you can enable the server option below.
 config :ae_channel_interface, AeChannelInterfaceWeb.Endpoint,
   http: [port: 4002],
-  server: false
+  server: false,
+  signing_salt: "37O4Mnmk",
+  cookie_key: "_ae_channel_interface_key"
 
 # Print only warnings and errors during test
 # config :logger, level: :warn
