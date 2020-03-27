@@ -26,7 +26,7 @@ defmodule BackendSession do
 
   defp log_callback({type, message}) do
     Logger.info(
-      "backend service: #{inspect({type, message})} pid is: #{inspect(self())}",
+      "backend session: #{inspect({type, message})} pid is: #{inspect(self())}",
       ansi_color: Map.get(message, :color, nil)
     )
   end
@@ -55,6 +55,16 @@ defmodule BackendSession do
   def handle_cast({:connection_update, {_status, _reason} = _update}, state) do
     {:noreply, state}
   end
+
+  # this will only happen once!
+  def handle_cast({:match_jobs, {:channels_update, 1, :other, "channels.update"}, nil} = _message, state) do
+  # def handle_cast({:match_jobs, {:channels_info, 0, :transient, "open", _channel_id}, nil} = _message, state) do
+    responder_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes", %{abi_version: 3, vm_version: 5, backend: :fate}}
+    fun = &SocketConnector.new_contract(&1, responder_contract, 10)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, state}
+  end
+
 
   # TODO backend just happily signs
   def handle_cast({:match_jobs, {:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message, state) do
