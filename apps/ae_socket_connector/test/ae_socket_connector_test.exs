@@ -48,31 +48,31 @@ defmodule SocketConnectorTest do
       [
         # opening channel
         # re-add once the node is updated to use password
-        # {:responder, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
-        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "channel_open"}}},
+        # {:responder, %{message: {:channels_info, "fsm_up"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, "channel_open"}}},
         # re-add once the node is updated to use password
-        # {:initiator, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
-        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "channel_accept"}}},
+        # {:initiator, %{message: {:channels_info, "fsm_up"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, "channel_accept"}}},
         {:initiator, %{message: {:sign_approve, 1, "channels.sign.initiator_sign"}}},
-        {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
+        {:responder, %{message: {:channels_info, "funding_created"}}},
         {:responder, %{message: {:sign_approve, 1, "channels.sign.responder_sign"}}},
-        {:responder, %{message: {:on_chain, 0, :transient, "funding_created"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "funding_signed"}}},
-        {:initiator, %{message: {:on_chain, 0, :transient, "funding_signed"}}},
-        # {:responder, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
-        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "own_funding_locked"}}},
-        # {:initiator, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
-        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "own_funding_locked"}}},
-        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "funding_locked"}}},
-        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "funding_locked"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "open"}}},
+        {:responder, %{message: {:on_chain, "funding_created"}}},
+        {:initiator, %{message: {:channels_info, "funding_signed"}}},
+        {:initiator, %{message: {:on_chain, "funding_signed"}}},
+        # {:responder, %{message: {:on_chain, "channel_changed"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, "own_funding_locked"}}},
+        # {:initiator, %{message: {:on_chain, "channel_changed"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, "own_funding_locked"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, "funding_locked"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, "funding_locked"}}},
+        {:initiator, %{message: {:channels_info, "open"}}},
         {:initiator,
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 3
          }},
-        {:responder, %{message: {:channels_info, 0, :transient, "open"}}},
+        {:responder, %{message: {:channels_info, "open"}}},
         {:responder, %{message: {:channels_update, 1, :other, "channels.update"}}},
         # end of opening sequence
         # leaving
@@ -85,7 +85,7 @@ defmodule SocketConnectorTest do
         {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 1}},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            fuzzy: 0,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -124,7 +124,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -174,7 +174,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "aborted_update"},
+           message: {:channels_info, "aborted_update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 10
          }},
@@ -186,7 +186,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -242,13 +242,13 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:on_chain, 0, :transient, "solo_closing"},
+           message: {:on_chain, "solo_closing"},
            fuzzy: 10,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:on_chain, 0, :transient, "solo_closing"},
+           message: {:on_chain, "solo_closing"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -318,33 +318,33 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:on_chain, 0, :transient, "can_slash"},
+           message: {:on_chain, "can_slash"},
            fuzzy: 10,
            next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty}
            #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:on_chain, 0, :transient, "can_slash"},
+           message: {:on_chain, "can_slash"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }},
         {:initiator,
          %{
-           message: {:on_chain, 0, :transient, "solo_closing"},
+           message: {:on_chain, "solo_closing"},
            fuzzy: 5,
            next: {:async, fn pid -> SocketConnector.settle(pid) end, :empty}
            #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 10,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -456,7 +456,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "open"},
+           message: {:channels_info, "open"},
            next:
              {:local,
               fn client_runner, pid_session_holder ->
@@ -601,13 +601,13 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "closing"},
+           message: {:channels_info, "closing"},
            fuzzy: 15,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "closing"},
+           message: {:channels_info, "closing"},
            fuzzy: 15,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -656,13 +656,13 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 10,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -1249,7 +1249,7 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            fuzzy: 20,
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            next: ClientRunnerHelper.pause_job(300)
          }},
         {:initiator,
@@ -1264,7 +1264,7 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            fuzzy: 20,
-           # :channels_info, 0, :transient, "peer_disconnected"
+           # :channels_info, "peer_disconnected"
            message: {:channels_update, 2, :transient, "channels.leave"},
            next:
              {:local,
@@ -1350,9 +1350,9 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            # worked before
-           # message: {:channels_info, 0, :transient, "funding_signed"},
+           # message: {:channels_info, "funding_signed"},
            # should work now
-           message: {:channels_info, 0, :transient, "own_funding_locked"},
+           message: {:channels_info, "own_funding_locked"},
            fuzzy: 10,
            next:
              {:local,

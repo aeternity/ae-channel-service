@@ -1071,7 +1071,7 @@ defmodule SocketConnector do
   end
 
   def produce_callback(type, state, round, method)
-      when type in [:channels_update, :on_chain] do
+      when type in [:channels_update] do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1086,18 +1086,15 @@ defmodule SocketConnector do
     end
   end
 
-  def produce_callback(type, state, round, method, channel_id)
-      when type in [:channels_info] do
+  def produce_callback(type, state, method, channel_id)
+      when type in [:channels_info, :on_chain] do
     case state.connection_callbacks do
       nil ->
         :ok
 
       _ ->
-        %Update{round_initiator: round_initiator} =
-          Map.get(state.pending_round_and_update, round, %Update{round_initiator: :transient})
-
         callback = Map.get(state.connection_callbacks, type)
-        callback.(round_initiator, round, method, channel_id)
+        callback.(method, channel_id)
         :ok
     end
   end
@@ -1177,9 +1174,11 @@ defmodule SocketConnector do
           "method" => "channels.info",
           "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
-        %__MODULE__{channel_id: current_channel_id} = state
+        # TODO do we want to go for is_first_update here
+        # %__MODULE__{channel_id: current_channel_id} = state
+        state
       ) do
-    produce_callback(:channels_info, state, 0, event, channel_id)
+    produce_callback(:channels_info, state, event, channel_id)
     # manual sync, this is particullary intersting, this is needed for future reconnects
 
     new_state = %__MODULE__{state | fsm_id: fsm_id}
@@ -1200,7 +1199,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when (channel_id == current_channel_id or is_first_update(current_channel_id, channel_id)) and event in ["funding_signed", "funding_created"] do
-    produce_callback(:channels_info, state, 0, event, channel_id)
+    produce_callback(:channels_info, state, event, channel_id)
     new_state = %__MODULE__{state | fsm_id: fsm_id, channel_id: channel_id}
     sync_state(new_state)
     {:ok, new_state}
@@ -1214,7 +1213,7 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-    produce_callback(:channels_info, state, 0, event, channel_id)
+    produce_callback(:channels_info, state, event, channel_id)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
@@ -1239,7 +1238,7 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     # Produces some logging output.
-    produce_callback(:on_chain, state, 0, info)
+    produce_callback(:on_chain, state, info, channel_id)
     Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end

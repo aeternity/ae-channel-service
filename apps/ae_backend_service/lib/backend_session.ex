@@ -75,7 +75,7 @@ defmodule BackendSession do
   end
 
   # once this occured we should be able to reconnect.
-  def handle_cast({:match_jobs, {:channels_info, _round, _round_initiator, method, channel_id}, _}, state) when method in ["funding_signed", "funding_created"] do
+  def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _}, state) when method in ["funding_signed", "funding_created"] do
     BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
     {:noreply, state}
   end

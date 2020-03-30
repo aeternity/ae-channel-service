@@ -93,7 +93,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     {:noreply, socket}
   end
 
-  def handle_cast({:match_jobs, {:channels_info, _round, _round_initiator, method, channel_id}, _} = message, socket) when method in ["funding_signed", "funding_created"] do
+  def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _} = message, socket) when method in ["funding_signed", "funding_created"] do
     push(socket, "channels_info", %{message: inspect(message), method: method, channel_id: channel_id})
     push(socket, "log_event", %{message: inspect(message), name: "bot"})
     {:noreply, socket}
