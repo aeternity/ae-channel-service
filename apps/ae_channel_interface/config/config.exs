@@ -10,7 +10,6 @@ use Mix.Config
 # Configures the endpoint
 config :ae_channel_interface, AeChannelInterfaceWeb.Endpoint,
   url: [host: "localhost"],
-  secret_key_base: "KmiLveFrbi3Zn4MCPdXza9hu+I38jI47ql/jasWqa3pWJTWm0RgHtI+JOG6I9t/l",
   render_errors: [view: AeChannelInterfaceWeb.ErrorView, accepts: ~w(html json)],
   pubsub: [name: AeChannelInterface.PubSub, adapter: Phoenix.PubSub.PG2]
 

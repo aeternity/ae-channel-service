@@ -11,9 +11,23 @@ secret_key_base =
     You can generate one by calling: mix phx.gen.secret
     """
 
+signing_salt =
+  System.get_env("SIGNING_SALT") ||
+    raise """
+    environment variable SIGNING_SALT is missing.
+    """
+
+cookie_key =
+  System.get_env("COOKIE_KEY") ||
+    raise """
+    environment variable COOKIE_KEY is missing.
+    """
+
 config :ae_channel_interface, AeChannelInterfaceWeb.Endpoint,
   http: [:inet6, port: String.to_integer(System.get_env("PORT") || "4000")],
-  secret_key_base: secret_key_base
+  secret_key_base: secret_key_base,
+  signing_salt: signing_salt,
+  cookie_key: cookie_key
 
 # ## Using releases (Elixir v1.9+)
 #
