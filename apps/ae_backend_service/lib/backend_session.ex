@@ -68,7 +68,6 @@ defmodule BackendSession do
 
   # this will only happen once!
   def handle_cast({:match_jobs, {:channels_update, 1, :other, "channels.update"}, nil} = _message, state) do
-    # def handle_cast({:match_jobs, {:channels_info, 0, :transient, "open", _channel_id}, nil} = _message, state) do
     responder_contract =
       {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
        %{abi_version: 3, vm_version: 5, backend: :fate}}

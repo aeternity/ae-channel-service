@@ -76,6 +76,14 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
       "abort" ->
         fun = &SocketConnector.abort(&1, payload["method"], payload["abort_code"], "")
         SessionHolder.run_action(socketholder_pid, fun)
+
+      "query_funds" ->
+        # lets elaborate the sychronous way of doing things
+        fun = &SocketConnector.query_funds(&1, &2)
+        amount = SessionHolder.run_action_sync(socketholder_pid, fun)
+        GenServer.cast(self(), amount)
+        # fun = &SocketConnector.query_funds(&1)
+        # SessionHolder.run_action(socketholder_pid, fun)
     end
 
     {:noreply, socket}

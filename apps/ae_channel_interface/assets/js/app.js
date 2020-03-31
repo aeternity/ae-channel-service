@@ -41,6 +41,7 @@ let tranfer_amount = document.getElementById('transfer_amount');
 let connect_btn = document.getElementById('connect_btn');
 // let connect_responder_btn = document.getElementById('connect_responder_btn');
 
+let query_funds_btn = document.getElementById('query_funds_btn');
 let shutdown_btn = document.getElementById('shutdown_btn');
 let teardown_btn = document.getElementById('teardown_btn');
 
@@ -132,9 +133,16 @@ abort_btn.addEventListener('click', function (event) {
     sign_msg.value = '';
 });
 
+shutdown_btn.addEventListener('click', function (event) {
+    channel.push('query_funds', {});
+});
 
 shutdown_btn.addEventListener('click', function (event) {
     channel.push('shutdown', {});
+});
+
+query_funds_btn.addEventListener('click', function (event) {
+    channel.push('query_funds', {});
 });
 
 transfer_btn.addEventListener('click', function (event) {
