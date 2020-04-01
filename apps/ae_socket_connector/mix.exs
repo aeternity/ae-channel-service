@@ -27,11 +27,10 @@ defmodule SocketConnector.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:aesophia,
-       git: "https://github.com/aeternity/aesophia.git", manager: :rebar, tag: "v4.2.0"},
+      {:aesophia, git: "https://github.com/aeternity/aesophia.git", manager: :rebar, tag: "v4.2.0"},
       {:httpotion, "~> 3.1.0"},
       {:websockex, "~> 0.4.2"},
-      {:poison, "~> 3.1"},
+      {:poison, "~> 3.1"}
     ]
   end
 end

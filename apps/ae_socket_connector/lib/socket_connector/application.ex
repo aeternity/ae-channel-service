@@ -19,7 +19,8 @@ defmodule SocketConnector.Application do
     Application.get_env(:ae_socket_connector, :node)[:deps_path]
     |> Path.join("*/ebin")
     |> Path.wildcard()
-    |> Enum.each fn path -> Code.append_path(path) end
+    |> Enum.each(fn path -> Code.append_path(path) end)
+
     Supervisor.start_link(children, opts)
   end
 end
