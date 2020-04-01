@@ -6,6 +6,8 @@ Extensive documentation on aeternity state channels can be found [here](https://
 The project consists of the following applications
 * ae_socket_connector<br />
 implements the FSM protocol and manages the websocket to the FSM (node connection).
+This application will automatically persist channel_id and related data allowing reestablish. 
+> Default location is `./data`. remove folder to start from a clean slate. Location is configurabe as shown i example [here](https://github.com/aeternity/ae-channel-service/blob/4c40727b28b9ce5dec2231a2fa9ed46dd8618ccd/apps/ae_socket_connector/lib/session_holder_helper.ex#L185).
 * ae_channel_interface<br />
 an interactive web interface which visualizes channel messages with the intention to ease onboarding.
 * ae_backend_service<br />
@@ -19,6 +21,7 @@ sample backend service which could orchestrate a number of channels.
 
 clone this repository, then;
 ```
+cd ae-channel-service/
 make clean deps
 ```
 > to get the user interface look sane you could also:  
