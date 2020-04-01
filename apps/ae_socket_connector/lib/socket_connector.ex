@@ -1009,7 +1009,7 @@ defmodule SocketConnector do
     {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
-  # can be removed once this is fixed
+  # could possibly be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
   def process_message(%{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id"}]}} = error, state) do
     Logger.error("error")
