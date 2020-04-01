@@ -25,7 +25,7 @@ defmodule AeBackendServiceTest do
     unique_id2 = 12342
     reestablish2 = {"channel_id2", 23322}
     pid_self = self()
-    pid_other = 12314421
+    pid_other = 12_314_421
     channel_id_table = %{unique_id => {reestablish, pid_self}, unique_id2 => {reestablish2, pid_other}}
     assert pid_self == BackendServiceManager.is_already_started(channel_id_table, {"channel_id", 1111})
     assert nil == BackendServiceManager.is_already_started(channel_id_table, {"channel_id_new", 1112})

@@ -5,11 +5,11 @@ defmodule ClientRunnerHelper do
   def sequence_finish_job(runner_pid, name) do
     {:local,
      fn _client_runner, _pid_session_holder ->
-        spawn(fn ->
-          # let messages such as disconnect propagate before ending allowing test executor to kill env.
-          Process.sleep(300)
-          send(runner_pid, {:test_finished, name})
-        end)
+       spawn(fn ->
+         # let messages such as disconnect propagate before ending allowing test executor to kill env.
+         Process.sleep(300)
+         send(runner_pid, {:test_finished, name})
+       end)
      end, :empty}
   end
 

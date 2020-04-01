@@ -8,6 +8,6 @@ defmodule ChannelSupervisor do
   end
 
   def init(_arg) do
-    supervise [worker(BackendSession, [], restart: :transient)], strategy: :simple_one_for_one
+    supervise([worker(BackendSession, [], restart: :transient)], strategy: :simple_one_for_one)
   end
 end

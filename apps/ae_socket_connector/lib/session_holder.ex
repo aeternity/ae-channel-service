@@ -64,9 +64,9 @@ defmodule SessionHolder do
     path = Map.get(log_config, :path, "data")
     create_folder(path)
     name = Keyword.get(Process.info(self()), :registered_name, String.to_atom(inspect(self()))) |> Atom.to_string()
-    file_name_and_path = Path.join(path, (Map.get(log_config, :file, generate_filename(name))))
-    Logger.info "File_name is #{inspect file_name_and_path}"
-    {:ok, ref} = :dets.open_file(String.to_atom(file_name_and_path), [type: :duplicate_bag])
+    file_name_and_path = Path.join(path, Map.get(log_config, :file, generate_filename(name)))
+    Logger.info("File_name is #{inspect(file_name_and_path)}")
+    {:ok, ref} = :dets.open_file(String.to_atom(file_name_and_path), type: :duplicate_bag)
     ref
   end
 
@@ -74,40 +74,67 @@ defmodule SessionHolder do
     case File.mkdir(path) do
       :ok -> :ok
       {:error, :eexist} -> :ok
-      {:error, error} -> throw "not possible to create log directory #{inspect error}"
+      {:error, error} -> throw("not possible to create log directory #{inspect(error)}")
     end
   end
 
   defp generate_filename(name) do
-    (DateTime.utc_now |> DateTime.to_string()) <> "_channel_service_" <> String.replace(inspect(name), " ", "_") <> ".log"
+    (DateTime.utc_now() |> DateTime.to_string()) <>
+      "_channel_service_" <> String.replace(inspect(name), " ", "_") <> ".log"
   end
 
   # reestablish
-  def init(%{log_config: log_config, socket_connector: socket_connector_state, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, reestablish: %{channel_id: channel_id, port: port}, color: color}) do
-  # def init({socket_connector_state, _ae_url, network_id, %{channel_id: channel_id, port: port}, priv_key, connection_callbacks, file_name, :reestablish, color}) do
-    Logger.info("Starting session holder in reestablish mode, #{inspect self()}")
-    ref = init_storage(log_config)
-    state =
-      %__MODULE__{
-        # socket_connector_pid: pid,
-        socket_connector_state: socket_connector_state,
+  def init(%{
+        log_config: log_config,
+        socket_connector: socket_connector_state,
         network_id: network_id,
         priv_key: priv_key,
         connection_callbacks: connection_callbacks,
-        color: color,
-        # file: file_name,
-        file_ref: ref
-        }
+        reestablish: %{channel_id: channel_id, port: port},
+        color: color
+      }) do
+    # def init({socket_connector_state, _ae_url, network_id, %{channel_id: channel_id, port: port}, priv_key, connection_callbacks, file_name, :reestablish, color}) do
+    Logger.info("Starting session holder in reestablish mode, #{inspect(self())}")
+    ref = init_storage(log_config)
+
+    state = %__MODULE__{
+      # socket_connector_pid: pid,
+      socket_connector_state: socket_connector_state,
+      network_id: network_id,
+      priv_key: priv_key,
+      connection_callbacks: connection_callbacks,
+      color: color,
+      # file: file_name,
+      file_ref: ref
+    }
+
     {pid, saved_socket_connector_state} = reestablish_(state, channel_id, port)
-    {:ok, %__MODULE__{state | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state), socket_connector_pid: pid, connection_callbacks: connection_callbacks}}
+
+    {:ok,
+     %__MODULE__{
+       state
+       | socket_connector_state: Map.merge(saved_socket_connector_state, socket_connector_state),
+         socket_connector_pid: pid,
+         connection_callbacks: connection_callbacks
+     }}
   end
 
   # open
-  def init(%{log_config: log_config, socket_connector: socket_connector_state, ae_url: ae_url, network_id: network_id, priv_key: priv_key, connection_callbacks: connection_callbacks, color: color}) do
-    Logger.info("Starting session holder, #{inspect self()}")
+  def init(%{
+        log_config: log_config,
+        socket_connector: socket_connector_state,
+        ae_url: ae_url,
+        network_id: network_id,
+        priv_key: priv_key,
+        connection_callbacks: connection_callbacks,
+        color: color
+      }) do
+    Logger.info("Starting session holder, #{inspect(self())}")
     # Keyword.get(Process.info(self()), :registered_name)
     ref = init_storage(log_config)
-    {:ok, pid} = SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
+
+    {:ok, pid} =
+      SocketConnector.start_link(socket_connector_state, ae_url, network_id, connection_callbacks, color, self())
 
     {:ok,
      %__MODULE__{
@@ -117,7 +144,7 @@ defmodule SessionHolder do
        priv_key: priv_key,
        connection_callbacks: connection_callbacks,
        color: color,
-      #  file: file_name,
+       #  file: file_name,
        file_ref: ref
      }}
   end
@@ -129,23 +156,45 @@ defmodule SessionHolder do
 
   # this is persent as a helper if you loose your channel id or password, then check this file.
   defp persist(socketconnector_state, file_ref) do
-    dets_state = %{time: (DateTime.utc_now |> DateTime.to_string()), state: socketconnector_state}
+    dets_state = %{time: DateTime.utc_now() |> DateTime.to_string(), state: socketconnector_state}
 
     case socketconnector_state.channel_id do
-      nil -> Logger.warn("Not persisting to disk, channel_id missing, role #{inspect socketconnector_state.role}")
+      nil ->
+        Logger.warn("Not persisting to disk, channel_id missing, role #{inspect(socketconnector_state.role)}")
+
       _ ->
         case :dets.insert(file_ref, {socketconnector_state.channel_id, dets_state}) do
           :ok ->
             case :dets.sync(file_ref) do
-              :ok -> :ok
+              :ok ->
+                :ok
+
                 case socketconnector_state.fsm_id == nil do
                   true ->
-                    Logger.warn("Persisted data not satisfying reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
+                    Logger.warn(
+                      "Persisted data not satisfying reestablish requirements, fsm_id: #{
+                        inspect(socketconnector_state.fsm_id)
+                      } channel_id #{inspect(socketconnector_state.channel_id)} role #{
+                        inspect(socketconnector_state.role)
+                      }"
+                    )
+
                   false ->
-                    Logger.info("Persisted data SATISFYING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
+                    Logger.info(
+                      "Persisted data SATISFYING reestablish requirements, fsm_id: #{
+                        inspect(socketconnector_state.fsm_id)
+                      } channel_id #{inspect(socketconnector_state.channel_id)} role #{
+                        inspect(socketconnector_state.role)
+                      }"
+                    )
                 end
 
-              {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason} role #{inspect socketconnector_state.role}")
+              {:error, reason} ->
+                Logger.error(
+                  "Failed to persist state to disk, fsm_id: #{inspect(dets_state.fsm_id)} channel_id #{
+                    inspect(dets_state.channel_id)
+                  } reason #{inspect(reason)} role #{inspect(socketconnector_state.role)}"
+                )
             end
         end
     end
@@ -153,6 +202,7 @@ defmodule SessionHolder do
 
   def fetch_state_and_persist(pid, file_ref) do
     SocketConnector.request_state(pid)
+
     receive do
       {:"$gen_cast", {:state_tx_update, socket_connector_state}} ->
         persist(socket_connector_state, file_ref)
@@ -161,18 +211,21 @@ defmodule SessionHolder do
   end
 
   defp get_most_recent(list, channel_id, key) do
-    Logger.warn("Missing key #{inspect key}, fetching from old entry...")
-    case Enum.find(Enum.reverse(list), fn({_, entry}) -> Map.get(entry.state, key) != nil end) do
+    Logger.warn("Missing key #{inspect(key)}, fetching from old entry...")
+
+    case Enum.find(Enum.reverse(list), fn {_, entry} -> Map.get(entry.state, key) != nil end) do
       nil ->
-        Logger.error "Error could not find value for #{inspect key}"
+        Logger.error("Error could not find value for #{inspect(key)}")
         nil
+
       {^channel_id, dets_entry} ->
         case Map.get(dets_entry.state, key) do
           nil ->
-            Logger.error "Cound find value for #{inspect key}"
+            Logger.error("Cound find value for #{inspect(key)}")
             nil
+
           result ->
-            Logger.info "Found value for #{inspect {key, result}}"
+            Logger.info("Found value for #{inspect({key, result})}")
             result
         end
     end
@@ -185,18 +238,33 @@ defmodule SessionHolder do
     socket_connector_state =
       case :dets.lookup(state.file_ref, channel_id) do
         [] ->
-          Logger.error "no saved state in dets, #{inspect state.file_ref}"
-          throw "no saved state in dets"
+          Logger.error("no saved state in dets, #{inspect(state.file_ref)}")
+          throw("no saved state in dets")
+
         dets_state ->
           {^channel_id, saved_state} = List.last(dets_state)
-          Logger.debug("re-establish located persisted state #{inspect saved_state.time} storage #{inspect state.file_ref} contains #{inspect Enum.count(dets_state)} entries", ansi_color: state.color)
+
+          Logger.debug(
+            "re-establish located persisted state #{inspect(saved_state.time)} storage #{inspect(state.file_ref)} contains #{
+              inspect(Enum.count(dets_state))
+            } entries",
+            ansi_color: state.color
+          )
+
           case {Map.get(saved_state, :channel_id, nil), Map.get(saved_state, :fsm_id, nil)} do
             {nil, nil} ->
-              %{saved_state.state | channel_id: get_most_recent(dets_state, channel_id, :channel_id), fsm_id: get_most_recent(dets_state, channel_id, :fsm_id)}
+              %{
+                saved_state.state
+                | channel_id: get_most_recent(dets_state, channel_id, :channel_id),
+                  fsm_id: get_most_recent(dets_state, channel_id, :fsm_id)
+              }
+
             {nil, _} ->
               %{saved_state.state | channel_id: get_most_recent(dets_state, channel_id, :channel_id)}
+
             {_, nil} ->
               %{saved_state.state | fsm_id: get_most_recent(dets_state, channel_id, :fsm_id)}
+
             _ ->
               saved_state.state
           end
@@ -214,6 +282,7 @@ defmodule SessionHolder do
         state.color,
         self()
       )
+
     {pid, merged_socket_connector_state}
   end
 

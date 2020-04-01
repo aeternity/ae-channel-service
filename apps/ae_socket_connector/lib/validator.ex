@@ -78,16 +78,40 @@ defmodule Validator do
           :aesc_close_mutual_tx ->
             Logger.debug("Close mutual #{inspect(instance)}", state.color)
             # round = apply(module, :nonce, [instance])
-            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
+            sign_approve.(
+              round_initiator,
+              0,
+              auto_approval,
+              method,
+              to_sign,
+              channel_id,
+              :aetx.serialize_for_client(aetx)
+            )
 
           :aesc_slash_tx ->
             # todo code missing there. we should get the round somehow.
-            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
+            sign_approve.(
+              round_initiator,
+              0,
+              auto_approval,
+              method,
+              to_sign,
+              channel_id,
+              :aetx.serialize_for_client(aetx)
+            )
 
           # apply(module, :for_client, [instance])
           :aesc_settle_tx ->
             # todo code missing there. we should get the round somehow.
-            sign_approve.(round_initiator, 0, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
+            sign_approve.(
+              round_initiator,
+              0,
+              auto_approval,
+              method,
+              to_sign,
+              channel_id,
+              :aetx.serialize_for_client(aetx)
+            )
 
           # apply(module, :for_client, [instance])
 
@@ -98,11 +122,29 @@ defmodule Validator do
             aetx = :aetx_sign.tx(deserialized_signed_tx)
             {module, instance} = :aetx.specialize_callback(aetx)
             round = apply(module, :round, [instance])
-            sign_approve.(round_initiator, round, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
+
+            sign_approve.(
+              round_initiator,
+              round,
+              auto_approval,
+              method,
+              to_sign,
+              channel_id,
+              :aetx.serialize_for_client(aetx)
+            )
 
           _ ->
             round = apply(module, :round, [instance])
-            sign_approve.(round_initiator, round, auto_approval, method, to_sign, channel_id, :aetx.serialize_for_client(aetx))
+
+            sign_approve.(
+              round_initiator,
+              round,
+              auto_approval,
+              method,
+              to_sign,
+              channel_id,
+              :aetx.serialize_for_client(aetx)
+            )
         end
     end
   end
