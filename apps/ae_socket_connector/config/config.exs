@@ -15,8 +15,6 @@ config :ae_socket_connector, :accounts,
   initiator: {TestAccounts.initiatorPubkeyEncoded(), TestAccounts.initiatorPrivkey()},
   responder: {TestAccounts.responderPubkeyEncoded(), TestAccounts.responderPrivkey()}
 
-
-
 # config :ae_socket_connector, :urls,
 #   ae_url: "wss://testnet.demo.aeternity.io/channel",
 #   network_id: "ae_uat"

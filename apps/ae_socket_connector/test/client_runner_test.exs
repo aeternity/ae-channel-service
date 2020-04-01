@@ -32,19 +32,22 @@ defmodule ClientRunner do
         {pub_key, priv_key, state_channel_configuration, log_config, ae_url, network_id, role, jobs, color, name}
       ) do
     {:ok, pid_session_holder} =
-      SessionHolder.start_link(%{
-        socket_connector: %{
-          pub_key: pub_key,
-          session: state_channel_configuration,
-          role: role
+      SessionHolder.start_link(
+        %{
+          socket_connector: %{
+            pub_key: pub_key,
+            session: state_channel_configuration,
+            role: role
+          },
+          log_config: log_config,
+          ae_url: ae_url,
+          network_id: network_id,
+          priv_key: priv_key,
+          connection_callbacks: SessionHolderHelper.connection_callback_runner(self(), color, &log_callback/1),
+          color: color
         },
-        log_config: log_config,
-        ae_url: ae_url,
-        network_id: network_id,
-        priv_key: priv_key,
-        connection_callbacks: SessionHolderHelper.connection_callback_runner(self(), color, &log_callback/1),
-        color: color,
-      }, name)
+        name
+      )
 
     {:ok,
      %__MODULE__{
@@ -120,7 +123,7 @@ defmodule ClientRunner do
   end
 
   def handle_cast({:connection_update, update}, state) do
-    Logger.debug("Connection update, #{inspect update}")
+    Logger.debug("Connection update, #{inspect(update)}")
     {:noreply, state}
   end
 
@@ -159,7 +162,7 @@ defmodule ClientRunner do
           false ->
             case Map.get(entry, :fuzzy, 0) do
               0 ->
-                throw("message not matching #{inspect %{expected: entry, received: received_message}}")
+                throw("message not matching #{inspect(%{expected: entry, received: received_message})}")
 
               value ->
                 case state.fuzzy_counter >= value do
@@ -274,8 +277,9 @@ defmodule ClientRunner do
 
     job_list = job_builder.({name_initiator, initiator_pub}, {name_responder, responder_pub}, self())
 
-    Enum.map(clients, fn{role, %{name: name, keypair: {pub, priv}} = config} ->
+    Enum.map(clients, fn {role, %{name: name, keypair: {pub, priv}} = config} ->
       channel_configuration = Map.get(config, :custom_configuration, &SessionHolderHelper.default_configuration/2)
+
       case Map.get(config, :start, true) do
         true ->
           color =
@@ -285,9 +289,8 @@ defmodule ClientRunner do
             end
 
           start_link(
-            {pub, priv, channel_configuration.(initiator_pub, responder_pub),
-            Map.get(config, :log_config, %{}), ae_url, network_id, role, filter_jobs(job_list, role), color,
-            name}
+            {pub, priv, channel_configuration.(initiator_pub, responder_pub), Map.get(config, :log_config, %{}),
+             ae_url, network_id, role, filter_jobs(job_list, role), color, name}
           )
 
         false ->

@@ -38,8 +38,16 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   # also covers reestablish
   def handle_in("connect/reestablish", payload, socket) do
     config = SessionHolderHelper.custom_config(%{}, %{port: payload["port"]})
+
     {:ok, pid_session_holder} =
-      SessionHolderHelper.start_session_holder(socket.assigns.role, config, {payload["channel_id"], payload["port"]}, fn -> keypair_initiator() end, fn -> keypair_responder() end, SessionHolderHelper.connection_callback(self(), :yellow, &log_callback/1))
+      SessionHolderHelper.start_session_holder(
+        socket.assigns.role,
+        config,
+        {payload["channel_id"], payload["port"]},
+        fn -> keypair_initiator() end,
+        fn -> keypair_responder() end,
+        SessionHolderHelper.connection_callback(self(), :yellow, &log_callback/1)
+      )
 
     {:noreply, assign(socket, :pid_session_holder, pid_session_holder)}
   end
@@ -79,21 +87,32 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast({:connection_update, {status, _reason} = update}, socket) do
-    Logger.info("Connection update, #{inspect update}")
+    Logger.info("Connection update, #{inspect(update)}")
     push(socket, "log_event", %{message: inspect(update), name: "bot"})
     push(socket, Atom.to_string(status), %{})
     {:noreply, socket}
   end
 
-  def handle_cast({:match_jobs, {:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message, socket) do
+  def handle_cast(
+        {:match_jobs, {:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message,
+        socket
+      ) do
     Logger.info("Sign request #{inspect(message)}")
-    push(socket, "sign_approve", %{message: inspect(message), method: method, to_sign: to_sign, channel_id: channel_id})
+
+    push(socket, "sign_approve", %{
+      message: inspect(message),
+      method: method,
+      to_sign: to_sign,
+      channel_id: channel_id
+    })
+
     push(socket, "log_event", %{message: inspect(message), name: "bot"})
     # broadcast socket, "log_event", %{message: inspect(message), name: "bot2"}
     {:noreply, socket}
   end
 
-  def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _} = message, socket) when method in ["funding_signed", "funding_created"] do
+  def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _} = message, socket)
+      when method in ["funding_signed", "funding_created"] do
     push(socket, "channels_info", %{message: inspect(message), method: method, channel_id: channel_id})
     push(socket, "log_event", %{message: inspect(message), name: "bot"})
     {:noreply, socket}

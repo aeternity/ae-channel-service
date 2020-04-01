@@ -1,6 +1,7 @@
 defmodule SingleEndChannelTest do
   use ExUnit.Case
   require Logger
+
   def clean_log_config_file(log_config) do
     File.rm(Path.join(log_config.log, log_config.log))
   end
