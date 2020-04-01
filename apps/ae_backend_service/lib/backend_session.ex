@@ -9,8 +9,7 @@ defmodule BackendSession do
   use GenServer
   require Logger
 
-  defmacro keypair_initiator, do: Application.get_env(:ae_socket_connector, :accounts)[:initiator]
-  defmacro keypair_responder, do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
+  def keypair_responder(), do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
 
   defstruct pid_session_holder: nil,
             pid_backend_manager: nil,
@@ -66,16 +65,16 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
-  # this will only happen once!
-  def handle_cast({:match_jobs, {:channels_update, 1, :other, "channels.update"}, nil} = _message, state) do
-    responder_contract =
-      {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
-       %{abi_version: 3, vm_version: 5, backend: :fate}}
+  # # this will only happen once!
+  # def handle_cast({:match_jobs, {:channels_update, 1, :other, "channels.update"}, nil} = _message, state) do
+  #   responder_contract =
+  #     {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
+  #      %{abi_version: 3, vm_version: 5, backend: :fate}}
 
-    fun = &SocketConnector.new_contract(&1, responder_contract, 10)
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, state}
-  end
+  #   fun = &SocketConnector.new_contract(&1, responder_contract, 10)
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
+  #   {:noreply, state}
+  # end
 
   # TODO backend just happily signs
   def handle_cast(

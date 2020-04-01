@@ -148,6 +148,10 @@ defmodule SessionHolderHelper do
     end
   end
 
+  defp generate_log_config(role, pub_key, path) do
+    %{file: Atom.to_string(role) <> "_" <> pub_key, path: path}
+  end
+
   def start_session_holder(
         role,
         config,
@@ -178,7 +182,7 @@ defmodule SessionHolderHelper do
         session: config.(initiator_pub_key, responder_pub_key),
         role: role
       },
-      log_config: %{file: Atom.to_string(role) <> "_" <> pub_key},
+      log_config: generate_log_config(role, pub_key, "data"),
       ae_url: ae_url(),
       network_id: network_id(),
       priv_key: priv_key,
@@ -194,6 +198,29 @@ defmodule SessionHolderHelper do
         SessionHolder.start_link(
           Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}})
         )
+    end
+  end
+
+  defp collect_keys_iter(dets), do: collect_keys_iter(dets, :dets.first(dets))
+  defp collect_keys_iter(_, :"$end_of_table"), do: []
+
+  defp collect_keys_iter(dets, current) do
+    [current] ++ collect_keys_iter(dets, :dets.next(dets, current))
+  end
+
+  require Logger
+
+  def list_channel_ids(role, pub_key, path \\ "data") do
+    log_config = generate_log_config(role, pub_key, "data")
+    file_name_and_path = Path.join(Map.get(log_config, :path, path), Map.get(log_config, :file))
+    Logger.info("File_name when listing channels is #{inspect(file_name_and_path)}")
+
+    case :dets.open_file(String.to_atom(file_name_and_path), type: :duplicate_bag) do
+      {:ok, ref} ->
+        collect_keys_iter(ref)
+
+      _ ->
+        []
     end
   end
 end

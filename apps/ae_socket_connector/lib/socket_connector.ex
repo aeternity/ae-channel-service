@@ -502,7 +502,7 @@ defmodule SocketConnector do
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, {pub_key, contract_file, config} = contract, fun, args, amount}, state) do
+  def handle_cast({:call_contract, {_pub_key, contract_file, config} = contract, fun, args, amount}, state) do
     {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
         {:backend, config.backend}
@@ -1046,7 +1046,7 @@ defmodule SocketConnector do
         state
       ) do
     Logger.error("error")
-    Logger.error("<= error unprocessed message: #{inspect(error)}", state.color)
+    Logger.warn("<= unexpected message, channel is gone: #{inspect(error)}", state.color)
     clean_and_exit(state, error)
     {:error, state}
   end

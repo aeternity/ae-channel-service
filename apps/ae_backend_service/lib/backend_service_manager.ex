@@ -39,6 +39,7 @@ defmodule BackendServiceManager do
 
   # Server
   def init({}) do
+    GenServer.cast(self(), {:restart_channels})
     {:ok, %__MODULE__{channel_id_table: %{}}}
   end
 
@@ -59,6 +60,28 @@ defmodule BackendServiceManager do
       [pid] -> pid
       [] -> nil
     end
+  end
+
+  @default_port 1599
+  def handle_cast({:restart_channels}, state) do
+    {pub, _priv} = account_fun = Application.get_env(:ae_socket_connector, :accounts)[:responder]
+    self = self()
+    channel_config = SessionHolderHelper.custom_config(%{}, %{})
+
+    spawn(fn ->
+      Enum.map(SessionHolderHelper.list_channel_ids(:responder, pub), fn channel_id ->
+        return =
+          {:ok, _pid} =
+          GenServer.call(
+            self,
+            {:start_channel, {:responder, channel_config, {channel_id, @default_port}, fn -> account_fun end}}
+          )
+
+        Logger.debug("Staring old channel #{inspect({channel_id, return})}")
+      end)
+    end)
+
+    {:noreply, state}
   end
 
   def handle_call({:get_channel_id, identifier}, _from, state) do
