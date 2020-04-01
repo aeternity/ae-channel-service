@@ -40,7 +40,7 @@ $(repo_name)/: ## Get dependencies from Aeternity Core
 	cd $@ && \
 	curl -s $(aeternity_url) \
 	| grep -E 'browser_download_url' \
-	| cut -d '"' -f 4 | grep -E "*-$(platform)-*" \
+	| cut -d '"' -f 4 | grep -E ".*-$(platform)-*." \
 	| xargs curl -L --output $(repo_name).tar.gz
 
 .PHONY: prepare
