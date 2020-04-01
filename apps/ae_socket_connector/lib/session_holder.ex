@@ -142,7 +142,7 @@ defmodule SessionHolder do
                   true ->
                     Logger.warn("Persisted data not satisfying reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
                   false ->
-                    Logger.info("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
+                    Logger.info("Persisted data SATISFYING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
                 end
 
               {:error, reason} -> Logger.error("Failed to persist state to disk, fsm_id: #{inspect dets_state.fsm_id} channel_id #{inspect dets_state.channel_id} reason #{inspect reason} role #{inspect socketconnector_state.role}")
