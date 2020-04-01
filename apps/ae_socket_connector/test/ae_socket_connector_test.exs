@@ -5,9 +5,6 @@ defmodule SocketConnectorTest do
 
   # Code.require_file "client_runner.ex", __DIR__
 
-  @ae_url Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  @network_id Application.get_env(:ae_socket_connector, :node)[:network_id]
-
   def gen_names(id) do
     clean_id = Atom.to_string(id)
     {String.to_atom("alice " <> clean_id), String.to_atom("bob " <> clean_id)}
@@ -51,31 +48,31 @@ defmodule SocketConnectorTest do
       [
         # opening channel
         # re-add once the node is updated to use password
-        # {:responder, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
-        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "channel_open"}}},
+        # {:responder, %{message: {:channels_info, "fsm_up"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, "channel_open"}}},
         # re-add once the node is updated to use password
-        # {:initiator, %{message: {:channels_info, 0, :transient, "fsm_up"}}},
-        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "channel_accept"}}},
+        # {:initiator, %{message: {:channels_info, "fsm_up"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, "channel_accept"}}},
         {:initiator, %{message: {:sign_approve, 1, "channels.sign.initiator_sign"}}},
-        {:responder, %{message: {:channels_info, 0, :transient, "funding_created"}}},
+        {:responder, %{message: {:channels_info, "funding_created"}}},
         {:responder, %{message: {:sign_approve, 1, "channels.sign.responder_sign"}}},
-        {:responder, %{message: {:on_chain, 0, :transient, "funding_created"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "funding_signed"}}},
-        {:initiator, %{message: {:on_chain, 0, :transient, "funding_signed"}}},
-        # {:responder, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
-        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "own_funding_locked"}}},
-        # {:initiator, %{message: {:on_chain, 0, :transient, "channel_changed"}}},
-        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "own_funding_locked"}}},
-        {:initiator, %{fuzzy: 1, message: {:channels_info, 0, :transient, "funding_locked"}}},
-        {:responder, %{fuzzy: 1, message: {:channels_info, 0, :transient, "funding_locked"}}},
-        {:initiator, %{message: {:channels_info, 0, :transient, "open"}}},
+        {:responder, %{message: {:on_chain, "funding_created"}}},
+        {:initiator, %{message: {:channels_info, "funding_signed"}}},
+        {:initiator, %{message: {:on_chain, "funding_signed"}}},
+        # {:responder, %{message: {:on_chain, "channel_changed"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, "own_funding_locked"}}},
+        # {:initiator, %{message: {:on_chain, "channel_changed"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, "own_funding_locked"}}},
+        {:initiator, %{fuzzy: 1, message: {:channels_info, "funding_locked"}}},
+        {:responder, %{fuzzy: 1, message: {:channels_info, "funding_locked"}}},
+        {:initiator, %{message: {:channels_info, "open"}}},
         {:initiator,
          %{
            message: {:channels_update, 1, :self, "channels.update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 3
          }},
-        {:responder, %{message: {:channels_info, 0, :transient, "open"}}},
+        {:responder, %{message: {:channels_info, "open"}}},
         {:responder, %{message: {:channels_update, 1, :other, "channels.update"}}},
         # end of opening sequence
         # leaving
@@ -88,7 +85,7 @@ defmodule SocketConnectorTest do
         {:initiator, %{message: {:channels_update, 1, :transient, "channels.leave"}, fuzzy: 1}},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            fuzzy: 0,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -97,8 +94,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1400})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -127,7 +124,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -136,8 +133,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1401})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -177,7 +174,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "aborted_update"},
+           message: {:channels_info, "aborted_update"},
            next: {:async, fn pid -> SocketConnector.leave(pid) end, :empty},
            fuzzy: 10
          }},
@@ -189,7 +186,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }}
@@ -198,8 +195,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1402})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -233,25 +230,25 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = ChannelService.OnChain.nonce(@ae_url, intiator_account)
-                height = ChannelService.OnChain.current_height(@ae_url)
+                nonce = ChannelService.OnChain.nonce(SessionHolderHelper.ae_url(), intiator_account)
+                height = ChannelService.OnChain.current_height(SessionHolderHelper.ae_url())
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
                 transaction = SessionHolder.solo_close_transaction(pid_session_holder, 2, nonce + 1, height)
 
-                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
+                ChannelService.OnChain.post_solo_close(SessionHolderHelper.ae_url(), transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
         {:initiator,
          %{
-           message: {:on_chain, 0, :transient, "solo_closing"},
+           message: {:on_chain, "solo_closing"},
            fuzzy: 10,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:on_chain, 0, :transient, "solo_closing"},
+           message: {:on_chain, "solo_closing"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -260,8 +257,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1403})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -306,8 +303,8 @@ defmodule SocketConnectorTest do
            next:
              {:local,
               fn client_runner, pid_session_holder ->
-                nonce = ChannelService.OnChain.nonce(@ae_url,intiator_account)
-                height = ChannelService.OnChain.current_height(@ae_url)
+                nonce = ChannelService.OnChain.nonce(SessionHolderHelper.ae_url(),intiator_account)
+                height = ChannelService.OnChain.current_height(SessionHolderHelper.ae_url())
 
                 transaction =
                   GenServer.call(
@@ -315,39 +312,39 @@ defmodule SocketConnectorTest do
                     {:solo_close_transaction, 2, nonce + 1, height}
                   )
 
-                ChannelService.OnChain.post_solo_close(@ae_url, transaction)
+                ChannelService.OnChain.post_solo_close(SessionHolderHelper.ae_url(), transaction)
                 ClientRunnerHelper.resume_runner(client_runner)
               end, :empty}
          }},
         {:initiator,
          %{
-           message: {:on_chain, 0, :transient, "can_slash"},
+           message: {:on_chain, "can_slash"},
            fuzzy: 10,
            next: {:sync, fn pid, from -> SocketConnector.slash(pid, from) end, :empty}
            #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:on_chain, 0, :transient, "can_slash"},
+           message: {:on_chain, "can_slash"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }},
         {:initiator,
          %{
-           message: {:on_chain, 0, :transient, "solo_closing"},
+           message: {:on_chain, "solo_closing"},
            fuzzy: 5,
            next: {:async, fn pid -> SocketConnector.settle(pid) end, :empty}
            #  next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 10,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -356,8 +353,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1404})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -427,8 +424,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1405})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -441,8 +438,8 @@ defmodule SocketConnectorTest do
   #   {alice, bob} = gen_names(context.test)
 
   #   ClientRunner.start_peers(
-  #     @ae_url,
-  #     @network_id,
+  #     SessionHolderHelper.ae_url(),
+  #     SessionHolderHelper.network_id(),
   #     %{
       #   initiator: %{name: alice, keypair: accounts_initiator()},
       #   responder: %{name: bob, keypair: accounts_responder()}
@@ -459,7 +456,7 @@ defmodule SocketConnectorTest do
       [
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "open"},
+           message: {:channels_info, "open"},
            next:
              {:local,
               fn client_runner, pid_session_holder ->
@@ -562,8 +559,8 @@ defmodule SocketConnectorTest do
     end
 
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator()},
         responder: %{name: bob, keypair: accounts_responder()}
@@ -604,13 +601,13 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "closing"},
+           message: {:channels_info, "closing"},
            fuzzy: 15,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "closing"},
+           message: {:channels_info, "closing"},
            fuzzy: 15,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -619,8 +616,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1406})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -659,13 +656,13 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 10,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
          }},
         {:responder,
          %{
-           message: {:channels_info, 0, :transient, "closed_confirmed"},
+           message: {:channels_info, "closed_confirmed"},
            fuzzy: 20,
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
          }}
@@ -673,8 +670,8 @@ defmodule SocketConnectorTest do
     end
 
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator()},
         responder: %{name: bob, keypair: accounts_responder()}
@@ -769,8 +766,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1407})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -1037,8 +1034,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -1211,8 +1208,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
@@ -1252,7 +1249,7 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            fuzzy: 20,
-           message: {:channels_info, 0, :transient, "died"},
+           message: {:channels_info, "died"},
            next: ClientRunnerHelper.pause_job(300)
          }},
         {:initiator,
@@ -1267,7 +1264,7 @@ defmodule SocketConnectorTest do
         {:responder,
          %{
            fuzzy: 20,
-           # :channels_info, 0, :transient, "peer_disconnected"
+           # :channels_info, "peer_disconnected"
            message: {:channels_update, 2, :transient, "channels.leave"},
            next:
              {:local,
@@ -1319,8 +1316,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator()},
         responder: %{name: bob, keypair: accounts_responder()}
@@ -1333,8 +1330,8 @@ defmodule SocketConnectorTest do
   #   {alice, bob} = gen_names(context.test)
 
   #   ClientRunner.start_peers(
-  #     @ae_url,
-  #     @network_id,
+  #     SessionHolderHelper.ae_url(),
+  #     SessionHolderHelper.network_id(),
   #     %{
       #   initiator: %{name: alice, keypair: accounts_initiator()},
       #   responder: %{name: bob, keypair: accounts_responder()}
@@ -1353,9 +1350,9 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            # worked before
-           # message: {:channels_info, 0, :transient, "funding_signed"},
+           # message: {:channels_info, "funding_signed"},
            # should work now
-           message: {:channels_info, 0, :transient, "own_funding_locked"},
+           message: {:channels_info, "own_funding_locked"},
            fuzzy: 10,
            next:
              {:local,
@@ -1401,8 +1398,8 @@ defmodule SocketConnectorTest do
 
     channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 50, port: 1409})
     ClientRunner.start_peers(
-      @ae_url,
-      @network_id,
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}

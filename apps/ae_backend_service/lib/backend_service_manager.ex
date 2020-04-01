@@ -9,23 +9,39 @@ defmodule BackendServiceManager do
   use GenServer
   require Logger
 
-  defstruct pid_session_holder: nil
+  defstruct pid_session_holder: nil,
+            # %{identifier => channel_id}
+            channel_id_table: %{}
 
   # Client
+
+  # for testing
+  def start_link(%{"name" => name}) do
+    GenServer.start_link(__MODULE__, {}, name: name)
+  end
 
   def start_link(_arg) do
     GenServer.start_link(__MODULE__, {}, name: __MODULE__)
   end
 
+
+  # only one instance of the manager.
   def start_channel(params) do
     GenServer.call(__MODULE__, {:start_channel, params})
   end
 
+  def get_channel_id(pid, identifier) do
+    GenServer.call(pid, {:get_channel_id, identifier})
+  end
+
+  def set_channel_id(pid, identifier, channel_id) do
+    GenServer.call(pid, {:set_channel_id, identifier, channel_id})
+  end
 
 
   # Server
   def init({}) do
-    {:ok, %__MODULE__{}}
+    {:ok, %__MODULE__{channel_id_table: %{}}}
   end
 
   defp is_reestablish(reestablish) do
@@ -36,25 +52,39 @@ defmodule BackendServiceManager do
     end
   end
 
-  defp start_channel_local(
-        {
-          role,
-          _config,
-          {channel_id, reestablish_port} = reestablish,
-          _keypair_initiator
-        } = params
-      )
-      when role in [:initiator, :responder] do
-    if is_reestablish(reestablish) do
-      # only superview reestablished sessions, no way to relocate a fsm without channel_id and fsm_id
-      Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, self()}])
-    else
-      BackendSession.start_link({params, self()})
+
+  def is_already_started(channel_id_table, {channel_id, _port}) do
+    case (for {_identifier, {{existing_channel_id, _existing_port}, pid}} <- channel_id_table, channel_id == existing_channel_id, do: pid) do
+      [pid] -> pid
+      [] -> nil
     end
   end
 
-  def handle_call({:start_channel, params}, _from, state) do
-    {:ok, pid} = start_channel_local(params)
-    {:reply, pid, state}
+  def handle_call({:get_channel_id, identifier}, _from, state) do
+    Logger.info("got channel id: #{inspect Map.get(state.channel_id_table, identifier, {"", 0})}")
+    {reestablish, _pid} = Map.get(state.channel_id_table, identifier, {{"", 0}, nil})
+    {:reply, reestablish, state}
+  end
+
+  def handle_call({:set_channel_id, identifier, reestablish}, from, state) do
+    Logger.info("Channel poulated with channel_id #{inspect {identifier, reestablish}}")
+    {:reply, :ok, %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, from})}}
+  end
+
+  def handle_call({:start_channel, {_role, _config, reestablish, _keypair_initiator} = params}, _from, state) do
+    identifier = :erlang.unique_integer([:monotonic])
+    case is_reestablish(reestablish) do
+      true ->
+        case is_already_started(state.channel_id_table, reestablish) do
+          nil ->
+            {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, {self(), identifier}}])
+            {:reply, {:ok, pid}, %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, pid})}}
+          pid ->
+            {:reply, {:ok, pid}, state}
+        end
+      false ->
+        {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, {self(), identifier}}])
+        {:reply, {:ok, pid}, state}
+    end
   end
 end

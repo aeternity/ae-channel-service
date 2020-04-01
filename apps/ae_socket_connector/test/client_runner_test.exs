@@ -2,9 +2,6 @@ defmodule ClientRunner do
   use GenServer
   require Logger
 
-  defmacro ae_url, do: Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  defmacro network_id, do: Application.get_env(:ae_socket_connector, :node)[:network_id]
-
   defstruct pid_session_holder: nil,
             color: nil,
             match_list: nil,
@@ -45,7 +42,7 @@ defmodule ClientRunner do
         ae_url: ae_url,
         network_id: network_id,
         priv_key: priv_key,
-        connection_callbacks: SessionHolderHelper.connection_callback(self(), color, &log_callback/1),
+        connection_callbacks: SessionHolderHelper.connection_callback_runner(self(), color, &log_callback/1),
         color: color,
       }, name)
 
@@ -162,7 +159,7 @@ defmodule ClientRunner do
           false ->
             case Map.get(entry, :fuzzy, 0) do
               0 ->
-                throw("message not matching")
+                throw("message not matching #{inspect %{expected: entry, received: received_message}}")
 
               value ->
                 case state.fuzzy_counter >= value do

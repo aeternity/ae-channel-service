@@ -85,7 +85,7 @@ defmodule SocketConnector do
     session_map = init_map(session, role, ws_base)
 
     ws_url = create_link(ws_base, session_map)
-    Logger.debug("start_link #{inspect(ws_url)}", ansi_color: color)
+    Logger.error("start_link #{inspect(ws_url)}", ansi_color: color)
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
@@ -783,7 +783,7 @@ defmodule SocketConnector do
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
 
-    Logger.info("Received Message: #{inspect(msg)} #{inspect(message)} #{inspect(self())}", state.color)
+    Logger.info("Received Message: #{inspect(message)} #{inspect(self())} role #{inspect state.role}", state.color)
     process_message(message, state)
   end
 
@@ -854,7 +854,7 @@ defmodule SocketConnector do
     |> URI.to_string()
   end
 
-  # these doesn't contain round...
+  # Note, these doesn't contain round...
   def process_message(
         %{
           "method" => method,
@@ -869,7 +869,7 @@ defmodule SocketConnector do
              "channels.sign.shutdown_sign",
              "channels.sign.shutdown_sign_ack"
            ] do
-    Validator.notify_sign_transaction(to_sign, method, state)
+    Validator.notify_sign_transaction(to_sign, method, state.channel_id, state)
     {:ok, state}
   end
 
@@ -889,7 +889,7 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}}
+          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}, "channel_id" => channel_id}
         } = _message,
         state
       )
@@ -909,16 +909,17 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    Validator.notify_sign_transaction(pending_update, method, state)
+    Validator.notify_sign_transaction(pending_update, method, channel_id, state)
 
-    {:ok,
-     %__MODULE__{
+    new_state = %__MODULE__{
        state
        | pending_round_and_update: %{
            #  TODO not sure on state_tx naming here...
            Validator.get_state_round(to_sign) => %Update{pending_update | state_tx: nil}
-         }
-     }}
+         }, channel_id: channel_id
+     }
+    sync_state(new_state)
+    {:ok, new_state}
   end
 
   def process_get_settle_reponse(
@@ -1008,9 +1009,19 @@ defmodule SocketConnector do
     {poi, %__MODULE__{state | round_and_updates: Map.put(state.round_and_updates, round, update_new)}}
   end
 
+  # could possibly be removed once this is fixed
+  # https://github.com/aeternity/aeternity/issues/3186
+  def process_message(%{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id"}]}} = error, state) do
+    Logger.error("error")
+    Logger.error("<= error unprocessed message: #{inspect(error)}", state.color)
+    clean_and_exit(state, error)
+    {:error, state}
+  end
+
+
   def process_message(%{"channel_id" => _channel_id, "error" => _error_struct} = error, state) do
     Logger.error("error")
-    Logger.info("<= error unprocessed message: #{inspect(error)}", state.color)
+    Logger.error("<= error unprocessed message: #{inspect(error)}", state.color)
     {:error, state}
   end
 
@@ -1060,7 +1071,7 @@ defmodule SocketConnector do
   end
 
   def produce_callback(type, state, round, method)
-      when type in [:channels_update, :channels_info, :on_chain] do
+      when type in [:channels_update] do
     case state.connection_callbacks do
       nil ->
         :ok
@@ -1074,6 +1085,20 @@ defmodule SocketConnector do
         :ok
     end
   end
+
+  def produce_callback(type, state, method, channel_id)
+      when type in [:channels_info, :on_chain] do
+    case state.connection_callbacks do
+      nil ->
+        :ok
+
+      _ ->
+        callback = Map.get(state.connection_callbacks, type)
+        callback.(method, channel_id)
+        :ok
+    end
+  end
+
 
   def produce_callback(:connection_update, {action, reason}, state) do
     case state.connection_callbacks do
@@ -1111,6 +1136,7 @@ defmodule SocketConnector do
       | round_and_updates: Map.merge(state.round_and_updates, updates),
         pending_round_and_update: %{}
     }
+    sync_state(new_state)
 
     {:ok, new_state}
   end
@@ -1140,22 +1166,41 @@ defmodule SocketConnector do
 
   # %{"jsonrpc" => "2.0", "method" => "channels.info", "params" => %{"channel_id" => nil, "data" => %{"event" => "fsm_up", "fsm_id" => "ba_fVV9rUl9X6OG/fzAbSsxIjQCqwaPlgxNCgJWIF3cIvOqliqv"}}, "version" => 1}
 
+  # IMPORTANT!
+  # The fsm_id changes on every reestablish and need to be saved/persisted by the client in order to be able to
+  # perform reestablish.
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => _channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
         } = _message,
-        %__MODULE__{channel_id: _current_channel_id} = state
-      )
-      do
-      # TODO https://github.com/aeternity/aeternity/issues/3027
-      # when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-    produce_callback(:channels_info, state, 0, event)
+        # TODO do we want to go for is_first_update here
+        # %__MODULE__{channel_id: current_channel_id} = state
+        state
+      ) do
+    produce_callback(:channels_info, state, event, channel_id)
     # manual sync, this is particullary intersting, this is needed for future reconnects
 
-    # TODO https://github.com/aeternity/aeternity/issues/3027
-    # new_state = %__MODULE__{state | channel_id: channel_id, fsm_id: fsm_id}
     new_state = %__MODULE__{state | fsm_id: fsm_id}
+    sync_state(new_state)
+    {:ok, new_state}
+  end
+
+  # IMPORTANT!
+  # The event funding_signed and funding_created are of extra importance. Once the message arrives the client
+  # have all credentials needed for a reestablish, allowing the client to disconnect.
+  # Keys are channel_id, fsm_id, and the state_tx. Remember the keep these _and_ update them
+  # accordingly.
+  def process_message(
+        %{
+          "method" => "channels.info",
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event, "fsm_id" => fsm_id}}
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      when (channel_id == current_channel_id or is_first_update(current_channel_id, channel_id)) and event in ["funding_signed", "funding_created"] do
+    produce_callback(:channels_info, state, event, channel_id)
+    new_state = %__MODULE__{state | fsm_id: fsm_id, channel_id: channel_id}
     sync_state(new_state)
     {:ok, new_state}
   end
@@ -1168,10 +1213,8 @@ defmodule SocketConnector do
         %__MODULE__{channel_id: current_channel_id} = state
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
-    produce_callback(:channels_info, state, 0, event)
-    new_state = %__MODULE__{state | channel_id: channel_id}
-    sync_state(new_state)
-    {:ok, new_state}
+    produce_callback(:channels_info, state, event, channel_id)
+    {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
 
   def process_message(
@@ -1195,7 +1238,7 @@ defmodule SocketConnector do
       )
       when channel_id == current_channel_id or is_first_update(current_channel_id, channel_id) do
     # Produces some logging output.
-    produce_callback(:on_chain, state, 0, info)
+    produce_callback(:on_chain, state, info, channel_id)
     Validator.verify_on_chain(signed_tx, state.ws_base)
     {:ok, %__MODULE__{state | channel_id: channel_id}}
   end
