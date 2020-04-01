@@ -44,7 +44,7 @@ $(repo_name)/: ## Get dependencies from Aeternity Core
 	| xargs curl -L --output $(repo_name).tar.gz
 
 .PHONY: prepare
-prepare: $(repo_name)/ $(aeminer_path)/
+prepare: $(repo_name)/
 prepare: ## Get and  prepare additional dependencies from Aeternity Core
 	cd $(repo_name) && tar -xf $(repo_name).tar.gz
 
