@@ -140,7 +140,7 @@ defmodule SessionHolder do
               :ok -> :ok
                 case socketconnector_state.fsm_id == nil do
                   true ->
-                    Logger.warn("Persisted data not satisfing reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
+                    Logger.warn("Persisted data not satisfying reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
                   false ->
                     Logger.info("Persisted data SATISFING reestablish requirements, fsm_id: #{inspect socketconnector_state.fsm_id} channel_id #{inspect socketconnector_state.channel_id} role #{inspect socketconnector_state.role}")
                 end
