@@ -1011,7 +1011,7 @@ defmodule SocketConnector do
 
   # can be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
-  def process_message(%{"channel_id" => _channel_id, "error" => %{"data" => %{"message" => "Invalid fsm id"}}} = error, state) do
+  def process_message(%{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id"}]}} = error, state) do
     Logger.error("error")
     Logger.error("<= error unprocessed message: #{inspect(error)}", state.color)
     clean_and_exit(state, error)
