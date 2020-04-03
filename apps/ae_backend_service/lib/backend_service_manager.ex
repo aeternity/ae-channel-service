@@ -37,6 +37,10 @@ defmodule BackendServiceManager do
     GenServer.call(pid, {:set_channel_id, identifier, channel_id})
   end
 
+  def remove_channel_id(pid, identifier) do
+    GenServer.call(pid, {:remove_channel_id, identifier})
+  end
+
   # Server
   def init({}) do
     GenServer.cast(self(), {:restart_channels})
@@ -95,6 +99,16 @@ defmodule BackendServiceManager do
 
     {:reply, :ok,
      %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, from})}}
+  end
+
+  def handle_call({:remove_channel_id, identifier}, _from, state) do
+    Logger.info(
+      "Channel with identifier #{inspect(identifier)} removed from channel_table entry was #{
+        inspect(Map.get(state.channel_id_table, identifier, :no_entry))
+      }"
+    )
+
+    {:reply, :ok, %__MODULE__{state | channel_id_table: Map.delete(state.channel_id_table, identifier)}}
   end
 
   def handle_call({:start_channel, {_role, _config, reestablish, _keypair_initiator} = params}, _from, state) do

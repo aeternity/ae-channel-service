@@ -54,6 +54,12 @@ defmodule BackendSession do
     {:noreply, %__MODULE__{state | pid_session_holder: pid, port: port}}
   end
 
+  def handle_cast({:connection_update, {:disconnected, "Invalid fsm id"} = update}, state) do
+    Logger.warn("Backend disconnected, not attempting reestablish #{inspect(update)}")
+    BackendServiceManager.remove_channel_id(state.pid_backend_manager, state.identifier)
+    {:stop, :update, state}
+  end
+
   # This can end up in an never successfull connection (endless loop), beware.
   def handle_cast({:connection_update, {:disconnected, _reason} = update}, state) do
     Logger.warn("Backend disconnected, attempting reestablish #{inspect(update)}")
