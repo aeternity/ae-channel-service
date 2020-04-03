@@ -1042,12 +1042,12 @@ defmodule SocketConnector do
   # could possibly be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
   def process_message(
-        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id"}]}} = error,
+        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}} = error,
         state
       ) do
     Logger.error("error")
     Logger.warn("<= unexpected message, channel is gone: #{inspect(error)}", state.color)
-    clean_and_exit(state, error)
+    clean_and_exit(state, message)
     {:error, state}
   end
 
