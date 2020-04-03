@@ -77,7 +77,7 @@ defmodule BackendServiceManager do
             {:start_channel, {:responder, channel_config, {channel_id, @default_port}, fn -> account_fun end}}
           )
 
-        Logger.debug("Staring old channel #{inspect({channel_id, return})}")
+        Logger.debug("Starting old channel #{inspect({channel_id, return})}")
       end)
     end)
 
