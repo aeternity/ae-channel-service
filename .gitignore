@@ -14,12 +14,8 @@
 /.fetch
 
 # automaically fetched dependencies
-/apps/aechannel/
 /apps/aecore/
-/apps/aetx/
-/apps/aecontract/
-/apps/aeutils/
-/sparse/
+/aeternity/
 
 /log/
 

@@ -7,7 +7,8 @@ config :logger,
 
 config :ae_socket_connector, :node,
   ae_url: System.get_env("AE_NODE_URL") || "ws://localhost:3014/channel",
-  network_id: System.get_env("AE_NODE_NETWORK_ID") || "my_test"
+  network_id: System.get_env("AE_NODE_NETWORK_ID") || "my_test",
+  deps_path: "aeternity/lib"
 
 import_config "../test/accounts_test.exs"
 
