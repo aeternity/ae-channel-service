@@ -67,7 +67,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         SessionHolder.run_action(socketholder_pid, fun)
 
       "transfer" ->
-        fun = &SocketConnector.initiate_transfer(&1, payload["amount"])
+        fun = &SocketConnector.initiate_transfer(&1, payload["amount"], payload["destination"])
         SessionHolder.run_action(socketholder_pid, fun)
 
       "sign" ->

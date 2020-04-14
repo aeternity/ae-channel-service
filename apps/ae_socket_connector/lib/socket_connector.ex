@@ -16,6 +16,8 @@ defmodule SocketConnector do
     :network_id
   ]
 
+  @prefix_size 3
+  @allowed_channel_entity_prefixes ["ak_", "ct_"]
   defstruct pub_key: nil,
             role: nil,
             # WsConnection
@@ -95,7 +97,7 @@ defmodule SocketConnector do
     session_map = init_map(session, role, ws_base)
 
     ws_url = create_link(ws_base, session_map)
-    Logger.error("start_link #{inspect(ws_url)}", ansi_color: color)
+    # Logger.error("start_link #{inspect(ws_url)}", ansi_color: color)
 
     {:ok, pid} =
       WebSockex.start_link(ws_url, __MODULE__, %__MODULE__{
@@ -206,9 +208,9 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:close_solo})
   end
 
-  @spec initiate_transfer(pid, integer) :: :ok
-  def initiate_transfer(pid, amount) do
-    WebSockex.cast(pid, {:transfer, amount})
+  @spec initiate_transfer(pid, integer, String.t()) :: :ok
+  def initiate_transfer(pid, amount, destination \\ "") do
+    WebSockex.cast(pid, {:transfer, amount, destination})
   end
 
   @spec abort(pid, String.t(), integer, String.t()) :: :ok
@@ -338,13 +340,29 @@ defmodule SocketConnector do
     {:ok, state}
   end
 
-  def handle_cast({:transfer, amount}, state) do
-    sync_call = %SyncCall{request: request} = transfer_from(amount, state)
+  # opposite-side channel transfer - default case, where no account key is provided
+  def handle_cast({:transfer, amount, ""}, state) do
+    do_transfer(amount, :opposite, state)
+  end
 
-    Logger.info("=> transfer #{inspect(request)}", state.color)
+  # manual destination channel transfer case, must match following pattern <<"ak_"::binary-size(3)<>"restbinary49size"::binary-size(49)">> or 
+  def handle_cast(
+        {:transfer, amount, <<pubkey_prefix::binary-size(3), _rest::binary-size(49)>> = destination},
+        state
+      )
+      when pubkey_prefix in @allowed_channel_entity_prefixes do
+    do_transfer(amount, destination, state)
+  end
 
-    {:reply, {:text, Poison.encode!(request)},
-     %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
+  # invalid data case - handles all other invalid calls
+  # TODO maybe it isn't right handling with no-reply...
+  def handle_cast({:transfer, amount, destination}, state) do
+    Logger.error(
+      "Invalid transfer, amount: #{inspect(amount)}, destination: #{inspect(destination)} ",
+      state.color
+    )
+
+    {:noreply, state}
   end
 
   def handle_cast({:abort, method, abort_code, _abort_message}, state) do
@@ -439,22 +457,58 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
-  defp transfer_from(amount, state) do
-    case state.role do
-      :initiator ->
-        transfer_amount(
-          state.session.basic_configuration.initiator_id,
-          state.session.basic_configuration.responder_id,
-          amount
-        )
+  defp do_transfer(amount, destination, state) do
+    sync_call = %SyncCall{request: request} = transfer_from(amount, destination, state)
+    Logger.info("=> transfer #{inspect(request)}", state.color)
 
-      :responder ->
-        transfer_amount(
-          state.session.basic_configuration.responder_id,
-          state.session.basic_configuration.initiator_id,
-          amount
-        )
-    end
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{state | pending_id: Map.get(sync_call, :id, nil), sync_call: sync_call}}
+  end
+
+  defp transfer_from(
+         amount,
+         :opposite,
+         %{
+           role: :initiator,
+           session: %{
+             basic_configuration: %{responder_id: to, initiator_id: from}
+           }
+         } = state
+       ) do
+    transfer_amount(
+      from,
+      to,
+      amount
+    )
+  end
+
+  defp transfer_from(
+         amount,
+         :opposite,
+         %{
+           role: :responder,
+           session: %{
+             basic_configuration: %{responder_id: from, initiator_id: to}
+           }
+         } = state
+       ) do
+    transfer_amount(
+      from,
+      to,
+      amount
+    )
+  end
+
+  defp transfer_from(
+         amount,
+         to,
+         %{pub_key: from} = state
+       ) do
+    transfer_amount(
+      from,
+      to,
+      amount
+    )
   end
 
   # returns all the contracts which mathes... remember same contract can be deploy several times.
@@ -816,6 +870,7 @@ defmodule SocketConnector do
 
   def sync_state(state) do
     sync_state = Enum.reduce(@persist_keys, %{}, fn key, acc -> Map.put(acc, key, Map.get(state, key)) end)
+
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 

@@ -80,7 +80,8 @@
 
 <div style="display:flex;">
 <button id="transfer_btn" style="margin-right: 20px">Transfer</button>
-<input id="transfer_amount" type="text" value="10">
+<input id="transfer_amount" style="margin-right: 20px" type="text" value="10">
+<input id="transfer_destination" type="text" placeholder="destination(optional): ak_cFBreUSVWP...">
 </div>
 
 <div style="display:flex;">

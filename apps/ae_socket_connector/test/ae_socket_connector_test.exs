@@ -143,11 +143,350 @@ defmodule SocketConnectorTest do
       SessionHolderHelper.ae_url(),
       SessionHolderHelper.network_id(),
       %{
+        initiator: %{
+          name: alice,
+          keypair: accounts_initiator(),
+          custom_configuration: channel_config
+        },
+        responder: %{
+          name: bob,
+          keypair: accounts_responder(),
+          custom_configuration: channel_config
+        }
+      },
+      scenario
+    )
+  end
+
+  # Simple transfer with responder account key given to the function. 
+  # As a result, only the opposite role should receive tokens
+  # Default transfer - is a transfer from one role
+  # to the opposite role in channel.
+  # TODO maybe bad naming...
+  @tag :default_transfer
+  test "default transfer", context do
+    {alice, bob} = gen_names(context.test)
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1410})
+
+    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+      [
+        {:initiator,
+         %{
+           message: {:sign_approve, 1, "channels.sign.initiator_sign"},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           message: {:sign_approve, 1, "channels.sign.responder_sign"},
+           fuzzy: 10
+         }},
+        {:initiator,
+         %{
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 5, responder_account) end, :empty},
+           fuzzy: 10
+         }},
+        {:responder,
+         %{
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_999},
+               {responder_account, 4_000_000_000_001}
+             )
+         }},
+        {:initiator,
+         %{
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_999},
+               {responder_account, 4_000_000_000_001}
+             )
+         }},
+        {:responder,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+         }},
+        {:initiator,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }}
+      ]
+    end
+
+    ClientRunner.start_peers(
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
+      %{
         initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
         responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
       },
       scenario
     )
+  end
+
+  @tag :ignore
+  @tag :contract_transfer
+  test "contract transfer", context do
+    # TODO 
+    # {alice, bob} = gen_names(context.test)
+    # channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1411})
+
+    # scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+    #   [
+    #     {:initiator,
+    #     %{
+    #       message: {:channels_update, 1, :self, "channels.update"},
+    #       next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+    #       fuzzy: 10
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       message: {:channels_update, 2, :self, "channels.update"},
+    #       fuzzy: 3,
+    #       next:
+    #         ClientRunnerHelper.assert_funds_job(
+    #           {intiator_account, 6_999_999_999_997},
+    #           {responder_account, 4_000_000_000_003}
+    #         )
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       # initiator have put 10 in the contract
+    #       next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+    #     }},
+    #    {:responder,
+    #     %{
+    #       fuzzy: 20,
+    #       message: {:channels_update, 3, :other, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            # responder add 10 (same) in the contract
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'join',
+    #              ['true'],
+    #              10
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:responder,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 4, :self, "channels.update"},
+    #       next:
+    #         {:sync,
+    #          fn pid, from ->
+    #            SocketConnector.get_contract_reponse(
+    #              pid,
+    #              initiator_contract,
+    #              'join',
+    #              from
+    #            )
+    #          end,
+    #          fn a ->
+    #            assert a == {:ok, {:tuple, [], []}}
+    #          end}
+    #     }},
+    #    {:responder,
+    #     %{
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['2', '2']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:responder,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 5, :self, "channels.update"},
+    #       next:
+    #         {:sync,
+    #          fn pid, from ->
+    #            SocketConnector.get_contract_reponse(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              from
+    #            )
+    #          end,
+    #          fn a ->
+    #            assert a == {:ok, {:bool, [], false}}
+    #          end}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 5, :other, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['1', '1']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 6, :self, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['1', '2']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 7, :self, "channels.update"},
+    #       next:
+    #         {:sync,
+    #          fn pid, from ->
+    #            SocketConnector.get_contract_reponse(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              from
+    #            )
+    #          end,
+    #          fn a ->
+    #            # TODO, parse "not your turn" from error message
+    #            assert elem(a, 0) == :error
+    #          end}
+    #     }},
+    #    {:responder,
+    #     %{
+    #       fuzzy: 20,
+    #       message: {:channels_update, 7, :other, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['1', '2']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 8, :other, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['0', '2']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:responder,
+    #     %{
+    #       fuzzy: 20,
+    #       message: {:channels_update, 9, :other, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['2', '1']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       next:
+    #         ClientRunnerHelper.assert_funds_job(
+    #           #  initiator have put 10 in the contract
+    #           {intiator_account, 6_999_999_999_987},
+    #           {responder_account, 3_999_999_999_993}
+    #         )
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       # This is the winning move
+    #       fuzzy: 10,
+    #       message: {:channels_update, 10, :other, "channels.update"},
+    #       next:
+    #         {:async,
+    #          fn pid ->
+    #            SocketConnector.call_contract(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              ['2', '0']
+    #            )
+    #          end, :empty}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       fuzzy: 10,
+    #       message: {:channels_update, 11, :self, "channels.update"},
+    #       next:
+    #         {:sync,
+    #          fn pid, from ->
+    #            SocketConnector.get_contract_reponse(
+    #              pid,
+    #              initiator_contract,
+    #              'move',
+    #              from
+    #            )
+    #          end,
+    #          fn a ->
+    #            # we have a winner!
+    #            assert a == {:ok, {:bool, [], true}}
+    #          end}
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       # initiator wins the total amount of credits, since he won.
+    #       next:
+    #         ClientRunnerHelper.assert_funds_job(
+    #           {intiator_account, 7_000_000_000_007},
+    #           {responder_account, 3_999_999_999_993}
+    #         )
+    #     }},
+    #    {:responder,
+    #     %{
+    #       next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)
+    #     }},
+    #    {:initiator,
+    #     %{
+    #       next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+    #     }}
+    #   ]
+    # end
+
+    # ClientRunner.start_peers(
+    #   SessionHolderHelper.ae_url(),
+    #   SessionHolderHelper.network_id(),
+    #   %{
+    #     initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+    #     responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+    #   },
+    #   scenario
+    # )
   end
 
   # @tag :ignore
@@ -239,6 +578,7 @@ defmodule SocketConnectorTest do
              {:local,
               fn client_runner, pid_session_holder ->
                 nonce = ChannelService.OnChain.nonce(SessionHolderHelper.ae_url(), intiator_account)
+
                 height = ChannelService.OnChain.current_height(SessionHolderHelper.ae_url())
                 Logger.debug("nonce is #{inspect(nonce)} height is: #{inspect(height)}")
 
@@ -313,6 +653,7 @@ defmodule SocketConnectorTest do
              {:local,
               fn client_runner, pid_session_holder ->
                 nonce = ChannelService.OnChain.nonce(SessionHolderHelper.ae_url(), intiator_account)
+
                 height = ChannelService.OnChain.current_height(SessionHolderHelper.ae_url())
 
                 transaction =

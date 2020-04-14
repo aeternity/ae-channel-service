@@ -36,7 +36,8 @@ let abort_btn = document.getElementById('abort_btn');
 let abort_code = document.getElementById('abort_code');
 
 let transfer_btn = document.getElementById('transfer_btn');
-let tranfer_amount = document.getElementById('transfer_amount');
+let transfer_amount = document.getElementById('transfer_amount');
+let transfer_destination = document.getElementById('transfer_destination');
 
 let connect_btn = document.getElementById('connect_btn');
 // let connect_responder_btn = document.getElementById('connect_responder_btn');
@@ -139,7 +140,8 @@ shutdown_btn.addEventListener('click', function (event) {
 
 transfer_btn.addEventListener('click', function (event) {
     channel.push('transfer', { // send the message to the server on "shout" channel
-        amount: parseInt(tranfer_amount.value),     // get value of "name" of person sending the message
+        amount: parseInt(transfer_amount.value),     // get value of "name" of person sending the message
+        destination: transfer_destination.value
     });
 });
 

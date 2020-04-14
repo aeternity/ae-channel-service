@@ -32,7 +32,9 @@ defmodule ChannelService.OnChain do
 
     header = [{"Accept", "application/json"}, {"Content-Type", "application/json"}]
     body = Poison.encode!(%{"tx" => solo_close_tx})
+
     %{"tx_hash" => tx_hash} = Poison.decode!(HTTPotion.post(url, body: body, headers: header).body)
+
     Logger.debug("track transaction curl http://localhost:3013/v2/transactions/" <> tx_hash)
   end
 end
