@@ -210,7 +210,7 @@ defmodule SessionHolder do
     end
   end
 
-  defp get_most_recent(list, channel_id, key) do
+  def get_most_recent(list, channel_id, key) do
     Logger.warn("Missing key #{inspect(key)}, fetching from old entry...")
 
     case Enum.find(Enum.reverse(list), fn {_, entry} -> Map.get(entry.state, key) != nil end) do
