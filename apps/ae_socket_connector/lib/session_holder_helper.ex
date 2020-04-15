@@ -40,7 +40,10 @@ defmodule SessionHolderHelper do
           {:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}}
         )
 
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
+        GenServer.cast(
+          callback_pid,
+          {:match_jobs, {:channels_update, round, round_initiator, method}, nil}
+        )
       end,
       on_chain: fn info, _channel_id ->
         logfun.({:on_chain, %{info: info, color: color}})
@@ -82,7 +85,10 @@ defmodule SessionHolderHelper do
           {:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}}
         )
 
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
+        GenServer.cast(
+          callback_pid,
+          {:match_jobs, {:channels_update, round, round_initiator, method}, nil}
+        )
       end,
       on_chain: fn info, _channel_id ->
         logfun.({:on_chain, %{info: info, color: color}})
@@ -142,7 +148,10 @@ defmodule SessionHolderHelper do
             overide_basic_param
           ),
         custom_param_fun: fn role, host_url ->
-          Map.merge(SessionHolderHelper.custom_connection_setting(role, host_url), override_custom)
+          Map.merge(
+            SessionHolderHelper.custom_connection_setting(role, host_url),
+            override_custom
+          )
         end
       }
     end
@@ -210,14 +219,41 @@ defmodule SessionHolderHelper do
 
   require Logger
 
-  def list_channel_ids(role, pub_key, path \\ "data") do
-    log_config = generate_log_config(role, pub_key, "data")
+  def open?(channel_info) do
+    closed = for {_channel_id, %{state: %{closed: true}}} <- channel_info, do: true
+
+    case closed do
+      [] -> true
+      _ -> false
+    end
+  end
+
+  # closed channels are not listed per default
+  def list_channel_ids(role, pub_key, path \\ "data", filter \\ &open?/1) do
+    log_config = generate_log_config(role, pub_key, path)
     file_name_and_path = Path.join(Map.get(log_config, :path, path), Map.get(log_config, :file))
-    Logger.info("File_name when listing channels is #{inspect(file_name_and_path)}")
+
+    Logger.info("File_name when listing channels is #{inspect(Path.absname(file_name_and_path))}")
 
     case :dets.open_file(String.to_atom(file_name_and_path), type: :duplicate_bag) do
       {:ok, ref} ->
-        collect_keys_iter(ref)
+        Enum.filter(collect_keys_iter(ref), fn channel_id ->
+          filter.(:dets.lookup(ref, channel_id))
+        end)
+
+      message ->
+        Logger.warn("problem opening file #{inspect(message)}")
+        []
+    end
+  end
+
+  def get_channel_info(role, pub_key, channel_id, path \\ "data") do
+    log_config = generate_log_config(role, pub_key, path)
+    file_name_and_path = Path.join(Map.get(log_config, :path, path), Map.get(log_config, :file))
+
+    case :dets.open_file(String.to_atom(file_name_and_path), type: :duplicate_bag) do
+      {:ok, ref} ->
+        :dets.lookup(ref, channel_id)
 
       _ ->
         []

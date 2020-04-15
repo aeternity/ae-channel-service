@@ -13,7 +13,8 @@ defmodule SocketConnector do
     :round_and_updates,
     :pending_round_and_update,
     :ws_base,
-    :network_id
+    :network_id,
+    :closed
   ]
 
   defstruct pub_key: nil,
@@ -36,7 +37,8 @@ defmodule SocketConnector do
             contract_call_in_flight_round: nil,
             timer_reference: nil,
             socket_ping_intervall: @socket_ping_intervall,
-            connection_callbacks: nil
+            connection_callbacks: nil,
+            closed: nil
 
   defmodule(Update,
     do:
@@ -1042,7 +1044,8 @@ defmodule SocketConnector do
   # could possibly be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
   def process_message(
-        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}} = error,
+        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}} =
+          error,
         state
       ) do
     Logger.error("error")
@@ -1234,6 +1237,23 @@ defmodule SocketConnector do
              event in ["funding_signed", "funding_created"] do
     produce_callback(:channels_info, state, event, channel_id)
     new_state = %__MODULE__{state | fsm_id: fsm_id, channel_id: channel_id}
+    sync_state(new_state)
+    {:ok, new_state}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.info",
+          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event}}
+        } = _message,
+        %__MODULE__{channel_id: current_channel_id} = state
+      )
+      # is_first_update(current_channel_id, channel_id)) and event in ["close_mutual"] do
+      when (channel_id == current_channel_id or
+              is_first_update(current_channel_id, channel_id)) and event in ["closed_confirmed"] do
+    produce_callback(:channels_info, state, event, channel_id)
+    new_state = %__MODULE__{state | closed: true, channel_id: channel_id}
+    # set channel to closed when persisting
     sync_state(new_state)
     {:ok, new_state}
   end

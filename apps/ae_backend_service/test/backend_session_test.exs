@@ -15,8 +15,8 @@ defmodule AeBackendServiceTest do
     reestablish = BackendServiceManager.get_channel_id(pid, unique_id)
     {"", 0} = BackendServiceManager.get_channel_id(pid, other_id)
     reestablish2 = {"channel_id2", 23322}
-    BackendServiceManager.set_channel_id(pid, unique_id, reestablish)
-    reestablish2 = BackendServiceManager.get_channel_id(pid, unique_id)
+    BackendServiceManager.set_channel_id(pid, unique_id, reestablish2)
+    assert reestablish2 == BackendServiceManager.get_channel_id(pid, unique_id)
   end
 
   test "returns present pid if started" do
