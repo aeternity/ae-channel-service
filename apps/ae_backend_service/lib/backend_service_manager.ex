@@ -119,6 +119,7 @@ defmodule BackendServiceManager do
         case is_already_started(state.channel_id_table, reestablish) do
           nil ->
             {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, {self(), identifier}}])
+            Process.monitor(pid)
 
             {:reply, {:ok, pid},
              %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, pid})}}
@@ -129,6 +130,7 @@ defmodule BackendServiceManager do
 
       false ->
         {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, {self(), identifier}}])
+        Process.monitor(pid)
         {:reply, {:ok, pid}, state}
     end
   end
