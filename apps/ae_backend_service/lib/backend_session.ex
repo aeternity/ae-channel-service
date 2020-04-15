@@ -103,6 +103,7 @@ defmodule BackendSession do
   end
 
   # This can end up in an never successfull connection (endless loop), beware, TODO exponential backoff?
+  # TODO this is also valid disconnect reasons that should terminate this process in a normal fashion (preventing supervision restarts)
   def handle_cast({:connection_update, {:disconnected, _reason} = update}, state) do
     Logger.warn("Backend disconnected, attempting reestablish #{inspect(update)}")
     Process.send_after(self(), :resume_init, 5000)
