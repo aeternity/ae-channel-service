@@ -44,6 +44,9 @@ AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat"
 Point your browser to [http://localhost:4000/](http://localhost:4000/). Each tab can represent a peer. _Initiator_ or _responder_. "Backend helper" starts a channel governed by the [ae_backend_service](apps/ae_backend_service/lib/backend_session.ex) and does not affect the tab.
 > testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recomended worksround is to host your own node.
 
+## Get going with the interactive web client 
+Get started [here](apps/ae_channel_interface/README.md)
+
 ## Run test scenarios
 
 Start the sample scenarios at your prompt by doing 
