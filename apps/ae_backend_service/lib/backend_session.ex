@@ -60,27 +60,21 @@ defmodule BackendSession do
     {:stop, :update, state}
   end
 
-  # This can end up in an never successfull connection (endless loop), beware.
-  def handle_cast({:connection_update, {:disconnected, _reason} = update}, state) do
-    Logger.warn("Backend disconnected, attempting reestablish #{inspect(update)}")
-    GenServer.cast(self(), {:resume_init, state.params})
+  # this message arrives if channel times out.
+  # {:channels_update, %{color: :blue, method: "channels.conflict", round: 2, round_initiator: :self}}
+  # [:other, :transient]
+
+  # this will only happen once!
+  def handle_cast({:match_jobs, {:channels_update, 1, round_initiator, "channels.update"}, nil} = _message, state)
+      when round_initiator in [:other] do
+    responder_contract =
+      {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
+       %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+    fun = &SocketConnector.new_contract(&1, responder_contract, 10)
+    SessionHolder.run_action(state.pid_session_holder, fun)
     {:noreply, state}
   end
-
-  def handle_cast({:connection_update, {_status, _reason} = _update}, state) do
-    {:noreply, state}
-  end
-
-  # # this will only happen once!
-  # def handle_cast({:match_jobs, {:channels_update, 1, :other, "channels.update"}, nil} = _message, state) do
-  #   responder_contract =
-  #     {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
-  #      %{abi_version: 3, vm_version: 5, backend: :fate}}
-
-  #   fun = &SocketConnector.new_contract(&1, responder_contract, 10)
-  #   SessionHolder.run_action(state.pid_session_holder, fun)
-  #   {:noreply, state}
-  # end
 
   # TODO backend just happily signs
   def handle_cast(
@@ -93,6 +87,14 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
+  # {:match_jobs, {:channels_info, "died", "ch_pcLtoFWASVUzSqQkWJ8rbZnA34TxetnAGqw2mv4RVuywAhtT9"}, nil}
+
+  def handle_cast({:match_jobs, {:channels_info, "died", channel_id}, _}, state) do
+    # BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
+    Logger.error("Connection is down, #{inspect(channel_id)}")
+    {:noreply, state}
+  end
+
   # once this occured we should be able to reconnect.
   def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _}, state)
       when method in ["funding_signed", "funding_created"] do
@@ -100,8 +102,24 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
+  # This can end up in an never successfull connection (endless loop), beware, TODO exponential backoff?
+  def handle_cast({:connection_update, {:disconnected, _reason} = update}, state) do
+    Logger.warn("Backend disconnected, attempting reestablish #{inspect(update)}")
+    Process.send_after(self(), :resume_init, 5000)
+    {:noreply, state}
+  end
+
+  def handle_cast({:connection_update, {_status, _reason} = _update}, state) do
+    {:noreply, state}
+  end
+
   def handle_cast(message, state) do
     Logger.warn("unprocessed message received in backend #{inspect(message)}")
+    {:noreply, state}
+  end
+
+  def handle_info(:resume_init, state) do
+    GenServer.cast(self(), {:resume_init, state.params})
     {:noreply, state}
   end
 end
