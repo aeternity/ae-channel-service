@@ -65,7 +65,7 @@ defmodule BackendSession do
   # [:other, :transient]
 
   # this will only happen once!
-  def handle_cast({:match_jobs, {:channels_update, 1, round_initiator, "channels.update"}, nil} = _message, state)
+  def handle_cast({:channels_update, 1, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:other] do
     responder_contract =
       {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
@@ -78,7 +78,7 @@ defmodule BackendSession do
 
   # TODO backend just happily signs
   def handle_cast(
-        {:match_jobs, {:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message,
+        {{:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message,
         state
       ) do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
@@ -87,16 +87,16 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
-  # {:match_jobs, {:channels_info, "died", "ch_pcLtoFWASVUzSqQkWJ8rbZnA34TxetnAGqw2mv4RVuywAhtT9"}, nil}
+  # {:channels_info, "died", "ch_pcLtoFWASVUzSqQkWJ8rbZnA34TxetnAGqw2mv4RVuywAhtT9"}
 
-  def handle_cast({:match_jobs, {:channels_info, "died", channel_id}, _}, state) do
+  def handle_cast({:channels_info, "died", channel_id}, state) do
     # BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
     Logger.error("Connection is down, #{inspect(channel_id)}")
     {:noreply, state}
   end
 
   # once this occured we should be able to reconnect.
-  def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _}, state)
+  def handle_cast({:channels_info, method, channel_id}, state)
       when method in ["funding_signed", "funding_created"] do
     BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
     {:noreply, state}

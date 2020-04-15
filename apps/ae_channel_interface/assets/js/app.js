@@ -133,10 +133,6 @@ abort_btn.addEventListener('click', function (event) {
     sign_msg.value = '';
 });
 
-query_funds_btn.addEventListener('click', function (event) {
-    channel.push('query_funds', {});
-});
-
 shutdown_btn.addEventListener('click', function (event) {
     channel.push('shutdown', {});
 });
