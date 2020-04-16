@@ -58,10 +58,7 @@ defmodule AeChannelInterfaceWeb.ConnectController do
       initiator_id: initiator_id,
       api_endpoint: "connect/new",
       client: params,
-      expected_initiator_configuration: %{
-        basic: Map.from_struct(basic_params.basic_configuration),
-        custom: custom_params
-      }
+      expected_initiator_configuration: Map.merge(Map.from_struct(basic_params.basic_configuration), custom_params)
     })
   end
 
