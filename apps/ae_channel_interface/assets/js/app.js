@@ -76,7 +76,7 @@ function encodeQueryData(data) {
 }
 
 function updateBackendParams(port, channel_id, public_account) {
-    backend_params.value = encodeQueryData({ port: port, channel_id, channel_id, client_account: public_account })
+    backend_params.value = encodeQueryData({ port: port, existing_channel_id: channel_id, initiator_id: public_account })
 }
 
 connect_port.addEventListener('input', function (updatevalue) {
