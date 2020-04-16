@@ -42,7 +42,7 @@ defmodule SessionHolderHelper do
 
         GenServer.cast(
           callback_pid,
-          {{:channels_update, round, round_initiator, method}}
+          {:channels_update, round, round_initiator, method}
         )
       end,
       on_chain: fn info, _channel_id ->
