@@ -35,7 +35,7 @@ In this example you control both the initator and the responder
 - Point your browser to [http://localhost:4000/](http://localhost:4000/)
 - Click `connect websocket for initiator` 
 > you have specified that your browser window represents the _initiator_
-- Point _another browser to [http://localhost:4000/](http://localhost:4000/)
+- Point _another_ browser to [http://localhost:4000/](http://localhost:4000/)
 - Click `connect websocket for responder`
 > you have specified that your browser window represents the _responder_
 - On both browsers, click `connect`
