@@ -26,25 +26,28 @@ defmodule SessionHolderHelper do
 
         GenServer.cast(
           callback_pid,
-          {:match_jobs, {:sign_approve, round, round_initiator, method, channel_id}, to_sign}
+          {{:sign_approve, round, round_initiator, method, channel_id}, to_sign}
         )
 
         auto_approval
       end,
       channels_info: fn method, channel_id ->
         logfun.({:channels_info, %{method: method, channel_id: channel_id, color: color}})
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_info, method, channel_id}, nil})
+        GenServer.cast(callback_pid, {:channels_info, method, channel_id})
       end,
       channels_update: fn round_initiator, round, method ->
         logfun.(
           {:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}}
         )
 
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
+        GenServer.cast(
+          callback_pid,
+          {:channels_update, round, round_initiator, method}
+        )
       end,
       on_chain: fn info, _channel_id ->
         logfun.({:on_chain, %{info: info, color: color}})
-        GenServer.cast(callback_pid, {:match_jobs, {:on_chain, info}, nil})
+        GenServer.cast(callback_pid, {:on_chain, info})
       end,
       connection_update: fn status, reason ->
         logfun.({:connection_update, %{status: status, reason: reason, color: color}})
@@ -82,7 +85,10 @@ defmodule SessionHolderHelper do
           {:channels_update, %{round_initiator: round_initiator, round: round, method: method, color: color}}
         )
 
-        GenServer.cast(callback_pid, {:match_jobs, {:channels_update, round, round_initiator, method}, nil})
+        GenServer.cast(
+          callback_pid,
+          {:match_jobs, {:channels_update, round, round_initiator, method}, nil}
+        )
       end,
       on_chain: fn info, _channel_id ->
         logfun.({:on_chain, %{info: info, color: color}})
@@ -142,10 +148,17 @@ defmodule SessionHolderHelper do
             overide_basic_param
           ),
         custom_param_fun: fn role, host_url ->
-          Map.merge(SessionHolderHelper.custom_connection_setting(role, host_url), override_custom)
+          Map.merge(
+            SessionHolderHelper.custom_connection_setting(role, host_url),
+            override_custom
+          )
         end
       }
     end
+  end
+
+  defp generate_log_config(role, pub_key, path) do
+    %{file: Atom.to_string(role) <> "_" <> pub_key, path: path}
   end
 
   def start_session_holder(
@@ -178,7 +191,7 @@ defmodule SessionHolderHelper do
         session: config.(initiator_pub_key, responder_pub_key),
         role: role
       },
-      log_config: %{file: Atom.to_string(role) <> "_" <> pub_key},
+      log_config: generate_log_config(role, pub_key, "data"),
       ae_url: ae_url(),
       network_id: network_id(),
       priv_key: priv_key,
@@ -194,6 +207,56 @@ defmodule SessionHolderHelper do
         SessionHolder.start_link(
           Map.merge(connect_map, %{reestablish: %{channel_id: channel_id, port: reestablish_port}})
         )
+    end
+  end
+
+  defp collect_keys_iter(dets), do: collect_keys_iter(dets, :dets.first(dets))
+  defp collect_keys_iter(_, :"$end_of_table"), do: []
+
+  defp collect_keys_iter(dets, current) do
+    [current] ++ collect_keys_iter(dets, :dets.next(dets, current))
+  end
+
+  require Logger
+
+  def open?(channel_info) do
+    closed = for {_channel_id, %{state: %{closed: true}}} <- channel_info, do: true
+
+    case closed do
+      [] -> true
+      _ -> false
+    end
+  end
+
+  # closed channels are not listed per default
+  def list_channel_ids(role, pub_key, path \\ "data", filter \\ &open?/1) do
+    log_config = generate_log_config(role, pub_key, path)
+    file_name_and_path = Path.join(Map.get(log_config, :path, path), Map.get(log_config, :file))
+
+    Logger.info("File_name when listing channels is #{inspect(Path.absname(file_name_and_path))}")
+
+    case :dets.open_file(String.to_atom(file_name_and_path), type: :duplicate_bag) do
+      {:ok, ref} ->
+        Enum.filter(collect_keys_iter(ref), fn channel_id ->
+          filter.(:dets.lookup(ref, channel_id))
+        end)
+
+      message ->
+        Logger.warn("problem opening file #{inspect(message)}")
+        []
+    end
+  end
+
+  def get_channel_info(role, pub_key, channel_id, path \\ "data") do
+    log_config = generate_log_config(role, pub_key, path)
+    file_name_and_path = Path.join(Map.get(log_config, :path, path), Map.get(log_config, :file))
+
+    case :dets.open_file(String.to_atom(file_name_and_path), type: :duplicate_bag) do
+      {:ok, ref} ->
+        :dets.lookup(ref, channel_id)
+
+      _ ->
+        []
     end
   end
 end

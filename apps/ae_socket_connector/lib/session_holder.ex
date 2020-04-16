@@ -210,7 +210,7 @@ defmodule SessionHolder do
     end
   end
 
-  defp get_most_recent(list, channel_id, key) do
+  def get_most_recent(list, key) do
     Logger.warn("Missing key #{inspect(key)}, fetching from old entry...")
 
     case Enum.find(Enum.reverse(list), fn {_, entry} -> Map.get(entry.state, key) != nil end) do
@@ -218,7 +218,7 @@ defmodule SessionHolder do
         Logger.error("Error could not find value for #{inspect(key)}")
         nil
 
-      {^channel_id, dets_entry} ->
+      {_channel_id, dets_entry} ->
         case Map.get(dets_entry.state, key) do
           nil ->
             Logger.error("Cound find value for #{inspect(key)}")
@@ -241,12 +241,12 @@ defmodule SessionHolder do
           Logger.error("no saved state in dets, #{inspect(state.file_ref)}")
           throw("no saved state in dets")
 
-        dets_state ->
-          {^channel_id, saved_state} = List.last(dets_state)
+        channel_id_state ->
+          {_channel_id, saved_state} = List.last(channel_id_state)
 
           Logger.debug(
             "re-establish located persisted state #{inspect(saved_state.time)} storage #{inspect(state.file_ref)} contains #{
-              inspect(Enum.count(dets_state))
+              inspect(Enum.count(channel_id_state))
             } entries",
             ansi_color: state.color
           )
@@ -255,15 +255,15 @@ defmodule SessionHolder do
             {nil, nil} ->
               %{
                 saved_state.state
-                | channel_id: get_most_recent(dets_state, channel_id, :channel_id),
-                  fsm_id: get_most_recent(dets_state, channel_id, :fsm_id)
+                | channel_id: get_most_recent(channel_id_state, :channel_id),
+                  fsm_id: get_most_recent(channel_id_state, :fsm_id)
               }
 
             {nil, _} ->
-              %{saved_state.state | channel_id: get_most_recent(dets_state, channel_id, :channel_id)}
+              %{saved_state.state | channel_id: get_most_recent(channel_id_state, :channel_id)}
 
             {_, nil} ->
-              %{saved_state.state | fsm_id: get_most_recent(dets_state, channel_id, :fsm_id)}
+              %{saved_state.state | fsm_id: get_most_recent(channel_id_state, :fsm_id)}
 
             _ ->
               saved_state.state

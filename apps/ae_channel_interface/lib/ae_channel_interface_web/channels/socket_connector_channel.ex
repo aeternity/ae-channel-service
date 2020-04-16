@@ -76,6 +76,14 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
       "abort" ->
         fun = &SocketConnector.abort(&1, payload["method"], payload["abort_code"], "")
         SessionHolder.run_action(socketholder_pid, fun)
+
+      "query_funds" ->
+        # lets elaborate the sychronous way of doing things
+        fun = &SocketConnector.query_funds(&1, &2)
+        amount = SessionHolder.run_action_sync(socketholder_pid, fun)
+        GenServer.cast(self(), amount)
+        # fun = &SocketConnector.query_funds(&1)
+        # SessionHolder.run_action(socketholder_pid, fun)
     end
 
     {:noreply, socket}
@@ -94,7 +102,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast(
-        {:match_jobs, {:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message,
+        {{:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message,
         socket
       ) do
     Logger.info("Sign request #{inspect(message)}")
@@ -111,7 +119,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
     {:noreply, socket}
   end
 
-  def handle_cast({:match_jobs, {:channels_info, method, channel_id}, _} = message, socket)
+  def handle_cast({:channels_info, method, channel_id} = message, socket)
       when method in ["funding_signed", "funding_created"] do
     push(socket, "channels_info", %{message: inspect(message), method: method, channel_id: channel_id})
     push(socket, "log_event", %{message: inspect(message), name: "bot"})

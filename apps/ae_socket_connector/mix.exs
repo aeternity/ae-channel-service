@@ -19,7 +19,7 @@ defmodule SocketConnector.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      applications: [:httpotion],
+      applications: [:httpotion, :aesophia],
       mod: {SocketConnector.Application, []}
     ]
   end

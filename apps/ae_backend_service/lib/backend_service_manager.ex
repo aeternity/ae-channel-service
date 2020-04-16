@@ -37,8 +37,13 @@ defmodule BackendServiceManager do
     GenServer.call(pid, {:set_channel_id, identifier, channel_id})
   end
 
+  def remove_channel_id(pid, identifier) do
+    GenServer.call(pid, {:remove_channel_id, identifier})
+  end
+
   # Server
   def init({}) do
+    GenServer.cast(self(), {:restart_channels})
     {:ok, %__MODULE__{channel_id_table: %{}}}
   end
 
@@ -61,6 +66,28 @@ defmodule BackendServiceManager do
     end
   end
 
+  @default_port 1599
+  def handle_cast({:restart_channels}, state) do
+    {pub, _priv} = account_fun = Application.get_env(:ae_socket_connector, :accounts)[:responder]
+    self = self()
+    channel_config = SessionHolderHelper.custom_config(%{}, %{})
+
+    spawn(fn ->
+      Enum.map(SessionHolderHelper.list_channel_ids(:responder, pub), fn channel_id ->
+        return =
+          {:ok, _pid} =
+          GenServer.call(
+            self,
+            {:start_channel, {:responder, channel_config, {channel_id, @default_port}, fn -> account_fun end}}
+          )
+
+        Logger.debug("Starting old channel #{inspect({channel_id, return})}")
+      end)
+    end)
+
+    {:noreply, state}
+  end
+
   def handle_call({:get_channel_id, identifier}, _from, state) do
     Logger.info("got channel id: #{inspect(Map.get(state.channel_id_table, identifier, {"", 0}))}")
     {reestablish, _pid} = Map.get(state.channel_id_table, identifier, {{"", 0}, nil})
@@ -74,6 +101,16 @@ defmodule BackendServiceManager do
      %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, from})}}
   end
 
+  def handle_call({:remove_channel_id, identifier}, _from, state) do
+    Logger.info(
+      "Channel with identifier #{inspect(identifier)} removed from channel_table entry was #{
+        inspect(Map.get(state.channel_id_table, identifier, :no_entry))
+      }"
+    )
+
+    {:reply, :ok, %__MODULE__{state | channel_id_table: Map.delete(state.channel_id_table, identifier)}}
+  end
+
   def handle_call({:start_channel, {_role, _config, reestablish, _keypair_initiator} = params}, _from, state) do
     identifier = :erlang.unique_integer([:monotonic])
 
@@ -82,6 +119,7 @@ defmodule BackendServiceManager do
         case is_already_started(state.channel_id_table, reestablish) do
           nil ->
             {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, {self(), identifier}}])
+            Process.monitor(pid)
 
             {:reply, {:ok, pid},
              %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, pid})}}
@@ -92,6 +130,7 @@ defmodule BackendServiceManager do
 
       false ->
         {:ok, pid} = Supervisor.start_child(ChannelSupervisor.Supervisor, [{params, {self(), identifier}}])
+        Process.monitor(pid)
         {:reply, {:ok, pid}, state}
     end
   end

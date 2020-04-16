@@ -41,6 +41,7 @@ let tranfer_amount = document.getElementById('transfer_amount');
 let connect_btn = document.getElementById('connect_btn');
 // let connect_responder_btn = document.getElementById('connect_responder_btn');
 
+let query_funds_btn = document.getElementById('query_funds_btn');
 let shutdown_btn = document.getElementById('shutdown_btn');
 let teardown_btn = document.getElementById('teardown_btn');
 
@@ -75,7 +76,7 @@ function encodeQueryData(data) {
 }
 
 function updateBackendParams(port, channel_id, public_account) {
-    backend_params.value = encodeQueryData({ port: port, channel_id, channel_id, client_account: public_account})
+    backend_params.value = encodeQueryData({ port: port, channel_id, channel_id, client_account: public_account })
 }
 
 connect_port.addEventListener('input', function (updatevalue) {
@@ -132,9 +133,12 @@ abort_btn.addEventListener('click', function (event) {
     sign_msg.value = '';
 });
 
-
 shutdown_btn.addEventListener('click', function (event) {
     channel.push('shutdown', {});
+});
+
+query_funds_btn.addEventListener('click', function (event) {
+    channel.push('query_funds', {});
 });
 
 transfer_btn.addEventListener('click', function (event) {
@@ -144,7 +148,7 @@ transfer_btn.addEventListener('click', function (event) {
 });
 
 connect_btn.addEventListener('click', function (event) {
-    channel.push('connect/reestablish', { port: parseInt(connect_port.value), channel_id: channel_id.value});
+    channel.push('connect/reestablish', { port: parseInt(connect_port.value), channel_id: channel_id.value });
 });
 
 leave_btn.addEventListener('click', function (event) {
@@ -157,9 +161,9 @@ teardown_btn.addEventListener('click', function (event) {
 
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
-    
-    channel = socket.channel('socket_connector:lobby', {role: "initiator"}); // connect to chat "room"
-    
+
+    channel = socket.channel('socket_connector:lobby', { role: "initiator" }); // connect to chat "room"
+
     channel.join()
         .receive("ok", function (resp) {
             console.log("Joined successfully", resp)
@@ -177,7 +181,7 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
 
     channel.on('sign_approve', function (payload) {
         sign_msg.value = payload.to_sign
-        sign_mthd.value = payload.method        
+        sign_mthd.value = payload.method
     });
 
     channel.on('channels_info', function (payload) {
@@ -199,10 +203,10 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
 
 connect_responder_websocket_btn.addEventListener('click', function (event) {
 
-    channel = socket.channel('socket_connector:lobby', { role: "responder", channel_id: channel_id.value}); // connect to chat "room"
+    channel = socket.channel('socket_connector:lobby', { role: "responder", channel_id: channel_id.value }); // connect to chat "room"
 
     channel.join()
-        .receive("ok", function(resp) {
+        .receive("ok", function (resp) {
             console.log("Joined successfully", resp)
             connect_btn.disabled = false
         })
