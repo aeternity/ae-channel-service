@@ -17,8 +17,9 @@ The backend logic operates according to rules specifed in the backed session whi
 - Point your browser to [http://localhost:4000/](http://localhost:4000/)
 - Click 'start backend channel' 
 > the backend now spawns the _responder_. The responder now waits for the initiator to connect
-> effecitvely a `get` request is shot at the backend in the url form of http://127.0.0.1:4000/connect/new?client_account=ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh&port=1610. The response is going to contain the assumed channel parameters for your convenience.
-- Click `connect websocket for initiator` 
+
+> effecitvely a `get` request is shot at the backend in the url form of http://127.0.0.1:4000/connect/new?initiator_id=ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh&port=1610 which is shown in `start backend channel` field. You can shoot of the same `get` from you js or app to start the responder. The `get` returns the parameters you need to provide from you client. Click the [link](http://127.0.0.1:4000/connect/new?initiator_id=ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh&port=1610) to try it your webbrowser. Check the response.
+- Click `connect websocket for initiator`
 > you have specified that your browser window represents the _initiator_
 - Click `connect`
 > messages should start arriving, you will shortly recieve a sign request 
