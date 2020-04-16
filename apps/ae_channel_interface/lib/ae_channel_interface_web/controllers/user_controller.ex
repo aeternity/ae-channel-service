@@ -42,10 +42,24 @@ defmodule AeChannelInterfaceWeb.ConnectController do
   # http://127.0.0.1:4000/connect/new?initiator_id=ak_SVQ9RvinB2E8pio2kxtZqhRDwHEsmDAdQCQUhQHki5QyPxtMh&port=1610
   # wscat --connect 'localhost:3014/channel?channel_reserve=2&initiator_amount=70000000000000&initiator_id=ak_2MGLPW2CHTDXJhqFJezqSwYSNwbZokSKkG7wSbGtVmeyjGfHtm&lock_period=10&port=12340&protocol=json-rpc&push_amount=1&responder_amount=40000000000000&responder_id=ak_nQpnNuBPQwibGpSJmjAah6r3ktAB7pG9JHuaGWHgLKxaKqEvC&role=responder'
   # this is a brand new connection
-  def new(conn, %{"initiator_id" => initiator_id, "port" => port} = params) do
-    open_port = String.to_integer(port)
-    channel_config = SessionHolderHelper.custom_config(%{}, %{port: open_port})
-    basic_params = channel_config.(initiator_id, public_key())
+  def new(conn, %{"initiator_id" => initiator_id, "port" => _port} = params_in) do
+    params = for {key, value} <- params_in, into: %{}, do: {String.to_atom(key), value}
+
+    # TODO this whole thing is due to to crazy construct of basic and custom parmas, should be kept merged
+    {custom, basic} =
+      Enum.reduce(Map.keys(Map.from_struct(%SocketConnector.WsConnection{})), {params, %{}}, fn key,
+                                                                                                {cust_par, bas_par} ->
+        case Map.get(params, key) do
+          nil ->
+            {Map.delete(cust_par, key), bas_par}
+
+          value ->
+            {Map.delete(cust_par, key), Map.put(bas_par, key, value)}
+        end
+      end)
+
+    channel_config = SessionHolderHelper.custom_config(basic, custom)
+    basic_params = channel_config.(initiator_id, public_key()).basic_configuration
     custom_params = channel_config.(initiator_id, public_key()).custom_param_fun.(:initiator, @ae_url)
 
     {:ok, _pid} =
@@ -57,8 +71,8 @@ defmodule AeChannelInterfaceWeb.ConnectController do
       responder_id: public_key(),
       initiator_id: initiator_id,
       api_endpoint: "connect/new",
-      client: params,
-      expected_initiator_configuration: Map.merge(Map.from_struct(basic_params.basic_configuration), custom_params)
+      client: params_in,
+      expected_initiator_configuration: Map.merge(Map.from_struct(basic_params), custom_params)
     })
   end
 
