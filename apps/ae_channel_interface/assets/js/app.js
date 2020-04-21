@@ -111,7 +111,7 @@ function httpGet(theUrl) {
     xmlHttp.send();
     // coors issue, return is not logged as expected.
     xmlHttp.onload = function () {
-        let responseObj = xhr.response;
+        let responseObj = xmlHttp.response;
         console.log(responseObj)
     };
 }
