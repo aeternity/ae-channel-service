@@ -423,7 +423,16 @@ defmodule SocketConnector do
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:ok, call_data} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [], [{:backend, backend}])
+      :aeso_compiler.create_calldata(
+        to_charlist(File.read!(contract_file)),
+        'init',
+        [
+          to_charlist(state.session.basic_configuration.initiator_id),
+          to_char_list(state.session.basic_configuration.responder_id),
+          '15'
+        ],
+        [{:backend, backend}]
+      )
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
 

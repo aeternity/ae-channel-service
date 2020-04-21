@@ -68,7 +68,7 @@ defmodule BackendSession do
   def handle_cast({:channels_update, 1, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:other] do
     responder_contract =
-      {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
+      {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
        %{abi_version: 3, vm_version: 5, backend: :fate}}
 
     fun = &SocketConnector.new_contract(&1, responder_contract, 10)
