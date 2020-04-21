@@ -821,7 +821,7 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            # initiator have put 10 in the contract
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, [], 10) end, :empty}
          }},
         {:responder,
          %{
@@ -1090,7 +1090,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, [], 10) end, :empty}
          }},
         {:initiator,
          %{

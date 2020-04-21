@@ -248,9 +248,9 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:leave, {}})
   end
 
-  @spec new_contract(pid, {binary(), String.t(), map()}, integer) :: :ok
-  def new_contract(pid, contract, amount \\ 0) do
-    WebSockex.cast(pid, {:new_contract, contract, amount})
+  @spec new_contract(pid, {binary(), String.t(), map()}, [...], integer) :: :ok
+  def new_contract(pid, contract, init_params, amount \\ 0) do
+    WebSockex.cast(pid, {:new_contract, contract, init_params, amount})
   end
 
   @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
@@ -418,7 +418,10 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
-  def handle_cast({:new_contract, {_pub_key, contract_file, %{backend: backend} = config}, amount}, state) do
+  def handle_cast(
+        {:new_contract, {_pub_key, contract_file, %{backend: backend} = config}, init_params, amount},
+        state
+      ) do
     {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, backend}])
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
@@ -426,11 +429,7 @@ defmodule SocketConnector do
       :aeso_compiler.create_calldata(
         to_charlist(File.read!(contract_file)),
         'init',
-        [
-          to_charlist(state.session.basic_configuration.initiator_id),
-          to_char_list(state.session.basic_configuration.responder_id),
-          '15'
-        ],
+        init_params,
         [{:backend, backend}]
       )
 

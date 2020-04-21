@@ -71,7 +71,22 @@ defmodule BackendSession do
       {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
        %{abi_version: 3, vm_version: 5, backend: :fate}}
 
-    fun = &SocketConnector.new_contract(&1, responder_contract, 10)
+    {responder_pub, _priv} = keypair_responder()
+    {_role, _channel_config, _reestablish, initiator_keypair} = state.params
+    {initiator_pub, _priv} = initiator_keypair.()
+
+    fun =
+      &SocketConnector.new_contract(
+        &1,
+        responder_contract,
+        [
+          to_charlist(responder_pub),
+          to_charlist(initiator_pub),
+          '15'
+        ],
+        10
+      )
+
     SessionHolder.run_action(state.pid_session_holder, fun)
     {:noreply, state}
   end

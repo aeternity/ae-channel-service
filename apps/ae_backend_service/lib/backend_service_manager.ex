@@ -9,9 +9,7 @@ defmodule BackendServiceManager do
   use GenServer
   require Logger
 
-  defstruct pid_session_holder: nil,
-            # %{identifier => channel_id}
-            channel_id_table: %{}
+  defstruct channel_id_table: %{}
 
   # Client
 
