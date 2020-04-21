@@ -91,6 +91,29 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
+  def handle_cast({:channels_update, 2, round_initiator, "channels.update"} = _message, state)
+      when round_initiator in [:self] do
+    responder_contract =
+      {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+       %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+    {responder_pub, _priv} = keypair_responder()
+    {_role, _channel_config, _reestablish, initiator_keypair} = state.params
+    {initiator_pub, _priv} = initiator_keypair.()
+
+    fun =
+      &SocketConnector.call_contract(
+        &1,
+        responder_contract,
+        'compute_hash',
+        ['\"some_salt\"', '\"heads\"'],
+        :dry
+      )
+
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, state}
+  end
+
   # TODO backend just happily signs
   def handle_cast(
         {{:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message,

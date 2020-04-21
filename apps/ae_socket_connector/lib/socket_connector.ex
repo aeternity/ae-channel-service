@@ -253,9 +253,9 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:new_contract, contract, init_params, amount})
   end
 
-  @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
-  def call_contract(pid, contract, fun, args, amount \\ 0) do
-    WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
+  @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), atom(), integer) :: :ok
+  def call_contract(pid, contract, fun, args, mode \\ :normal, amount \\ 0) do
+    WebSockex.cast(pid, {:call_contract, contract, fun, args, mode, amount})
   end
 
   @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
@@ -512,7 +512,7 @@ defmodule SocketConnector do
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, {_pub_key, contract_file, config} = contract, fun, args, amount}, state) do
+  def handle_cast({:call_contract, {_pub_key, contract_file, config} = contract, fun, args, mode, amount}, state) do
     {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
         {:backend, config.backend}
@@ -526,7 +526,7 @@ defmodule SocketConnector do
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
 
-    request = call_contract_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
+    request = call_contract_req(contract_pubkey, config.abi_version, encoded_calldata, amount, mode)
     Logger.info("=> call contract #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)},
@@ -740,13 +740,24 @@ defmodule SocketConnector do
     build_request("channels.update.new_contract", map)
   end
 
-  def call_contract_req(address, abi_version, call_data, amount) do
-    build_request("channels.update.call_contract", %{
-      abi_version: abi_version,
-      amount: amount,
-      call_data: call_data,
-      contract_id: address
-    })
+  def call_contract_req(address, abi_version, call_data, amount, mode) do
+    case mode do
+      :normal ->
+        build_request("channels.update.call_contract", %{
+          abi_version: abi_version,
+          amount: amount,
+          call_data: call_data,
+          contract_id: address
+        })
+
+      :dry ->
+        build_request("channels.dry_run.call_contract", %{
+          abi_version: abi_version,
+          amount: amount,
+          call_data: call_data,
+          contract_id: address
+        })
+    end
   end
 
   def make_sync(from, %SyncCall{request: request, response: response}) do
