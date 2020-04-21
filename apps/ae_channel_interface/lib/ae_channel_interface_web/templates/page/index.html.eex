@@ -91,6 +91,12 @@
 <%# <button id="leave_btn" style="margin-right: 20px" disabled>Leave</button> %>
 </div>
 
+<div style="display:flex;">
+<button id="call_contract_btn" style="margin-right: 20px">Call contract</button>
+<input id="transfer_amount" type="text" value="10">
+</div>
+
+
 <!-- The list of messages will appear here: -->
 <ul id='msg-list' style='list-style: none; min-height:200px; padding: 10px;'></ul>
 <button id='connection-status' type="button">connection status</button>

@@ -1010,6 +1010,41 @@ defmodule SocketConnector do
     {sophia_value, state}
   end
 
+  def process_get_dry_run_contract_reponse(
+        %{"return_value" => return_value, "contract_id" => _contract_id} = _data,
+        state
+      ) do
+    {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
+
+    {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}} =
+      state.contract_call_in_flight
+
+    # contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
+    # %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
+    #   Map.get(state.round_and_updates, state.contract_call_in_flight_round)
+
+    # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
+    sophia_value =
+      :aeso_compiler.to_sophia_value(
+        to_charlist(File.read!(contract_file)),
+        fun,
+        :ok,
+        deserialized_return,
+        [{:backend, config.backend}]
+      )
+
+    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
+    # {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
+    # result = :aect_sophia.prepare_for_json(:string, term)
+    # Logger.debug(
+    # "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{
+    #   inspect(result)
+    #   }", state.color
+    # )
+
+    {sophia_value, state}
+  end
+
   def process_message(
         %{
           "method" => "channels.get.contract_call.reply",
@@ -1024,6 +1059,26 @@ defmodule SocketConnector do
 
     Logger.debug(
       "contract call async reply (as result of calling: not present): #{inspect(sophia_value)}",
+      state.color
+    )
+
+    {:ok, state_update}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.dry_run.call_contract.reply",
+          "params" => %{
+            # "data" => %{"return_value" => return_value, "return_type" => _return_type}
+            "data" => data
+          }
+        } = _message,
+        state
+      ) do
+    {sophia_value, state_update} = process_get_dry_run_contract_reponse(data, state)
+
+    Logger.debug(
+      "contract DRY RUN call async reply (as result of calling: not present): #{inspect(sophia_value)}",
       state.color
     )
 
