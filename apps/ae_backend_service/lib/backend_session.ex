@@ -91,6 +91,10 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
+  defp to_sophia_bytes(binary) do
+    to_charlist("#" <> Base.encode16(binary))
+  end
+
   def handle_cast({:channels_update, 2, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:self] do
     responder_contract =
@@ -102,15 +106,28 @@ defmodule BackendSession do
     {initiator_pub, _priv} = initiator_keypair.()
 
     fun =
-      &SocketConnector.call_contract(
+      &SocketConnector.call_contract_dry(
         &1,
         responder_contract,
         'compute_hash',
         ['\"some_salt\"', '\"heads\"'],
-        :dry
+        &2
       )
 
-    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:ok, {:bytes, [], hash}} = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+    Logger.error("hash is #{inspect(hash)}")
+
+    fun1 =
+      &SocketConnector.call_contract(
+        &1,
+        responder_contract,
+        'provide_hash',
+        [to_sophia_bytes(hash)]
+        # ['#000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f']
+      )
+
+    SessionHolder.run_action(state.pid_session_holder, fun1)
+
     {:noreply, state}
   end
 

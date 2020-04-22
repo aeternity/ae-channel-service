@@ -248,14 +248,19 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:leave, {}})
   end
 
-  @spec new_contract(pid, {binary(), String.t(), map()}, [...], integer) :: :ok
+  @spec new_contract(pid, {binary(), String.t(), map()}, map(), integer) :: :ok
   def new_contract(pid, contract, init_params, amount \\ 0) do
     WebSockex.cast(pid, {:new_contract, contract, init_params, amount})
   end
 
-  @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), atom(), integer) :: :ok
-  def call_contract(pid, contract, fun, args, mode \\ :normal, amount \\ 0) do
-    WebSockex.cast(pid, {:call_contract, contract, fun, args, mode, amount})
+  @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
+  def call_contract(pid, contract, fun, args, amount \\ 0) do
+    WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
+  end
+
+  @spec call_contract_dry(pid, {binary, String.t(), map()}, binary(), map(), pid) :: :ok
+  def call_contract_dry(pid, contract, fun, args, from_pid) do
+    WebSockex.cast(pid, {:call_contract_dry, contract, fun, args, from_pid})
   end
 
   @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
@@ -512,7 +517,10 @@ defmodule SocketConnector do
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, {_pub_key, contract_file, config} = contract, fun, args, mode, amount}, state) do
+  def handle_cast(
+        {:call_contract, {_pub_key, contract_file, config} = contract, fun, args, amount},
+        state
+      ) do
     {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
         {:backend, config.backend}
@@ -526,7 +534,7 @@ defmodule SocketConnector do
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
 
-    request = call_contract_req(contract_pubkey, config.abi_version, encoded_calldata, amount, mode)
+    request = call_contract_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
     Logger.info("=> call contract #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)},
@@ -534,6 +542,38 @@ defmodule SocketConnector do
        state
        | pending_id: Map.get(request, :id, nil),
          contract_call_in_flight: contract_call_in_flight
+     }}
+  end
+
+  def handle_cast(
+        {:call_contract_dry, {_pub_key, contract_file, config} = contract, fun, args, from_pid},
+        state
+      ) do
+    {:ok, call_data} =
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
+        {:backend, config.backend}
+      ])
+
+    contract_list = calculate_contract_address(contract, state.round_and_updates)
+
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
+
+    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+    contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
+
+    sync_call =
+      %SyncCall{request: request} =
+      call_contract_dry_response_query(contract_pubkey, config.abi_version, encoded_calldata, 0, from_pid)
+
+    Logger.info("=> call contract DRY #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         contract_call_in_flight: contract_call_in_flight,
+         sync_call: sync_call
      }}
   end
 
@@ -660,6 +700,13 @@ defmodule SocketConnector do
   # async methods are suffixed with .reply, the same pattern is used here for increased readabiliy
   def process_response(method, from_pid) do
     case method <> ".reply" do
+      "channels.dry_run.call_contract.reply" ->
+        fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_dry_run_contract_reponse(result, state)
+          GenServer.reply(from_pid, result)
+          {result, state_updated}
+        end
+
       "channels.get.contract_call.reply" ->
         fn %{"result" => result}, state ->
           {result, state_updated} = process_get_contract_reponse(result, state)
@@ -740,24 +787,13 @@ defmodule SocketConnector do
     build_request("channels.update.new_contract", map)
   end
 
-  def call_contract_req(address, abi_version, call_data, amount, mode) do
-    case mode do
-      :normal ->
-        build_request("channels.update.call_contract", %{
-          abi_version: abi_version,
-          amount: amount,
-          call_data: call_data,
-          contract_id: address
-        })
-
-      :dry ->
-        build_request("channels.dry_run.call_contract", %{
-          abi_version: abi_version,
-          amount: amount,
-          call_data: call_data,
-          contract_id: address
-        })
-    end
+  def call_contract_req(address, abi_version, call_data, amount) do
+    build_request("channels.update.call_contract", %{
+      abi_version: abi_version,
+      amount: amount,
+      call_data: call_data,
+      contract_id: address
+    })
   end
 
   def make_sync(from, %SyncCall{request: request, response: response}) do
@@ -820,6 +856,22 @@ defmodule SocketConnector do
             round: round
           }),
         response: process_response("channels.get.contract_call", from_pid)
+      }
+    )
+  end
+
+  def call_contract_dry_response_query(address, abi_version, call_data, amount, from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request:
+          build_request("channels.dry_run.call_contract", %{
+            abi_version: abi_version,
+            amount: amount,
+            call_data: call_data,
+            contract_id: address
+          }),
+        response: process_response("channels.dry_run.call_contract", from_pid)
       }
     )
   end
@@ -1019,10 +1071,6 @@ defmodule SocketConnector do
     {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}} =
       state.contract_call_in_flight
 
-    # contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
-    # %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
-    #   Map.get(state.round_and_updates, state.contract_call_in_flight_round)
-
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
     sophia_value =
       :aeso_compiler.to_sophia_value(
@@ -1032,15 +1080,6 @@ defmodule SocketConnector do
         deserialized_return,
         [{:backend, config.backend}]
       )
-
-    # human_readable = :aeb_heap.from_binary(:aeso_compiler.sophia_type_to_typerep('string'), deserialized_return)
-    # {:ok, term} = :aeb_heap.from_binary(:string, deserialized_return)
-    # result = :aect_sophia.prepare_for_json(:string, term)
-    # Logger.debug(
-    # "contract call reply: #{inspect(deserialized_return)} type is #{return_type}, human: #{
-    #   inspect(result)
-    #   }", state.color
-    # )
 
     {sophia_value, state}
   end
