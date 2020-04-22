@@ -75,16 +75,21 @@ function encodeQueryData(data) {
     return ret.join('&');
 }
 
-function updateBackendParams(port, channel_id, public_account) {
-    backend_params.value = encodeQueryData({ port: port, channel_id, channel_id, client_account: public_account })
+function updateBackendParams(host, port, channel_id, public_account) {
+    var params = encodeQueryData({ port: port, existing_channel_id: channel_id, initiator_id: public_account })
+    backend_params.value = backend_url.value.concat("?", params)
 }
 
+backend_url.addEventListener('input', function (updatevalue) {
+    updateBackendParams(backend_url.value, connect_port.value, channel_id.value, public_key.value)
+});
+
 connect_port.addEventListener('input', function (updatevalue) {
-    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+    updateBackendParams(backend_url.value, connect_port.value, channel_id.value, public_key.value)
 });
 
 channel_id.addEventListener('change', function (updatevalue) {
-    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+    updateBackendParams(backend_url.value, connect_port.value, channel_id.value, public_key.value)
 });
 
 channel_id.addEventListener('input', function (updatevalue) {
@@ -93,11 +98,11 @@ channel_id.addEventListener('input', function (updatevalue) {
     } else {
         connect_btn.textContent = "Reestablish"
     }
-    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+    updateBackendParams(backend_url.value, connect_port.value, channel_id.value, public_key.value)
 });
 
 public_key.addEventListener('input', function (updatevalue) {
-    updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+    updateBackendParams(backend_url.value, connect_port.value, channel_id.value, public_key.value)
 });
 
 function httpGet(theUrl) {
@@ -112,7 +117,7 @@ function httpGet(theUrl) {
 }
 
 start_backend_btn.addEventListener('click', function (event) {
-    console.log(httpGet(backend_url.value.concat("?", backend_params.value)))
+    console.log(httpGet(backend_params.value))
 });
 
 sign_btn.addEventListener('click', function (event) {
@@ -241,5 +246,5 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
     });
 });
 
-updateBackendParams(connect_port.value, channel_id.value, public_key.value)
+updateBackendParams(backend_url.value, connect_port.value, channel_id.value, public_key.value)
 connect_btn.disabled = true
