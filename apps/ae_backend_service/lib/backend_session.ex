@@ -91,9 +91,12 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
-  defp to_sophia_bytes(binary) do
-    to_charlist("#" <> Base.encode16(binary))
+  defp to_sophia_bytes(binary) when is_binary(binary) do
+    "#" <> Base.encode16(binary)
   end
+
+  def add_quotes(b) when is_binary(b), do: <<"\"", b::binary, "\"">>
+  def add_quotes(str) when is_list(str), do: "\"" ++ str ++ "\""
 
   def handle_cast({:channels_update, 2, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:self] do
@@ -105,12 +108,15 @@ defmodule BackendSession do
     {_role, _channel_config, _reestablish, initiator_keypair} = state.params
     {initiator_pub, _priv} = initiator_keypair.()
 
+    some_salt = add_quotes("some_salt")
+    coin = add_quotes("heads")
+
     fun =
       &SocketConnector.call_contract_dry(
         &1,
         responder_contract,
         'compute_hash',
-        ['\"some_salt\"', '\"heads\"'],
+        [to_charlist(some_salt), to_charlist(coin)],
         &2
       )
 
@@ -122,12 +128,17 @@ defmodule BackendSession do
         &1,
         responder_contract,
         'provide_hash',
-        [to_sophia_bytes(hash)]
-        # ['#000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f']
+        [to_charlist(to_sophia_bytes(hash))]
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun1)
 
+    {:noreply, state}
+  end
+
+  def handle_cast({:channels_update, 3, round_initiator, "channels.update"} = _message, state)
+      when round_initiator in [:self] do
+    Logger.info("Waiting for player to make a guess")
     {:noreply, state}
   end
 
