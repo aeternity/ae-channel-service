@@ -15,7 +15,9 @@ defmodule BackendSession do
             pid_backend_manager: nil,
             identifier: nil,
             params: nil,
-            port: nil
+            port: nil,
+            game: %{},
+            responder_contract: nil
 
   # Client
 
@@ -51,7 +53,11 @@ defmodule BackendSession do
         SessionHolderHelper.connection_callback(self(), :blue, &log_callback/1)
       )
 
-    {:noreply, %__MODULE__{state | pid_session_holder: pid, port: port}}
+    responder_contract =
+      {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+       %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+    {:noreply, %__MODULE__{state | pid_session_holder: pid, port: port, responder_contract: responder_contract}}
   end
 
   def handle_cast({:connection_update, {:disconnected, "Invalid fsm id"} = update}, state) do
@@ -67,10 +73,6 @@ defmodule BackendSession do
   # this will only happen once!
   def handle_cast({:channels_update, 1, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:other] do
-    responder_contract =
-      {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
-       %{abi_version: 3, vm_version: 5, backend: :fate}}
-
     {responder_pub, _priv} = keypair_responder()
     {_role, _channel_config, _reestablish, initiator_keypair} = state.params
     {initiator_pub, _priv} = initiator_keypair.()
@@ -78,7 +80,7 @@ defmodule BackendSession do
     fun =
       &SocketConnector.new_contract(
         &1,
-        responder_contract,
+        state.responder_contract,
         [
           to_charlist(responder_pub),
           to_charlist(initiator_pub),
@@ -100,10 +102,6 @@ defmodule BackendSession do
 
   def handle_cast({:channels_update, 2, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:self] do
-    responder_contract =
-      {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
-       %{abi_version: 3, vm_version: 5, backend: :fate}}
-
     {responder_pub, _priv} = keypair_responder()
     {_role, _channel_config, _reestablish, initiator_keypair} = state.params
     {initiator_pub, _priv} = initiator_keypair.()
@@ -114,7 +112,7 @@ defmodule BackendSession do
     fun =
       &SocketConnector.call_contract_dry(
         &1,
-        responder_contract,
+        state.responder_contract,
         'compute_hash',
         [to_charlist(some_salt), to_charlist(coin)],
         &2
@@ -126,19 +124,43 @@ defmodule BackendSession do
     fun1 =
       &SocketConnector.call_contract(
         &1,
-        responder_contract,
+        state.responder_contract,
         'provide_hash',
         [to_charlist(to_sophia_bytes(hash))]
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun1)
-
-    {:noreply, state}
+    {:noreply, %__MODULE__{state | game: %{hash: hash, coin: coin, salt: some_salt}}}
   end
 
   def handle_cast({:channels_update, 3, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:self] do
     Logger.info("Waiting for player to make a guess")
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {:channels_update, 4, round_initiator, "channels.update"} = _message,
+        %__MODULE__{game: game} = state
+      )
+      when round_initiator in [:other] do
+    Logger.info("Other player made a guess")
+
+    fun =
+      &SocketConnector.call_contract(
+        &1,
+        state.responder_contract,
+        'resolve',
+        [to_charlist(game.salt), to_charlist(game.coin)]
+      )
+
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, state}
+  end
+
+  def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
+      when round_initiator in [:self] do
+    Logger.info("Game end, check updated funds")
     {:noreply, state}
   end
 

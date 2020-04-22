@@ -82,8 +82,24 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         fun = &SocketConnector.query_funds(&1, &2)
         amount = SessionHolder.run_action_sync(socketholder_pid, fun)
         GenServer.cast(self(), amount)
-        # fun = &SocketConnector.query_funds(&1)
-        # SessionHolder.run_action(socketholder_pid, fun)
+
+      # fun = &SocketConnector.query_funds(&1)
+      # SessionHolder.run_action(socketholder_pid, fun)
+      "call_contract" ->
+        responder_contract =
+          {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+           %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+        fun =
+          &SocketConnector.call_contract(
+            &1,
+            responder_contract,
+            'bet',
+            [to_char_list(BackendSession.add_quotes(payload["coin_guess"]))],
+            payload["amount"]
+          )
+
+        SessionHolder.run_action(socketholder_pid, fun)
     end
 
     {:noreply, socket}

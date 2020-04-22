@@ -45,6 +45,10 @@ let query_funds_btn = document.getElementById('query_funds_btn');
 let shutdown_btn = document.getElementById('shutdown_btn');
 let teardown_btn = document.getElementById('teardown_btn');
 
+let bet_amount = document.getElementById('bet_amount');
+let coin_guess = document.getElementById('coin_guess');
+let call_contract_btn = document.getElementById('call_contract_btn');
+
 let connect_port = document.getElementById('connect_port');
 let channel_id = document.getElementById('channel_id');
 
@@ -164,6 +168,9 @@ teardown_btn.addEventListener('click', function (event) {
     channel.push('teardown', {});
 });
 
+call_contract_btn.addEventListener('click', function (event) {
+    channel.push('call_contract', { amount: parseInt(bet_amount.value), coin_guess: coin_guess.value })
+});
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
 
