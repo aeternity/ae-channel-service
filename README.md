@@ -32,7 +32,7 @@ make clean deps
 ## Run interactive test client (local)
 
 ```bash
-NODE_CONFIGURATION=./test/aeternity_node_normal_test_config.yml docker-compose up
+NODE_REF=master NODE_CONFIGURATION=./test/aeternity_node_normal_test_config.yml docker-compose up
 AE_NODE_NETWORK_ID="ae_channel_service_test" iex -S mix phx.server
 ```
 
