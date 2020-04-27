@@ -150,7 +150,7 @@ defmodule BackendSession do
       &SocketConnector.call_contract(
         &1,
         state.responder_contract,
-        'resolve',
+        'reveal',
         [to_charlist(game.salt), to_charlist(game.coin)]
       )
 

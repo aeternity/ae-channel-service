@@ -94,9 +94,9 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
           &SocketConnector.call_contract(
             &1,
             responder_contract,
-            'bet',
-            [to_char_list(BackendSession.add_quotes(payload["coin_guess"]))],
-            payload["amount"]
+            to_charlist(payload["contract_method"]),
+            [to_char_list(BackendSession.add_quotes(payload["contract_params"]))],
+            payload["contract_amount"]
           )
 
         SessionHolder.run_action(socketholder_pid, fun)
