@@ -31,6 +31,10 @@ defmodule BackendServiceManager do
     GenServer.call(pid, {:get_channel_id, identifier})
   end
 
+  def get_channel_table() do
+    GenServer.call(__MODULE__, :get_channel_table)
+  end
+
   def set_channel_id(pid, identifier, channel_id) do
     GenServer.call(pid, {:set_channel_id, identifier, channel_id})
   end
@@ -93,7 +97,7 @@ defmodule BackendServiceManager do
   end
 
   def handle_call({:set_channel_id, identifier, reestablish}, from, state) do
-    Logger.info("Channel poulated with channel_id #{inspect({identifier, reestablish})}")
+    Logger.info("Channel populated with channel_id #{inspect({identifier, reestablish})}")
 
     {:reply, :ok,
      %__MODULE__{state | channel_id_table: Map.put(state.channel_id_table, identifier, {reestablish, from})}}
@@ -131,5 +135,9 @@ defmodule BackendServiceManager do
         Process.monitor(pid)
         {:reply, {:ok, pid}, state}
     end
+  end
+
+  def handle_call(:get_channel_table, _from, state) do
+    {:reply, {:ok, state.channel_id_table}, state}
   end
 end

@@ -1,0 +1,16 @@
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">ID </th>
+      <th scope="col">Channel id</th>
+    </tr>
+  </thead>
+  <tbody>
+ <%= for {id,channel_id} <- @active_channels do %>
+   <tr>
+     <th scope="row"><%= id %></th>
+     <td><%= channel_id %></td>
+   </tr>
+ <% end %>
+  </tbody>
+ </table>
