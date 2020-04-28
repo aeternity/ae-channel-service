@@ -11,8 +11,10 @@
     <header>
       <section class="container">
         <nav role="navigation">
-          <ul>
-            <li><a href="https://aeternity.com/documentation-hub/">Get Started</a></li>
+          <ul "display: flex, flex-direction: row">
+            <li style="text-align: left"><a href="https://aeternity.com/documentation-hub/">Get Started</a></li>
+            <li style="text-align: left"><a href="<%= Routes.page_path(@conn, :index)%>">Back to Channels Interface </a></li>
+            <li style="text-align: left"><a href="<%= Routes.page_path(@conn, :show)%>">Backend: Currently active channels</a></li>
           </ul>
         </nav>
         <a href="https://aeternity.com/" class="phx-logo">

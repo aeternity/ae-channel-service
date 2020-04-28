@@ -96,6 +96,8 @@ defmodule BackendSession do
   end
 
   # once this occured we should be able to reconnect.
+  # if we don't update the channel id somewhere here,
+  # channel_id will be known as nil by BackendServiceManager
   def handle_cast({:channels_info, method, channel_id}, state)
       when method in ["funding_signed", "funding_created"] do
     BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
