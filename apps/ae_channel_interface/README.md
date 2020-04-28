@@ -28,6 +28,8 @@ The backend logic operates according to rules specifed in the backed session whi
 > the same goes for `channel_id` which identifies the channel. `channel_id` must be provided to reestablish a lost connection. 
 > you need to wait for minimum confirmation time. Have patience (minutes), eventually you should see an `open` message
  
+(Optional) Now, you can go and visit [http://localhost:4000/channels](http://localhost:4000/channels)
+which will list all currently active channels for channel backend service.
 
 ### Suggested approach 2 (manual initiator, manual backend)
 In this example you control both the initator and the responder
