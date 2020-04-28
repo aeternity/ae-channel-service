@@ -95,7 +95,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
             &1,
             responder_contract,
             to_charlist(payload["contract_method"]),
-            [to_char_list(BackendSession.add_quotes(payload["contract_params"]))],
+            [to_char_list(ContractHelper.add_quotes(payload["contract_params"]))],
             payload["contract_amount"]
           )
 
