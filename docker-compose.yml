@@ -2,7 +2,8 @@
 version: '3'
 services:
   aenode:
-    image: aeternity/aeternity
+    build: https://github.com/aeternity/aeternity.git#${NODE_REF:-master}
+    image: aeternity/aeternity:${NODE_REF:-master}
     ports:
       - "3013:3013"
       - "3014:3014"
