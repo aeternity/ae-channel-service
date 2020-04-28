@@ -160,11 +160,29 @@ defmodule BackendSession do
 
   def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:self] do
-    Logger.info("Game end, check updated funds")
+    Logger.info("Game end, backend emptying contract")
+
+    fun =
+      &SocketConnector.call_contract(
+        &1,
+        state.responder_contract,
+        'drain',
+        []
+      )
+
+    SessionHolder.run_action(state.pid_session_holder, fun)
+
     {:noreply, state}
   end
 
-  # TODO backend just happily signs
+  def handle_cast({:channels_update, 6, _round_initiator, "channels.update"} = _message, state) do
+    Logger.info("Shutdown game has reached end after one one toss, check account balances")
+    fun = &SocketConnector.shutdown(&1)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, state}
+  end
+
+  # TODO backend just happily signs, limit this to just sign contact calls and create/shutdown
   def handle_cast(
         {{:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message,
         state

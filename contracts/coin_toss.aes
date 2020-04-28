@@ -1,3 +1,5 @@
+// orignal contract location is at
+// https://github.com/aeternity/aeternity/blob/f3ad49602cc9e52dbaf8941b1f6304f232e8e994/test/contracts/coin_toss.aes
 contract CoinToss =
   record state = { casino          : address,
                    player          : address,
@@ -28,6 +30,11 @@ contract CoinToss =
     require_casino()
     require(state.hash == None, "already_playing")
     Chain.spend(state.casino, amount)
+
+  stateful entrypoint drain() =
+    require_casino()
+    require(state.hash == None, "already_playing")
+    Chain.spend(state.casino, Contract.balance)
 
   payable entrypoint deposit() =
     require_casino()
