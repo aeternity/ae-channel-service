@@ -10,6 +10,9 @@ in {
     buildInputs = [
       stable.beam.packages.erlangR21.elixir_1_9
       stable.docker-compose
+      stable.libsodium
+      stable.inotify-tools
+      stable.nodejs
     ];
   };
 }

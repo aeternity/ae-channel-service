@@ -22,7 +22,7 @@ sample backend service which could orchestrate a number of channels.
 clone this repository, then;
 ```
 cd ae-channel-service/
-make clean deps
+make clean deps # requires jq to be installed
 ```
 > to get the user interface look sane you could also:  
 `cd apps/ae_channel_interface/assets && npm install && cd -`

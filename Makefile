@@ -12,6 +12,7 @@ all: help
 deps: prepare
 deps: ## Get and compile Elixir dependencies
 	$(mix) deps.get
+	find apps -name package.json -a ! -path "*node_modules*" -execdir npm install \;
 
 .PHONY: compile
 compile: ## Compile Elixir code
