@@ -187,14 +187,26 @@ defmodule BackendSession do
   #   {:noreply, state}
   # end
 
-  # TODO backend just happily signs, limit this to just sign contact calls and create/shutdown
+  # Backend is selective and only allows certain operations
+  # TODO is this where we should set expected state?
   def handle_cast(
-        {{:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message,
+        {{:sign_approve, _round, round_initiator, method, %{"type" => type} = human, _channel_id}, to_sign} =
+          _message,
         state
-      ) do
+      )
+      when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or round_initiator == :self do
+    Logger.info("Backened sign request #{inspect({method, human})}")
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, state}
+  end
+
+  def handle_cast(
+        {{:sign_approve, _round, round_initiator, method, human, _channel_id}, to_sign} = _message,
+        state
+      ) do
+    Logger.info("Backened sign request something FISHY ongoing #{inspect({method, human})}")
     {:noreply, state}
   end
 

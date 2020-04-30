@@ -134,10 +134,10 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast(
-        {{:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message,
+        {{:sign_approve, _round, _round_initiator, method, human, channel_id}, to_sign} = message,
         socket
       ) do
-    Logger.info("Sign request #{inspect(message)}")
+    Logger.info("Client sign request #{inspect({method, human})}")
 
     push(socket, "sign_approve", %{
       message: inspect(message),
@@ -159,7 +159,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast(message, socket) do
-    push(socket, "log_event", %{message: inspect(message), name: "bot"})
+    push(socket, "log_event", %{message: inspect(message), name: "wild_bot"})
     {:noreply, socket}
   end
 end

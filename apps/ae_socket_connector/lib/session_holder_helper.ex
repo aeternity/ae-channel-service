@@ -26,7 +26,7 @@ defmodule SessionHolderHelper do
 
         GenServer.cast(
           callback_pid,
-          {{:sign_approve, round, round_initiator, method, channel_id}, to_sign}
+          {{:sign_approve, round, round_initiator, method, human, channel_id}, to_sign}
         )
 
         auto_approval
