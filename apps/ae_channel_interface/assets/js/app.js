@@ -50,7 +50,7 @@ let contract_method = document.getElementById('contract_method');
 let contract_params = document.getElementById('contract_params');
 let contract_amount = document.getElementById('contract_amount');
 let call_contract_btn = document.getElementById('call_contract_btn');
-
+let query_contract_btn = document.getElementById('query_contract_btn');
 
 // let bet_amount = document.getElementById('bet_amount');
 // let coin_guess = document.getElementById('coin_guess');
@@ -177,6 +177,11 @@ teardown_btn.addEventListener('click', function (event) {
 call_contract_btn.addEventListener('click', function (event) {
     channel.push('call_contract', { contract_amount: parseInt(contract_amount.value), contract_params: contract_params.value, contract_method: contract_method.value })
 });
+
+query_contract_btn.addEventListener('click', function (event) {
+    channel.push('query_contract', { contract_method: contract_method.value })
+});
+
 
 connect_initiator_websocket_btn.addEventListener('click', function (event) {
 

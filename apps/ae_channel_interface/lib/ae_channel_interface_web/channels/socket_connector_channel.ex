@@ -100,6 +100,22 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
           )
 
         SessionHolder.run_action(socketholder_pid, fun)
+
+      "query_contract" ->
+        responder_contract =
+          {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+           %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+        get_contract_result =
+          &SocketConnector.get_contract_reponse(
+            &1,
+            responder_contract,
+            to_charlist(payload["contract_method"]),
+            &2
+          )
+
+        result = SessionHolder.run_action_sync(socketholder_pid, get_contract_result)
+        GenServer.cast(self(), result)
     end
 
     {:noreply, socket}

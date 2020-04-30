@@ -84,9 +84,9 @@ defmodule BackendSession do
         [
           to_charlist(responder_pub),
           to_charlist(initiator_pub),
+          # reaction time
           '15'
-        ],
-        10
+        ]
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun)
@@ -112,14 +112,15 @@ defmodule BackendSession do
       )
 
     {:ok, {:bytes, [], hash}} = SessionHolder.run_action_sync(state.pid_session_holder, fun)
-    Logger.error("hash is #{inspect(hash)}")
 
     fun1 =
       &SocketConnector.call_contract(
         &1,
         state.responder_contract,
         'provide_hash',
-        [to_charlist(ContractHelper.to_sophia_bytes(hash))]
+        [to_charlist(ContractHelper.to_sophia_bytes(hash))],
+        # this is what we put at stake.
+        10
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun1)
@@ -151,29 +152,29 @@ defmodule BackendSession do
     {:noreply, state}
   end
 
-  def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
-      when round_initiator in [:self] do
-    Logger.info("Game end, backend emptying contract")
+  # def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
+  #     when round_initiator in [:self] do
+  #   Logger.info("Game end, backend emptying contract")
 
-    fun =
-      &SocketConnector.call_contract(
-        &1,
-        state.responder_contract,
-        'drain',
-        []
-      )
+  #   fun =
+  #     &SocketConnector.call_contract(
+  #       &1,
+  #       state.responder_contract,
+  #       'drain',
+  #       []
+  #     )
 
-    SessionHolder.run_action(state.pid_session_holder, fun)
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
 
-    {:noreply, state}
-  end
+  #   {:noreply, state}
+  # end
 
-  def handle_cast({:channels_update, 6, _round_initiator, "channels.update"} = _message, state) do
-    Logger.info("Shutdown game has reached end after one one toss, check account balances")
-    fun = &SocketConnector.shutdown(&1)
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, state}
-  end
+  # def handle_cast({:channels_update, 5, _round_initiator, "channels.update"} = _message, state) do
+  #   Logger.info("Shutdown game has reached end after one one toss, check account balances")
+  #   fun = &SocketConnector.shutdown(&1)
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
+  #   {:noreply, state}
+  # end
 
   # TODO backend just happily signs, limit this to just sign contact calls and create/shutdown
   def handle_cast(

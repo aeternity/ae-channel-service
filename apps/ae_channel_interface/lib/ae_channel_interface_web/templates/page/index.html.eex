@@ -95,8 +95,13 @@
 <button id="call_contract_btn" style="margin-right: 20px">Call contract</button>
 <input id="contract_method" type="text" value="player_pick" style="margin-right: 20px">
 <input id="contract_params" type="text" value="heads" style="margin-right: 20px">
-<input id="contract_amount" type="text" value="4">
+<input id="contract_amount" type="text" value="10">
 </div>
+
+<div style="display:flex;">
+<button id="query_contract_btn" style="margin-right: 20px">Query contract result</button>
+</div>
+
 
 
 <!-- The list of messages will appear here: -->
