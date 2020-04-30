@@ -11,13 +11,16 @@ defmodule BackendSession do
 
   def keypair_responder(), do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
 
+  @states [:provide_hash, :player_pick, :reveal]
+
   defstruct pid_session_holder: nil,
             pid_backend_manager: nil,
             identifier: nil,
             params: nil,
             port: nil,
             game: %{},
-            responder_contract: nil
+            responder_contract: nil,
+            expected_state: :provide_hash
 
   # Client
 
@@ -90,14 +93,19 @@ defmodule BackendSession do
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, state}
+    {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
   end
 
-  def handle_cast({:channels_update, 2, round_initiator, "channels.update"} = _message, state)
-      when round_initiator in [:self] do
+  def handle_cast(
+        {:channels_update, _round, round_initiator, "channels.update"} = _message,
+        %__MODULE__{expected_state: expected_state} = state
+      )
+      when round_initiator in [:self] and expected_state == :provide_hash do
     {responder_pub, _priv} = keypair_responder()
     {_role, _channel_config, _reestablish, initiator_keypair} = state.params
     {initiator_pub, _priv} = initiator_keypair.()
+
+    Logger.info("providing hash")
 
     some_salt = ContractHelper.add_quotes("some_salt")
     coin = ContractHelper.add_quotes("heads")
@@ -124,21 +132,24 @@ defmodule BackendSession do
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun1)
-    {:noreply, %__MODULE__{state | game: %{hash: hash, coin: coin, salt: some_salt}}}
-  end
-
-  def handle_cast({:channels_update, 3, round_initiator, "channels.update"} = _message, state)
-      when round_initiator in [:self] do
-    Logger.info("Waiting for player to make a guess")
-    {:noreply, state}
+    {:noreply, %__MODULE__{state | expected_state: :player_pick, game: %{hash: hash, coin: coin, salt: some_salt}}}
   end
 
   def handle_cast(
-        {:channels_update, 4, round_initiator, "channels.update"} = _message,
-        %__MODULE__{game: game} = state
+        {:channels_update, _round, round_initiator, "channels.update"} = _message,
+        %__MODULE__{expected_state: expected_state} = state
       )
-      when round_initiator in [:other] do
-    Logger.info("Other player made a guess")
+      when round_initiator in [:self] and expected_state == :player_pick do
+    Logger.info("Waiting for player to make a guess")
+    {:noreply, %__MODULE__{state | expected_state: :reveal}}
+  end
+
+  def handle_cast(
+        {:channels_update, _round, round_initiator, "channels.update"} = _message,
+        %__MODULE__{game: game, expected_state: expected_state} = state
+      )
+      when round_initiator in [:other] and expected_state == :reveal do
+    Logger.info("Other player made a guess, settling funds")
 
     fun =
       &SocketConnector.call_contract(
@@ -149,7 +160,7 @@ defmodule BackendSession do
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, state}
+    {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
   end
 
   # def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
