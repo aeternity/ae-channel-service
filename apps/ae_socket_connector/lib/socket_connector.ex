@@ -258,6 +258,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
   end
 
+  @spec force_progress(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
+  def force_progress(pid, contract, fun, args, amount \\ 0) do
+    WebSockex.cast(pid, {:force_progress, contract, fun, args, amount})
+  end
+
   @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
   def get_contract_reponse(pid, contract, fun, from \\ nil) do
     WebSockex.cast(pid, {:get_contract_reponse, contract, fun, from})
@@ -529,6 +534,30 @@ defmodule SocketConnector do
      }}
   end
 
+  def handle_cast({:force_progress, {_pub_key, contract_file, config} = contract, fun, args, amount}, state) do
+    {:ok, call_data} =
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
+        {:backend, config.backend}
+      ])
+
+      contract_list = calculate_contract_address(contract, state.round_and_updates)
+
+      [{_max_round, contract_pubkey} | _t] =
+        Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
+  
+      encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+      #contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
+  
+      request = force_progress_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
+      Logger.info("=> force progress #{inspect(request)}", state.color)
+  
+      {:reply, {:text, Poison.encode!(request)},
+       %__MODULE__{
+         state
+         | pending_id: Map.get(request, :id, nil)
+           #contract_call_in_flight: contract_call_in_flight
+       }}
+  end 
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, contract, _fun, from_pid}, state) do
     contract_list = calculate_contract_address(contract, state.round_and_updates)
@@ -734,6 +763,14 @@ defmodule SocketConnector do
 
   def call_contract_req(address, abi_version, call_data, amount) do
     build_request("channels.update.call_contract", %{
+      abi_version: abi_version,
+      amount: amount,
+      call_data: call_data,
+      contract_id: address
+    })
+  end
+  def force_progress_req(address, abi_version, call_data, amount) do
+    build_request("channels.force_progress", %{
       abi_version: abi_version,
       amount: amount,
       call_data: call_data,
