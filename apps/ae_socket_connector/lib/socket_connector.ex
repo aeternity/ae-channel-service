@@ -485,6 +485,30 @@ defmodule SocketConnector do
            )}
   end
 
+  defp is_correct_adress(owner, round, contract_pubkey) do
+    {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
+
+    :aeser_api_encoder.encode(
+      :contract_pubkey,
+      :aect_contracts.compute_contract_pubkey(contract_owner, round)
+    ) == contract_pubkey
+  end
+
+  def get_contract_bytecode(contract_pubkey, updates) do
+    for {round,
+         %Update{
+           updates: [
+             %{
+               "op" => "OffChainNewContract",
+               "owner" => contract_owner,
+               "code" => code
+             }
+           ]
+         }} <- updates,
+        is_correct_adress(contract_owner, round, contract_pubkey),
+        do: code
+  end
+
   def find_contract_calls(caller, contract_pubkey, updates) do
     Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
 
@@ -913,6 +937,40 @@ defmodule SocketConnector do
     "channels.sign.withdraw_ack"
   ]
 
+  # @spec decode_calldata(any, any) :: :empty | :ok | {:error, any}
+  def decode_calldata(updates, state) do
+    entries =
+      for %{"call_data" => call_data, "contract_id" => contract_id} <- updates,
+          do: {call_data, contract_id}
+
+    case entries do
+      [] ->
+        {:empty}
+
+      [{call_data, contract_id}] ->
+        {:contract_bytearray, decoded_calldata} = :aeser_api_encoder.decode(call_data)
+
+        # We now have the arguments
+        {:tuple, {fun_hash, {:tuple, arguments}}} = :aeb_fate_encoding.deserialize(decoded_calldata)
+
+        # lets get the function called
+        case get_contract_bytecode(contract_id, state.round_and_updates) do
+          [] ->
+            Logger.error("no contract create operation found")
+            {:empty}
+
+          [byte_code] ->
+            {:contract_bytearray, stuff_decoded_bytecode} = :aeser_api_encoder.decode(byte_code)
+            %{byte_code: code} = :aeser_contract_code.deserialize(stuff_decoded_bytecode)
+            decoded_bytecode = :aeb_fate_code.deserialize(code)
+
+            {:ok, fun_name} = :aeb_fate_abi.get_function_name_from_function_hash(fun_hash, decoded_bytecode)
+
+            {fun_name, arguments}
+        end
+    end
+  end
+
   def process_message(
         %{
           "method" => method,
@@ -936,7 +994,9 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    Validator.notify_sign_transaction(pending_update, method, channel_id, state)
+    # TODO this decoding needs some rework.
+    updates_custom = [%{decoded_calldata: decode_calldata(updates, state)} | updates]
+    Validator.notify_sign_transaction(%Update{pending_update | updates: updates_custom}, method, channel_id, state)
 
     new_state = %__MODULE__{
       state
