@@ -159,7 +159,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast(
-        {{:sign_approve, _round, _round_initiator, method, human, channel_id}, to_sign} = message,
+        {{:sign_approve, _round, _round_initiator, method, _updates, human, channel_id}, to_sign} = message,
         socket
       ) do
     Logger.info("Client sign request #{inspect({method, human})}")

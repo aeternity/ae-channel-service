@@ -38,6 +38,7 @@ defmodule BackendSession do
   # Server
   def init({params, {pid_manager, identifier}}) do
     Logger.info("Starting backend session #{inspect({params, identifier})} pid is #{inspect(self())}")
+
     GenServer.cast(self(), {:resume_init, params})
     {:ok, %__MODULE__{pid_backend_manager: pid_manager, identifier: identifier, params: params}}
   end
@@ -218,8 +219,8 @@ defmodule BackendSession do
   # Backend is selective and only allows certain operations
   # TODO is this where we should set expected state?
   def handle_cast(
-        {{:sign_approve, _round, round_initiator, method, %{"type" => type} = human, _channel_id}, to_sign} =
-          _message,
+        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = human, _channel_id},
+         to_sign} = _message,
         state
       )
       when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or round_initiator == :self do
@@ -251,7 +252,12 @@ defmodule BackendSession do
   # channel_id will be known as nil by BackendServiceManager
   def handle_cast({:channels_info, method, channel_id}, state)
       when method in ["funding_signed", "funding_created"] do
-    BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
+    BackendServiceManager.set_channel_id(
+      state.pid_backend_manager,
+      state.identifier,
+      {channel_id, state.port}
+    )
+
     {:noreply, state}
   end
 
