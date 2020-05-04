@@ -56,7 +56,7 @@ defmodule Validator do
   #   :aec_hash.blake2b_256_hash(<<pub_key::binary, compiled_contract::binary>>)
   # end
 
-  defp send_approval_request(to_sign, round_initiator, method, channel_id, auto_approval, state) do
+  defp send_approval_request(to_sign, updates, round_initiator, method, channel_id, auto_approval, state) do
     {:ok, signed_tx} = :aeser_api_encoder.safe_decode(:transaction, to_sign)
     # returns #aetx
     deserialized_signed_tx = :aetx_sign.deserialize_from_binary(signed_tx)
@@ -84,6 +84,7 @@ defmodule Validator do
               auto_approval,
               method,
               to_sign,
+              updates,
               channel_id,
               :aetx.serialize_for_client(aetx)
             )
@@ -96,6 +97,7 @@ defmodule Validator do
               auto_approval,
               method,
               to_sign,
+              updates,
               channel_id,
               :aetx.serialize_for_client(aetx)
             )
@@ -109,6 +111,7 @@ defmodule Validator do
               auto_approval,
               method,
               to_sign,
+              updates,
               channel_id,
               :aetx.serialize_for_client(aetx)
             )
@@ -129,6 +132,7 @@ defmodule Validator do
               auto_approval,
               method,
               to_sign,
+              updates,
               channel_id,
               :aetx.serialize_for_client(aetx)
             )
@@ -142,6 +146,7 @@ defmodule Validator do
               auto_approval,
               method,
               to_sign,
+              updates,
               channel_id,
               :aetx.serialize_for_client(aetx)
             )
@@ -162,12 +167,12 @@ defmodule Validator do
         channel_id,
         state
       ) do
-    %Update{tx: to_sign, round_initiator: round_initiator} = pending_update
+    %Update{tx: to_sign, updates: updates, round_initiator: round_initiator} = pending_update
 
     # The idea here is that if we initiated the round we can automatically confirm that the sign request contians what we intended. Grab code from inspect_sign_request
     auto_approval = :ok
 
-    case send_approval_request(to_sign, round_initiator, method, channel_id, auto_approval, state) do
+    case send_approval_request(to_sign, updates, round_initiator, method, channel_id, auto_approval, state) do
       :ok -> :ok
       _ -> :unsecure
     end
@@ -188,40 +193,40 @@ defmodule Validator do
   end
 
   # not used remove or, re-use inmplemetation
-  def inspect_sign_request_poi(method, poi) do
-    fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
-  end
+  # def inspect_sign_request_poi(method, poi) do
+  #   fn a, b, c -> inspect_sign_request(a, b, method, c, poi) end
+  # end
 
   # not used remove or, re-use inmplemetation
-  def inspect_sign_request(aetx, round_initiator, method, state, poi \\ nil) do
-    {module, _tx_instance} = :aetx.specialize_callback(aetx)
+  # def inspect_sign_request(aetx, round_initiator, met7od, state, poi \\ nil) do
+  #   {module, _tx_instance} = :aetx.specialize_callback(aetx)
 
-    # TODO if calls is initiated by us and contains what we submitted auto approval can be made
-    auto_approval =
-      case module do
-        :aesc_create_tx ->
-          channel_create_tx(aetx, state)
+  #   # TODO if calls is initiated by us and contains what we submitted auto approval can be made
+  #   auto_approval =
+  #     case module do
+  #       :aesc_create_tx ->
+  #         channel_create_tx(aetx, state)
 
-        :aesc_close_mutual_tx ->
-          # TODO match_pot_aetx is currently doing the notify_sign_transactionsame checking...
-          match_poi_aetx(
-            {poi, [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
-             []},
-            aetx,
-            state.round_and_updates
-          )
+  #       :aesc_close_mutual_tx ->
+  #         # TODO match_pot_aetx is currently doing the notify_sign_transactionsame checking...
+  #         match_poi_aetx(
+  #           {poi, [state.session.basic_configuration.initiator_id, state.session.basic_configuration.responder_id],
+  #            []},
+  #           aetx,
+  #           state.round_and_updates
+  #         )
 
-        _other ->
-          Logger.debug("Sign request Missing inspection!! default approved. Module is #{inspect(module)}")
+  #       _other ->
+  #         Logger.debug("Sign request Missing inspection!! default approved. Module is #{inspect(module)}")
 
-          :ok
-      end
+  #         :ok
+  #     end
 
-    case send_approval_request(aetx, round_initiator, method, nil, auto_approval, state) do
-      :ok -> :ok
-      _ -> :unsecure
-    end
-  end
+  #   case send_approval_request(aetx, round_initiator, method, nil, auto_approval, state) do
+  #     :ok -> :ok
+  #     _ -> :unsecure
+  #   end
+  # end
 
   @ae_transaction_path "/v2/transactions/"
   # shot this curl to check wheater ChannelService.OnChain is alright....

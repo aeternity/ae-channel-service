@@ -9,7 +9,7 @@ defmodule SessionHolderHelper do
 
   def connection_callback(callback_pid, color, logfun \\ & &1) when is_atom(color) do
     %SocketConnector.ConnectionCallbacks{
-      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, channel_id, human ->
+      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, updates, channel_id, human ->
         logfun.(
           {:sign_approve,
            %{
@@ -18,6 +18,7 @@ defmodule SessionHolderHelper do
              auto_approval: auto_approval,
              method: method,
              to_sign: to_sign,
+             updates: updates,
              channel_id: channel_id,
              human: human,
              color: color
@@ -58,7 +59,7 @@ defmodule SessionHolderHelper do
 
   def connection_callback_runner(callback_pid, color, logfun \\ & &1) when is_atom(color) do
     %SocketConnector.ConnectionCallbacks{
-      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, channel_id, human ->
+      sign_approve: fn round_initiator, round, auto_approval, method, to_sign, updates, channel_id, human ->
         logfun.(
           {:sign_approve,
            %{
@@ -67,6 +68,7 @@ defmodule SessionHolderHelper do
              auto_approval: auto_approval,
              method: method,
              to_sign: to_sign,
+             updates: updates,
              channel_id: channel_id,
              human: human,
              color: color

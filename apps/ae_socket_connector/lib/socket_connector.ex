@@ -428,6 +428,7 @@ defmodule SocketConnector do
         state
       ) do
     {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, backend}])
+
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:ok, call_data} =
@@ -498,6 +499,30 @@ defmodule SocketConnector do
            )}
   end
 
+  defp is_correct_adress(owner, round, contract_pubkey) do
+    {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
+
+    :aeser_api_encoder.encode(
+      :contract_pubkey,
+      :aect_contracts.compute_contract_pubkey(contract_owner, round)
+    ) == contract_pubkey
+  end
+
+  def get_contract_bytecode(contract_pubkey, updates) do
+    for {round,
+         %Update{
+           updates: [
+             %{
+               "op" => "OffChainNewContract",
+               "owner" => contract_owner,
+               "code" => code
+             }
+           ]
+         }} <- updates,
+        is_correct_adress(contract_owner, round, contract_pubkey),
+        do: code
+  end
+
   def find_contract_calls(caller, contract_pubkey, updates) do
     Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
 
@@ -564,7 +589,13 @@ defmodule SocketConnector do
 
     sync_call =
       %SyncCall{request: request} =
-      call_contract_dry_response_query(contract_pubkey, config.abi_version, encoded_calldata, 0, from_pid)
+      call_contract_dry_response_query(
+        contract_pubkey,
+        config.abi_version,
+        encoded_calldata,
+        0,
+        from_pid
+      )
 
     Logger.info("=> call contract DRY #{inspect(request)}", state.color)
 
@@ -661,7 +692,10 @@ defmodule SocketConnector do
     [{round, update}] = Map.to_list(state.pending_round_and_update)
 
     {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))},
-     %__MODULE__{state | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}}}
+     %__MODULE__{
+       state
+       | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}
+     }}
   end
 
   def handle_cast(
@@ -889,6 +923,7 @@ defmodule SocketConnector do
 
   def sync_state(state) do
     sync_state = Enum.reduce(@persist_keys, %{}, fn key, acc -> Map.put(acc, key, Map.get(state, key)) end)
+
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
@@ -989,7 +1024,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}, "channel_id" => channel_id}
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign, "updates" => updates},
+            "channel_id" => channel_id
+          }
         } = _message,
         state
       )
@@ -1008,6 +1046,38 @@ defmodule SocketConnector do
       contract_call: state.contract_call_in_flight,
       round_initiator: round_initiator
     }
+
+    # this code decodes calldata
+    entries =
+      for %{"call_data" => call_data, "contract_id" => contract_id} <- updates,
+          do: {call_data, contract_id}
+
+    case entries do
+      [] ->
+        :empty
+
+      [{call_data, contract_id}] ->
+        {:contract_bytearray, decoded_calldata} = :aeser_api_encoder.decode(call_data)
+
+        # We now have the arguments
+        {:tuple, {fun_hash, {:tuple, arguments}}} = :aeb_fate_encoding.deserialize(decoded_calldata)
+
+        # lets get the function called
+        case get_contract_bytecode(contract_id, state.round_and_updates) do
+          [] ->
+            Logger.error("no contract create operation found")
+            :empty
+
+          [byte_code] ->
+            {:contract_bytearray, stuff_decoded_bytecode} = :aeser_api_encoder.decode(byte_code)
+            %{byte_code: code} = :aeser_contract_code.deserialize(stuff_decoded_bytecode)
+            decoded_bytecode = :aeb_fate_code.deserialize(code)
+
+            {:ok, fun_name} = :aeb_fate_abi.get_function_name_from_function_hash(fun_hash, decoded_bytecode)
+
+            Logger.error("Function called with arguments #{inspect({fun_name, arguments})}")
+        end
+    end
 
     Validator.notify_sign_transaction(pending_update, method, channel_id, state)
 
@@ -1037,8 +1107,9 @@ defmodule SocketConnector do
       ) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
-      Map.get(state.round_and_updates, state.contract_call_in_flight_round)
+    %Update{
+      contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}
+    } = Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
     sophia_value =
@@ -1157,8 +1228,10 @@ defmodule SocketConnector do
   # could possibly be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
   def process_message(
-        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}} =
-          error,
+        %{
+          "channel_id" => _channel_id,
+          "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}
+        } = error,
         state
       ) do
     Logger.error("error")
@@ -1320,7 +1393,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}
+          }
         } = _message,
         # TODO do we want to go for is_first_update here
         # %__MODULE__{channel_id: current_channel_id} = state
@@ -1342,7 +1418,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event, "fsm_id" => fsm_id}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"event" => event, "fsm_id" => fsm_id}
+          }
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )
