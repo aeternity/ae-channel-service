@@ -45,6 +45,11 @@ let query_funds_btn = document.getElementById('query_funds_btn');
 let shutdown_btn = document.getElementById('shutdown_btn');
 let teardown_btn = document.getElementById('teardown_btn');
 
+let provide_hash_call_contract_btn = document.getElementById('provide_hash_call_contract_btn');
+let provide_hash_contract_amount = document.getElementById('provide_hash_contract_amount');
+
+let reveal_contract_amount = document.getElementById('reveal_contract_amount');
+let reveal_call_contract_btn = document.getElementById('reveal_call_contract_btn');
 
 let contract_method = document.getElementById('contract_method');
 let contract_params = document.getElementById('contract_params');
@@ -176,6 +181,14 @@ teardown_btn.addEventListener('click', function (event) {
 
 call_contract_btn.addEventListener('click', function (event) {
     channel.push('call_contract', { contract_amount: parseInt(contract_amount.value), contract_params: contract_params.value, contract_method: contract_method.value })
+});
+
+provide_hash_call_contract_btn.addEventListener('click', function (event) {
+    channel.push('provide_hash_call_contract', { contract_amount: parseInt(provide_hash_contract_amount.value) })
+});
+
+reveal_call_contract_btn.addEventListener('click', function (event) {
+    channel.push('reveal_call_contract', {})
 });
 
 query_contract_btn.addEventListener('click', function (event) {

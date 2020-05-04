@@ -85,83 +85,111 @@ defmodule BackendSession do
         &1,
         state.responder_contract,
         [
-          to_charlist(responder_pub),
           to_charlist(initiator_pub),
+          to_charlist(responder_pub),
           # reaction time
           '15'
         ]
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
+    {:noreply, %__MODULE__{state | expected_state: :provide_hash2}}
   end
 
   def handle_cast(
-        {:channels_update, _round, round_initiator, "channels.update"} = _message,
-        %__MODULE__{expected_state: expected_state} = state
+        {:channels_update, round, round_initiator, "channels.update"} = _message,
+        %__MODULE__{expected_state: _expected_state} = state
       )
-      when round_initiator in [:self] and expected_state == :provide_hash do
-    {responder_pub, _priv} = keypair_responder()
-    {_role, _channel_config, _reestablish, initiator_keypair} = state.params
-    {initiator_pub, _priv} = initiator_keypair.()
+      when round_initiator in [:other] do
+    case round > 2 and rem(round - 3, 3) == 0 do
+      true ->
+        heads_pick = ContractHelper.add_quotes("heads")
 
-    Logger.info("providing hash")
+        fun1 =
+          &SocketConnector.call_contract(
+            &1,
+            state.responder_contract,
+            'casino_pick',
+            [to_charlist(heads_pick)],
+            # this is what we put at stake.
+            10
+          )
 
-    some_salt = ContractHelper.add_quotes("some_salt")
-    coin = ContractHelper.add_quotes("heads")
+        SessionHolder.run_action(state.pid_session_holder, fun1)
 
-    fun =
-      &SocketConnector.call_contract_dry(
-        &1,
-        state.responder_contract,
-        'compute_hash',
-        [to_charlist(some_salt), to_charlist(coin)],
-        &2
-      )
+      _ ->
+        :ok
+    end
 
-    {:ok, {:bytes, [], hash}} = SessionHolder.run_action_sync(state.pid_session_holder, fun)
-
-    fun1 =
-      &SocketConnector.call_contract(
-        &1,
-        state.responder_contract,
-        'provide_hash',
-        [to_charlist(ContractHelper.to_sophia_bytes(hash))],
-        # this is what we put at stake.
-        10
-      )
-
-    SessionHolder.run_action(state.pid_session_holder, fun1)
-    {:noreply, %__MODULE__{state | expected_state: :player_pick, game: %{hash: hash, coin: coin, salt: some_salt}}}
+    {:noreply, state}
   end
 
-  def handle_cast(
-        {:channels_update, _round, round_initiator, "channels.update"} = _message,
-        %__MODULE__{expected_state: expected_state} = state
-      )
-      when round_initiator in [:self] and expected_state == :player_pick do
-    Logger.info("Waiting for player to make a guess")
-    {:noreply, %__MODULE__{state | expected_state: :reveal}}
-  end
+  # def handle_cast(
+  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
+  #       %__MODULE__{expected_state: expected_state} = state
+  #     )
+  #     when round_initiator in [:self] and expected_state == :provide_hash do
+  #   {responder_pub, _priv} = keypair_responder()
+  #   {_role, _channel_config, _reestablish, initiator_keypair} = state.params
+  #   {initiator_pub, _priv} = initiator_keypair.()
 
-  def handle_cast(
-        {:channels_update, _round, round_initiator, "channels.update"} = _message,
-        %__MODULE__{game: game, expected_state: expected_state} = state
-      )
-      when round_initiator in [:other] and expected_state == :reveal do
-    Logger.info("Other player made a guess, settling funds")
+  #   Logger.info("providing hash")
 
-    fun =
-      &SocketConnector.call_contract(
-        &1,
-        state.responder_contract,
-        'reveal',
-        [to_charlist(game.salt), to_charlist(game.coin)]
-      )
+  #   some_salt = ContractHelper.add_quotes("some_salt")
+  #   coin = ContractHelper.add_quotes("heads")
 
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
-  end
+  #   fun =
+  #     &SocketConnector.call_contract_dry(
+  #       &1,
+  #       state.responder_contract,
+  #       'compute_hash',
+  #       [to_charlist(some_salt), to_charlist(coin)],
+  #       &2
+  #     )
+
+  #   {:ok, {:bytes, [], hash}} = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+
+  #   fun1 =
+  #     &SocketConnector.call_contract(
+  #       &1,
+  #       state.responder_contract,
+  #       'provide_hash',
+  #       [to_charlist(ContractHelper.to_sophia_bytes(hash))],
+  #       # this is what we put at stake.
+  #       10
+  #     )
+
+  #   SessionHolder.run_action(state.pid_session_holder, fun1)
+  #   {:noreply, %__MODULE__{state | expected_state: :player_pick, game: %{hash: hash, coin: coin, salt: some_salt}}}
+  # end
+
+  # def handle_cast(
+  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
+  #       %__MODULE__{expected_state: expected_state} = state
+  #     )
+  #     when round_initiator in [:self] and expected_state == :player_pick do
+  #   Logger.info("Waiting for player to make a guess")
+  #   {:noreply, %__MODULE__{state | expected_state: :reveal}}
+  # end
+
+  # def handle_cast(
+  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
+  #       %__MODULE__{game: game, expected_state: expected_state} = state
+  #     )
+  #     when round_initiator in [:other] and expected_state == :reveal do
+  #   Logger.info("Other player made a guess, settling funds")
+
+  #   fun =
+  #     &SocketConnector.call_contract(
+  #       &1,
+  #       state.responder_contract,
+  #       'reveal',
+  #       [to_charlist(game.salt), to_charlist(game.coin)]
+  #     )
+
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
+  #   {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
+  # end
 
   # def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
   #     when round_initiator in [:self] do

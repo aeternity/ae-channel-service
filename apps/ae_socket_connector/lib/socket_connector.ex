@@ -255,6 +255,7 @@ defmodule SocketConnector do
 
   @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
   def call_contract(pid, contract, fun, args, amount \\ 0) do
+    Logger.error("CALLING")
     WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
   end
 
@@ -428,6 +429,7 @@ defmodule SocketConnector do
         state
       ) do
     {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, backend}])
+
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:ok, call_data} =
@@ -564,7 +566,13 @@ defmodule SocketConnector do
 
     sync_call =
       %SyncCall{request: request} =
-      call_contract_dry_response_query(contract_pubkey, config.abi_version, encoded_calldata, 0, from_pid)
+      call_contract_dry_response_query(
+        contract_pubkey,
+        config.abi_version,
+        encoded_calldata,
+        0,
+        from_pid
+      )
 
     Logger.info("=> call contract DRY #{inspect(request)}", state.color)
 
@@ -661,7 +669,10 @@ defmodule SocketConnector do
     [{round, update}] = Map.to_list(state.pending_round_and_update)
 
     {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))},
-     %__MODULE__{state | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}}}
+     %__MODULE__{
+       state
+       | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}
+     }}
   end
 
   def handle_cast(
@@ -889,6 +900,7 @@ defmodule SocketConnector do
 
   def sync_state(state) do
     sync_state = Enum.reduce(@persist_keys, %{}, fn key, acc -> Map.put(acc, key, Map.get(state, key)) end)
+
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
@@ -989,7 +1001,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}, "channel_id" => channel_id}
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign, "updates" => updates},
+            "channel_id" => channel_id
+          }
         } = _message,
         state
       )
@@ -1037,8 +1052,9 @@ defmodule SocketConnector do
       ) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
-      Map.get(state.round_and_updates, state.contract_call_in_flight_round)
+    %Update{
+      contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}
+    } = Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
     sophia_value =
@@ -1157,8 +1173,10 @@ defmodule SocketConnector do
   # could possibly be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
   def process_message(
-        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}} =
-          error,
+        %{
+          "channel_id" => _channel_id,
+          "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}
+        } = error,
         state
       ) do
     Logger.error("error")
@@ -1320,7 +1338,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}
+          }
         } = _message,
         # TODO do we want to go for is_first_update here
         # %__MODULE__{channel_id: current_channel_id} = state
@@ -1342,7 +1363,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event, "fsm_id" => fsm_id}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"event" => event, "fsm_id" => fsm_id}
+          }
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )

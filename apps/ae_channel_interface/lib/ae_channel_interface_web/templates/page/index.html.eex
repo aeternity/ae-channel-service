@@ -91,15 +91,25 @@
 <%# <button id="leave_btn" style="margin-right: 20px" disabled>Leave</button> %>
 </div>
 
+
 <div style="display:flex;">
-<button id="call_contract_btn" style="margin-right: 20px">Call contract</button>
-<input id="contract_method" type="text" value="player_pick" style="margin-right: 20px">
-<input id="contract_params" type="text" value="heads" style="margin-right: 20px">
+<button id="call_contract_btn" style="margin-right: 20px" disabled>Call contract</button>
+<input id="contract_method" type="text" value="provide_hash" style="margin-right: 20px">
+<input id="contract_params" type="text" value="empty" style="margin-right: 20px">
 <input id="contract_amount" type="text" value="10">
 </div>
 
 <div style="display:flex;">
-<button id="query_contract_btn" style="margin-right: 20px">Query contract result</button>
+<button id="provide_hash_call_contract_btn" style="margin-right: 20px">1 Call contract provide_hash (always 'heads')</button>
+<input id="provide_hash_contract_amount" type="text" value="10">
+</div>
+
+<div style="display:flex;">
+<button id="reveal_call_contract_btn" style="margin-right: 20px">2 Call contract reveal</button>
+</div>
+
+<div style="display:flex;">
+<button id="query_contract_btn" style="margin-right: 20px" disabled>Query contract result</button>
 </div>
 
 

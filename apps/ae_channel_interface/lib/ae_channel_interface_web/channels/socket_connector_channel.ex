@@ -55,6 +55,8 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   def handle_in(action, payload, socket) do
     socketholder_pid = socket.assigns.pid_session_holder
 
+    Logger.error("Called action #{inspect({action, payload})}")
+
     case action do
       "leave" ->
         SessionHolder.leave(socketholder_pid)
@@ -85,7 +87,28 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
       # fun = &SocketConnector.query_funds(&1)
       # SessionHolder.run_action(socketholder_pid, fun)
-      "call_contract" ->
+      "provide_hash_call_contract" ->
+        responder_contract =
+          {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+           %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+        hash = "#0F7AD4B9B19BD3352A59DA985362351CF2A81449A2C03D7D8A07DE62732473F2"
+        # UGLY non generic to work with specific hashcode.
+        fun =
+          &SocketConnector.call_contract(
+            &1,
+            responder_contract,
+            to_charlist('provide_hash'),
+            [to_charlist(hash)],
+            payload["contract_amount"]
+          )
+
+        SessionHolder.run_action(socketholder_pid, fun)
+
+      "reveal_call_contract" ->
+        some_salt = ContractHelper.add_quotes("some_salt")
+        coin = ContractHelper.add_quotes("heads")
+
         responder_contract =
           {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
            %{abi_version: 3, vm_version: 5, backend: :fate}}
@@ -94,9 +117,8 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
           &SocketConnector.call_contract(
             &1,
             responder_contract,
-            to_charlist(payload["contract_method"]),
-            [to_char_list(ContractHelper.add_quotes(payload["contract_params"]))],
-            payload["contract_amount"]
+            'reveal',
+            [to_charlist(some_salt), to_charlist(coin)]
           )
 
         SessionHolder.run_action(socketholder_pid, fun)
@@ -116,6 +138,9 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
 
         result = SessionHolder.run_action_sync(socketholder_pid, get_contract_result)
         GenServer.cast(self(), result)
+
+      other ->
+        Logger.error("No clause matching #{inspect(other)}")
     end
 
     {:noreply, socket}
