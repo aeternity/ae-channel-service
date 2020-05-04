@@ -1236,6 +1236,86 @@ defmodule SocketConnectorTest do
     )
   end
 
+  @tag :fp
+  test "fp jobss", context do
+    {alice, bob} = gen_names(context.test)
+
+    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+      initiator_contract =
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes",
+         %{abi_version: 1, vm_version: 3, backend: :aevm}}
+
+      # correct path if started in shell...
+      # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
+      [
+        {:initiator,
+         %{
+           message: {:channels_update, 1, :self, "channels.update"},
+           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
+           fuzzy: 10
+         }},
+        {:initiator,
+         %{
+           message: {:channels_update, 2, :self, "channels.update"},
+           fuzzy: 3,
+           next:
+             ClientRunnerHelper.assert_funds_job(
+               {intiator_account, 6_999_999_999_997},
+               {responder_account, 4_000_000_000_003}
+             )
+         }},
+        {:initiator,
+         %{
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 3, :self, "channels.update"},
+           next:
+             {:async,
+              fn pid ->
+                SocketConnector.force_progress(
+                  pid,
+                  initiator_contract,
+                  'make_move',
+                  ['11', '1']
+                )
+              end, :empty}
+         }},
+        {:initiator,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 4, :self, "channels.update"}
+         }},
+        {:responder,
+         %{
+           fuzzy: 10,
+           message: {:channels_update, 4, :other, "channels.update"}
+         }},
+        {:initiator, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 10}},
+        {:responder, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 10}},
+        {:responder, %{next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)}},
+        {:initiator,
+         %{
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+         }}
+      ]
+    end
+
+    channel_config = SessionHolderHelper.custom_config(%{}, %{minimum_depth: 0, port: 1408})
+
+    ClientRunner.start_peers(
+      SessionHolderHelper.ae_url(),
+      SessionHolderHelper.network_id(),
+      %{
+        initiator: %{name: alice, keypair: accounts_initiator(), custom_configuration: channel_config},
+        responder: %{name: bob, keypair: accounts_responder(), custom_configuration: channel_config}
+      },
+      scenario
+    )
+  end
+
   @tag :reestablish
   test "reestablish jobs", context do
     {alice, bob} = gen_names(context.test)

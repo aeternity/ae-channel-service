@@ -540,24 +540,25 @@ defmodule SocketConnector do
         {:backend, config.backend}
       ])
 
-      contract_list = calculate_contract_address(contract, state.round_and_updates)
+    contract_list = calculate_contract_address(contract, state.round_and_updates)
 
-      [{_max_round, contract_pubkey} | _t] =
-        Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
-  
-      encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
-      #contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
-  
-      request = force_progress_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
-      Logger.info("=> force progress #{inspect(request)}", state.color)
-  
-      {:reply, {:text, Poison.encode!(request)},
-       %__MODULE__{
-         state
-         | pending_id: Map.get(request, :id, nil)
-           #contract_call_in_flight: contract_call_in_flight
-       }}
-  end 
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
+
+    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+    contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
+
+    request = force_progress_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
+    Logger.info("=> force progress #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         contract_call_in_flight: contract_call_in_flight
+     }}
+  end
+
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, contract, _fun, from_pid}, state) do
     contract_list = calculate_contract_address(contract, state.round_and_updates)
@@ -769,12 +770,15 @@ defmodule SocketConnector do
       contract_id: address
     })
   end
+
   def force_progress_req(address, abi_version, call_data, amount) do
     build_request("channels.force_progress", %{
       abi_version: abi_version,
       amount: amount,
       call_data: call_data,
-      contract_id: address
+      contract_id: address,
+      # TODO: should be configurable, and should be >= gas price set in aeternity config
+      gas_price: 1_000_000
     })
   end
 
@@ -941,7 +945,8 @@ defmodule SocketConnector do
     "channels.sign.update",
     "channels.sign.initiator_sign",
     "channels.sign.deposit_tx",
-    "channels.sign.withdraw_tx"
+    "channels.sign.withdraw_tx",
+    "channels.sign.force_progress_tx"
   ]
   @other [
     "channels.sign.update_ack",
