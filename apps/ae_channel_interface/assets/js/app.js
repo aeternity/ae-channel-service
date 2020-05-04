@@ -199,7 +199,7 @@ connect_initiator_websocket_btn.addEventListener('click', function (event) {
         let li = document.createElement("li"); // create new list item DOM element
         let name = payload.name || 'guest';    // get name from payload or set default
         li.innerHTML = '<b>' + name + '</b>: ' + payload.message; // set li contents
-        ul.appendChild(li);                    // append to list
+        ul.prepend(li);                    // append to list
     });
 
     channel.on('sign_approve', function (payload) {
@@ -240,7 +240,7 @@ connect_responder_websocket_btn.addEventListener('click', function (event) {
         let li = document.createElement("li"); // create new list item DOM element
         let name = payload.name || 'guest';    // get name from payload or set default
         li.innerHTML = '<b>' + name + '</b>: ' + payload.message; // set li contents
-        ul.appendChild(li);                    // append to list
+        ul.prepend(li);                    // append to list
     });
 
     channel.on('sign_approve', function (payload) {
