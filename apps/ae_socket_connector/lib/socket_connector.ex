@@ -258,9 +258,9 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
   end
 
-  @spec force_progress(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
-  def force_progress(pid, contract, fun, args, amount \\ 0) do
-    WebSockex.cast(pid, {:force_progress, contract, fun, args, amount})
+  @spec force_progress(pid, {binary, String.t(), map()}, binary(), binary(), integer, integer, integer) :: :ok
+  def force_progress(pid, contract, fun, args, amount \\ 0, gas_price \\ 1_000_000, gas \\ 1_000_000) do
+    WebSockex.cast(pid, {:force_progress, contract, fun, args, amount, gas_price, gas})
   end
 
   @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
@@ -534,7 +534,10 @@ defmodule SocketConnector do
      }}
   end
 
-  def handle_cast({:force_progress, {_pub_key, contract_file, config} = contract, fun, args, amount}, state) do
+  def handle_cast(
+        {:force_progress, {_pub_key, contract_file, config} = contract, fun, args, amount, gas_price, gas},
+        state
+      ) do
     {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
         {:backend, config.backend}
@@ -548,7 +551,7 @@ defmodule SocketConnector do
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
     contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
 
-    request = force_progress_req(contract_pubkey, config.abi_version, encoded_calldata, amount)
+    request = force_progress_req(contract_pubkey, config.abi_version, encoded_calldata, amount, gas_price, gas)
     Logger.info("=> force progress #{inspect(request)}", state.color)
 
     {:reply, {:text, Poison.encode!(request)},
@@ -771,14 +774,16 @@ defmodule SocketConnector do
     })
   end
 
-  def force_progress_req(address, abi_version, call_data, amount) do
+  def force_progress_req(address, abi_version, call_data, amount, gas_price, gas) do
     build_request("channels.force_progress", %{
       abi_version: abi_version,
       amount: amount,
       call_data: call_data,
       contract_id: address,
       # TODO: should be configurable, and should be >= gas price set in aeternity config
-      gas_price: 1_000_000
+      # currently, the gas price is mirroring config files, but it is very variable one
+      gas_price: gas_price,
+      gas: gas
     })
   end
 
@@ -935,7 +940,8 @@ defmodule SocketConnector do
              "channels.sign.slash_tx",
              "channels.sign.settle_sign",
              "channels.sign.shutdown_sign",
-             "channels.sign.shutdown_sign_ack"
+             "channels.sign.shutdown_sign_ack",
+             "channels.force_progress_sign"
            ] do
     Validator.notify_sign_transaction(to_sign, method, state.channel_id, state)
     {:ok, state}

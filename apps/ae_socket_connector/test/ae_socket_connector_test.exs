@@ -1236,8 +1236,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :fp
-  test "fp jobss", context do
+  @tag :force_progress
+  test "force progress jobs", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
@@ -1245,8 +1245,6 @@ defmodule SocketConnectorTest do
         {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes",
          %{abi_version: 1, vm_version: 3, backend: :aevm}}
 
-      # correct path if started in shell...
-      # initiator_contract = {TestAccounts.initiatorPubkeyEncoded(), "contracts/TicTacToe.aes"}
       [
         {:initiator,
          %{
@@ -1283,18 +1281,18 @@ defmodule SocketConnectorTest do
                 )
               end, :empty}
          }},
-        {:initiator,
-         %{
-           fuzzy: 10,
-           message: {:channels_update, 4, :self, "channels.update"}
-         }},
-        {:responder,
-         %{
-           fuzzy: 10,
-           message: {:channels_update, 4, :other, "channels.update"}
-         }},
-        {:initiator, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 10}},
-        {:responder, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 10}},
+        # {:initiator,
+        #  %{
+        #    fuzzy: 3,
+        #    message: {:channels_update, 4, :self, "channels.update"}
+        #  }},
+        # {:responder,
+        #  %{
+        #    fuzzy: 20,
+        #    message: {:on_chain, "can_snapshot"}
+        #  }},
+        {:initiator, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 20}},
+        {:responder, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 20}},
         {:responder, %{next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)}},
         {:initiator,
          %{
