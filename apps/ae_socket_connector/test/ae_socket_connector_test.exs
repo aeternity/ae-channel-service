@@ -1237,7 +1237,7 @@ defmodule SocketConnectorTest do
   end
 
   @tag :force_progress
-  test "force progress jobs", context do
+  test "force progress job", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
@@ -1281,22 +1281,18 @@ defmodule SocketConnectorTest do
                 )
               end, :empty}
          }},
-        # {:initiator,
-        #  %{
-        #    fuzzy: 3,
-        #    message: {:channels_update, 4, :self, "channels.update"}
-        #  }},
-        # {:responder,
-        #  %{
-        #    fuzzy: 20,
-        #    message: {:on_chain, "can_snapshot"}
-        #  }},
-        {:initiator, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 20}},
-        {:responder, %{message: {:on_chain, "consumed_forced_progress"}, fuzzy: 20}},
-        {:responder, %{next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder)}},
         {:initiator,
          %{
-           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator)
+           # "consumed_forced_progress", comming as on_chain means, that FP was executed successfully
+           message: {:on_chain, "consumed_forced_progress"},
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator),
+           fuzzy: 20
+         }},
+        {:responder,
+         %{
+           message: {:on_chain, "consumed_forced_progress"},
+           next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder),
+           fuzzy: 20
          }}
       ]
     end
