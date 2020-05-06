@@ -255,7 +255,6 @@ defmodule SocketConnector do
 
   @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
   def call_contract(pid, contract, fun, args, amount \\ 0) do
-    Logger.error("CALLING")
     WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
   end
 
