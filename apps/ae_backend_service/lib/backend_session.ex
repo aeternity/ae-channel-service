@@ -236,7 +236,7 @@ defmodule BackendSession do
         state
       )
       # when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or
-      when type in ["ChannelCreateTx", "ChannelCloseMutualTx"] or
+      when type in ["ChannelCreateTx"] or
              round_initiator == :self do
     Logger.info("Backened sign request #{inspect({method, human})}")
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
@@ -258,12 +258,44 @@ defmodule BackendSession do
     {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash}}
   end
 
+  # :ChannelCloseMutualTx
+  def handle_cast(
+        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = _human, _channel_id},
+         to_sign} = _message,
+        %__MODULE__{expected_state: expected_state} = state
+      )
+      when type in ["ChannelCloseMutualTx"] or
+             round_initiator == :self do
+    case expected_state do
+      :sign_provide_hash ->
+        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+        fun = &SocketConnector.send_signed_message(&1, method, signed)
+        SessionHolder.run_action(state.pid_session_holder, fun)
+
+      _ ->
+        Logger.error("Other end missusing protocol")
+        # if timer elapsed, try and force progress, the same goes for if it's been quiet to long....
+    end
+
+    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+  end
+
   def handle_cast(
         {{:sign_approve, _round, _round_initiator, _method, _updates, human, _channel_id}, _to_sign} = message,
         state
       ) do
-    Logger.info("Backened sign request something FISHY ongoing #{inspect({message, human})}")
+    Logger.error("Backened sign request something FISHY ongoing #{inspect({message, human})}")
     {:noreply, state}
+  end
+
+  def handle_cast({:on_chain, "can_slash"}, state) do
+    fun = &SocketConnector.slash(&1)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+  end
+
+  def handle_cast({:on_chain, "solo_closing"}, state) do
+    fun = &SocketConnector.settle(&1)
+    SessionHolder.run_action(state.pid_session_holder, fun)
   end
 
   # {:channels_info, "died", "ch_pcLtoFWASVUzSqQkWJ8rbZnA34TxetnAGqw2mv4RVuywAhtT9"}
