@@ -1060,7 +1060,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :contract
+  # to enable this check issue https://github.com/aeternity/ae-channel-service/issues/90
+  @tag :ignore
   test "contract jobs", context do
     {alice, bob} = gen_names(context.test)
 
