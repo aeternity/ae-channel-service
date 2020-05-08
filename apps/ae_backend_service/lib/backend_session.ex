@@ -201,10 +201,26 @@ defmodule BackendSession do
           _channel_id}, to_sign} = _message,
         state
       ) do
-    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-    fun = &SocketConnector.send_signed_message(&1, method, signed)
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :perform_casino_pick}}
+    # check whether there is coverage enough in the channel, if not abort.
+    fun = &SocketConnector.query_funds(&1, &2)
+    funds = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+    fund_check = for %{"balance" => balance} = entry <- funds, balance >= amount, do: entry
+
+    case Enum.count(fund_check) == 2 do
+      true ->
+        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+        fun = &SocketConnector.send_signed_message(&1, method, signed)
+        SessionHolder.run_action(state.pid_session_holder, fun)
+
+        {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :perform_casino_pick}}
+
+      false ->
+        # not enough funds to play, TODO, message is not provided to other end?
+        fun = &SocketConnector.abort(&1, method, 555, "not enough funds")
+        SessionHolder.run_action(state.pid_session_holder, fun)
+
+        {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash}}
+    end
   end
 
   # this is :perform_casino_pick
@@ -274,6 +290,7 @@ defmodule BackendSession do
 
       _ ->
         Logger.error("Other end missusing protocol")
+
         # if timer elapsed, try and force progress, the same goes for if it's been quiet to long....
     end
 
