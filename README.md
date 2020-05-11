@@ -30,6 +30,7 @@ make clean deps
 
 
 ## Run interactive test client (local)
+MacOS Users: For the first run, you might have to [increase the memory allocation](https://stackoverflow.com/a/44533437/5695838) of your docker setup (3 GB recommended) and stop other running images (one-time only), as the initial build process might need some extra memory.
 
 ```bash
 NODE_REF=master NODE_CONFIGURATION=./test/aeternity_node_normal_test_config.yml docker-compose up
