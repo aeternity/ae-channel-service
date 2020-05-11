@@ -248,14 +248,19 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:leave, {}})
   end
 
-  @spec new_contract(pid, {binary(), String.t(), map()}, integer) :: :ok
-  def new_contract(pid, contract, amount \\ 0) do
-    WebSockex.cast(pid, {:new_contract, contract, amount})
+  @spec new_contract(pid, {binary(), String.t(), map()}, map(), integer) :: :ok
+  def new_contract(pid, contract, init_params, amount \\ 0) do
+    WebSockex.cast(pid, {:new_contract, contract, init_params, amount})
   end
 
   @spec call_contract(pid, {binary, String.t(), map()}, binary(), binary(), integer) :: :ok
   def call_contract(pid, contract, fun, args, amount \\ 0) do
     WebSockex.cast(pid, {:call_contract, contract, fun, args, amount})
+  end
+
+  @spec call_contract_dry(pid, {binary, String.t(), map()}, binary(), map(), pid) :: :ok
+  def call_contract_dry(pid, contract, fun, args, from_pid) do
+    WebSockex.cast(pid, {:call_contract_dry, contract, fun, args, from_pid})
   end
 
   @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
@@ -418,12 +423,21 @@ defmodule SocketConnector do
     {:reply, {:text, Poison.encode!(request)}, %__MODULE__{state | pending_id: Map.get(request, :id, nil)}}
   end
 
-  def handle_cast({:new_contract, {_pub_key, contract_file, %{backend: backend} = config}, amount}, state) do
+  def handle_cast(
+        {:new_contract, {_pub_key, contract_file, %{backend: backend} = config}, init_params, amount},
+        state
+      ) do
     {:ok, map} = :aeso_compiler.file(contract_file, [{:backend, backend}])
+
     encoded_bytecode = :aeser_api_encoder.encode(:contract_bytearray, :aect_sophia.serialize(map, 3))
 
     {:ok, call_data} =
-      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'init', [], [{:backend, backend}])
+      :aeso_compiler.create_calldata(
+        to_charlist(File.read!(contract_file)),
+        'init',
+        init_params,
+        [{:backend, backend}]
+      )
 
     encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
 
@@ -485,6 +499,30 @@ defmodule SocketConnector do
            )}
   end
 
+  defp is_correct_adress(owner, round, contract_pubkey) do
+    {:account_pubkey, contract_owner} = :aeser_api_encoder.decode(owner)
+
+    :aeser_api_encoder.encode(
+      :contract_pubkey,
+      :aect_contracts.compute_contract_pubkey(contract_owner, round)
+    ) == contract_pubkey
+  end
+
+  def get_contract_bytecode(contract_pubkey, updates) do
+    for {round,
+         %Update{
+           updates: [
+             %{
+               "op" => "OffChainNewContract",
+               "owner" => contract_owner,
+               "code" => code
+             }
+           ]
+         }} <- updates,
+        is_correct_adress(contract_owner, round, contract_pubkey),
+        do: code
+  end
+
   def find_contract_calls(caller, contract_pubkey, updates) do
     Logger.debug("Looking for contract with #{inspect(contract_pubkey)} caller #{inspect(caller)}")
 
@@ -504,7 +542,10 @@ defmodule SocketConnector do
   # get inspiration here: https://github.com/aeternity/aesophia/blob/master/test/aeso_abi_tests.erl#L99
   # TODO should we expose round to the client, or some helper to get all contracts back.
   # example [int, string]: :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), 'main', ['2', '\"foobar\"']
-  def handle_cast({:call_contract, {_pub_key, contract_file, config} = contract, fun, args, amount}, state) do
+  def handle_cast(
+        {:call_contract, {_pub_key, contract_file, config} = contract, fun, args, amount},
+        state
+      ) do
     {:ok, call_data} =
       :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
         {:backend, config.backend}
@@ -526,6 +567,44 @@ defmodule SocketConnector do
        state
        | pending_id: Map.get(request, :id, nil),
          contract_call_in_flight: contract_call_in_flight
+     }}
+  end
+
+  def handle_cast(
+        {:call_contract_dry, {_pub_key, contract_file, config} = contract, fun, args, from_pid},
+        state
+      ) do
+    {:ok, call_data} =
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
+        {:backend, config.backend}
+      ])
+
+    contract_list = calculate_contract_address(contract, state.round_and_updates)
+
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
+
+    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+    contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
+
+    sync_call =
+      %SyncCall{request: request} =
+      call_contract_dry_response_query(
+        contract_pubkey,
+        config.abi_version,
+        encoded_calldata,
+        0,
+        from_pid
+      )
+
+    Logger.info("=> call contract DRY #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         contract_call_in_flight: contract_call_in_flight,
+         sync_call: sync_call
      }}
   end
 
@@ -613,7 +692,10 @@ defmodule SocketConnector do
     [{round, update}] = Map.to_list(state.pending_round_and_update)
 
     {:reply, {:text, Poison.encode!(build_message(method, %{signed_tx: signed_payload}))},
-     %__MODULE__{state | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}}}
+     %__MODULE__{
+       state
+       | pending_round_and_update: %{round => %Update{update | state_tx: signed_payload}}
+     }}
   end
 
   def handle_cast(
@@ -652,6 +734,13 @@ defmodule SocketConnector do
   # async methods are suffixed with .reply, the same pattern is used here for increased readabiliy
   def process_response(method, from_pid) do
     case method <> ".reply" do
+      "channels.dry_run.call_contract.reply" ->
+        fn %{"result" => result}, state ->
+          {result, state_updated} = process_get_dry_run_contract_reponse(result, state)
+          GenServer.reply(from_pid, result)
+          {result, state_updated}
+        end
+
       "channels.get.contract_call.reply" ->
         fn %{"result" => result}, state ->
           {result, state_updated} = process_get_contract_reponse(result, state)
@@ -805,6 +894,22 @@ defmodule SocketConnector do
     )
   end
 
+  def call_contract_dry_response_query(address, abi_version, call_data, amount, from_pid) do
+    make_sync(
+      from_pid,
+      %SyncCall{
+        request:
+          build_request("channels.dry_run.call_contract", %{
+            abi_version: abi_version,
+            amount: amount,
+            call_data: call_data,
+            contract_id: address
+          }),
+        response: process_response("channels.dry_run.call_contract", from_pid)
+      }
+    )
+  end
+
   def handle_frame({:text, msg}, state) do
     message = Poison.decode!(msg)
 
@@ -818,6 +923,7 @@ defmodule SocketConnector do
 
   def sync_state(state) do
     sync_state = Enum.reduce(@persist_keys, %{}, fn key, acc -> Map.put(acc, key, Map.get(state, key)) end)
+
     GenServer.cast(state.ws_manager_pid, {:state_tx_update, sync_state})
   end
 
@@ -913,10 +1019,47 @@ defmodule SocketConnector do
     "channels.sign.withdraw_ack"
   ]
 
+  # @spec decode_calldata(any, any) :: :empty | :ok | {:error, any}
+  def decode_calldata(updates, state) do
+    entries =
+      for %{"call_data" => call_data, "contract_id" => contract_id} <- updates,
+          do: {call_data, contract_id}
+
+    case entries do
+      [] ->
+        {:empty}
+
+      [{call_data, contract_id}] ->
+        {:contract_bytearray, decoded_calldata} = :aeser_api_encoder.decode(call_data)
+
+        # We now have the arguments
+        {:tuple, {fun_hash, {:tuple, arguments}}} = :aeb_fate_encoding.deserialize(decoded_calldata)
+
+        # lets get the function called
+        case get_contract_bytecode(contract_id, state.round_and_updates) do
+          [] ->
+            Logger.error("no contract create operation found")
+            {:empty}
+
+          [byte_code] ->
+            {:contract_bytearray, stuff_decoded_bytecode} = :aeser_api_encoder.decode(byte_code)
+            %{byte_code: code} = :aeser_contract_code.deserialize(stuff_decoded_bytecode)
+            decoded_bytecode = :aeb_fate_code.deserialize(code)
+
+            {:ok, fun_name} = :aeb_fate_abi.get_function_name_from_function_hash(fun_hash, decoded_bytecode)
+
+            {fun_name, arguments}
+        end
+    end
+  end
+
   def process_message(
         %{
           "method" => method,
-          "params" => %{"data" => %{"signed_tx" => to_sign, "updates" => updates}, "channel_id" => channel_id}
+          "params" => %{
+            "data" => %{"signed_tx" => to_sign, "updates" => updates},
+            "channel_id" => channel_id
+          }
         } = _message,
         state
       )
@@ -936,7 +1079,9 @@ defmodule SocketConnector do
       round_initiator: round_initiator
     }
 
-    Validator.notify_sign_transaction(pending_update, method, channel_id, state)
+    # TODO this decoding needs some rework.
+    updates_custom = [%{decoded_calldata: decode_calldata(updates, state)} | updates]
+    Validator.notify_sign_transaction(%Update{pending_update | updates: updates_custom}, method, channel_id, state)
 
     new_state = %__MODULE__{
       state
@@ -964,8 +1109,9 @@ defmodule SocketConnector do
       ) do
     {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
 
-    %Update{contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}} =
-      Map.get(state.round_and_updates, state.contract_call_in_flight_round)
+    %Update{
+      contract_call: {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}}
+    } = Map.get(state.round_and_updates, state.contract_call_in_flight_round)
 
     # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
     sophia_value =
@@ -989,6 +1135,28 @@ defmodule SocketConnector do
     {sophia_value, state}
   end
 
+  def process_get_dry_run_contract_reponse(
+        %{"return_value" => return_value, "contract_id" => _contract_id} = _data,
+        state
+      ) do
+    {:contract_bytearray, deserialized_return} = :aeser_api_encoder.decode(return_value)
+
+    {_encoded_calldata, _contract_pubkey, fun, _args, {_pub_key, contract_file, config}} =
+      state.contract_call_in_flight
+
+    # TODO well consider using contract_id. If this user called the contract the function is in the state.round_and_updates
+    sophia_value =
+      :aeso_compiler.to_sophia_value(
+        to_charlist(File.read!(contract_file)),
+        fun,
+        :ok,
+        deserialized_return,
+        [{:backend, config.backend}]
+      )
+
+    {sophia_value, state}
+  end
+
   def process_message(
         %{
           "method" => "channels.get.contract_call.reply",
@@ -1003,6 +1171,26 @@ defmodule SocketConnector do
 
     Logger.debug(
       "contract call async reply (as result of calling: not present): #{inspect(sophia_value)}",
+      state.color
+    )
+
+    {:ok, state_update}
+  end
+
+  def process_message(
+        %{
+          "method" => "channels.dry_run.call_contract.reply",
+          "params" => %{
+            # "data" => %{"return_value" => return_value, "return_type" => _return_type}
+            "data" => data
+          }
+        } = _message,
+        state
+      ) do
+    {sophia_value, state_update} = process_get_dry_run_contract_reponse(data, state)
+
+    Logger.debug(
+      "contract DRY RUN call async reply (as result of calling: not present): #{inspect(sophia_value)}",
       state.color
     )
 
@@ -1042,8 +1230,10 @@ defmodule SocketConnector do
   # could possibly be removed once this is fixed
   # https://github.com/aeternity/aeternity/issues/3186
   def process_message(
-        %{"channel_id" => _channel_id, "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}} =
-          error,
+        %{
+          "channel_id" => _channel_id,
+          "error" => %{"data" => [%{"message" => "Invalid fsm id" = message}]}
+        } = error,
         state
       ) do
     Logger.error("error")
@@ -1205,7 +1395,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"event" => "fsm_up" = event, "fsm_id" => fsm_id}
+          }
         } = _message,
         # TODO do we want to go for is_first_update here
         # %__MODULE__{channel_id: current_channel_id} = state
@@ -1227,7 +1420,10 @@ defmodule SocketConnector do
   def process_message(
         %{
           "method" => "channels.info",
-          "params" => %{"channel_id" => channel_id, "data" => %{"event" => event, "fsm_id" => fsm_id}}
+          "params" => %{
+            "channel_id" => channel_id,
+            "data" => %{"event" => event, "fsm_id" => fsm_id}
+          }
         } = _message,
         %__MODULE__{channel_id: current_channel_id} = state
       )

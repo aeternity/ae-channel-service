@@ -11,11 +11,16 @@ defmodule BackendSession do
 
   def keypair_responder(), do: Application.get_env(:ae_socket_connector, :accounts)[:responder]
 
+  # @states [:sign_provide_hash, :perform_casino_pick, :sign_casino_pick, :sign_reveal]
+
   defstruct pid_session_holder: nil,
             pid_backend_manager: nil,
             identifier: nil,
             params: nil,
-            port: nil
+            port: nil,
+            game: %{},
+            responder_contract: nil,
+            expected_state: nil
 
   # Client
 
@@ -33,6 +38,7 @@ defmodule BackendSession do
   # Server
   def init({params, {pid_manager, identifier}}) do
     Logger.info("Starting backend session #{inspect({params, identifier})} pid is #{inspect(self())}")
+
     GenServer.cast(self(), {:resume_init, params})
     {:ok, %__MODULE__{pid_backend_manager: pid_manager, identifier: identifier, params: params}}
   end
@@ -51,7 +57,17 @@ defmodule BackendSession do
         SessionHolderHelper.connection_callback(self(), :blue, &log_callback/1)
       )
 
-    {:noreply, %__MODULE__{state | pid_session_holder: pid, port: port}}
+    responder_contract =
+      {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+       %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+    {:noreply,
+     %__MODULE__{
+       state
+       | pid_session_holder: pid,
+         port: port,
+         responder_contract: responder_contract
+     }}
   end
 
   def handle_cast({:connection_update, {:disconnected, "Invalid fsm id"} = update}, state) do
@@ -67,24 +83,236 @@ defmodule BackendSession do
   # this will only happen once!
   def handle_cast({:channels_update, 1, round_initiator, "channels.update"} = _message, state)
       when round_initiator in [:other] do
-    responder_contract =
-      {TestAccounts.initiatorPubkeyEncoded(), "contracts/tictactoe.aes",
-       %{abi_version: 3, vm_version: 5, backend: :fate}}
+    {responder_pub, _priv} = keypair_responder()
+    {_role, _channel_config, _reestablish, initiator_keypair} = state.params
+    {initiator_pub, _priv} = initiator_keypair.()
 
-    fun = &SocketConnector.new_contract(&1, responder_contract, 10)
+    fun =
+      &SocketConnector.new_contract(
+        &1,
+        state.responder_contract,
+        [
+          to_charlist(initiator_pub),
+          to_charlist(responder_pub),
+          # reaction time
+          '15'
+        ]
+      )
+
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, state}
+    {:noreply, %__MODULE__{state | expected_state: :sign_provide_hash}}
   end
 
-  # TODO backend just happily signs
+  # def handle_cast(
+  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
+  #       %__MODULE__{expected_state: expected_state} = state
+  #     )
+  #     when round_initiator in [:self] and expected_state == :provide_hash do
+  #   {responder_pub, _priv} = keypair_responder()
+  #   {_role, _channel_config, _reestablish, initiator_keypair} = state.params
+  #   {initiator_pub, _priv} = initiator_keypair.()
+
+  #   Logger.info("providing hash")
+
+  #   some_salt = ContractHelper.add_quotes("some_salt")
+  #   coin = ContractHelper.add_quotes("heads")
+
+  #   fun =
+  #     &SocketConnector.call_contract_dry(
+  #       &1,
+  #       state.responder_contract,
+  #       'compute_hash',
+  #       [to_charlist(some_salt), to_charlist(coin)],
+  #       &2
+  #     )
+
+  #   {:ok, {:bytes, [], hash}} = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+
+  #   fun1 =
+  #     &SocketConnector.call_contract(
+  #       &1,
+  #       state.responder_contract,
+  #       'provide_hash',
+  #       [to_charlist(ContractHelper.to_sophia_bytes(hash))],
+  #       # this is what we put at stake.
+  #       10
+  #     )
+
+  #   SessionHolder.run_action(state.pid_session_holder, fun1)
+  #   {:noreply, %__MODULE__{state | expected_state: :player_pick, game: %{hash: hash, coin: coin, salt: some_salt}}}
+  # end
+
+  # def handle_cast(
+  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
+  #       %__MODULE__{expected_state: expected_state} = state
+  #     )
+  #     when round_initiator in [:self] and expected_state == :player_pick do
+  #   Logger.info("Waiting for player to make a guess")
+  #   {:noreply, %__MODULE__{state | expected_state: :reveal}}
+  # end
+
+  # def handle_cast(
+  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
+  #       %__MODULE__{game: game, expected_state: expected_state} = state
+  #     )
+  #     when round_initiator in [:other] and expected_state == :reveal do
+  #   Logger.info("Other player made a guess, settling funds")
+
+  #   fun =
+  #     &SocketConnector.call_contract(
+  #       &1,
+  #       state.responder_contract,
+  #       'reveal',
+  #       [to_charlist(game.salt), to_charlist(game.coin)]
+  #     )
+
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
+  #   {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
+  # end
+
+  # def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
+  #     when round_initiator in [:self] do
+  #   Logger.info("Game end, backend emptying contract")
+
+  #   fun =
+  #     &SocketConnector.call_contract(
+  #       &1,
+  #       state.responder_contract,
+  #       'drain',
+  #       []
+  #     )
+
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
+
+  #   {:noreply, state}
+  # end
+
+  # def handle_cast({:channels_update, 5, _round_initiator, "channels.update"} = _message, state) do
+  #   Logger.info("Shutdown game has reached end after one one toss, check account balances")
+  #   fun = &SocketConnector.shutdown(&1)
+  #   SessionHolder.run_action(state.pid_session_holder, fun)
+  #   {:noreply, state}
+  # end
+
+  # this is :sign_provide_hash
   def handle_cast(
-        {{:sign_approve, _round, _round_initiator, method, _channel_id}, to_sign} = _message,
+        {{:sign_approve, _round, _round_initiator, method,
+          [%{decoded_calldata: {"provide_hash", _params}}, %{"amount" => amount}], %{"type" => _type} = _human,
+          _channel_id}, to_sign} = _message,
+        state
+      ) do
+    # check whether there is coverage enough in the channel, if not abort.
+    fun = &SocketConnector.query_funds(&1, &2)
+    funds = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+    fund_check = for %{"balance" => balance} = entry <- funds, balance >= amount, do: entry
+
+    case Enum.count(fund_check) == 2 do
+      true ->
+        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+        fun = &SocketConnector.send_signed_message(&1, method, signed)
+        SessionHolder.run_action(state.pid_session_holder, fun)
+
+        {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :perform_casino_pick}}
+
+      false ->
+        # not enough funds to play, TODO, message is not provided to other end?
+        fun = &SocketConnector.abort(&1, method, 555, "not enough funds")
+        SessionHolder.run_action(state.pid_session_holder, fun)
+
+        {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash}}
+    end
+  end
+
+  # this is :perform_casino_pick
+  def handle_cast(
+        {:channels_update, _round, round_initiator, "channels.update"} = _message,
+        %__MODULE__{expected_state: :perform_casino_pick} = state
+      )
+      when round_initiator in [:other] do
+    pick = ContractHelper.add_quotes("heads")
+
+    fun1 =
+      &SocketConnector.call_contract(
+        &1,
+        state.responder_contract,
+        'casino_pick',
+        [to_charlist(pick)],
+        # this is what we put at stake.
+        state.game.amount
+      )
+
+    SessionHolder.run_action(state.pid_session_holder, fun1)
+    {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
+  end
+
+  # :sign_casino_pick (self) also ChannelCreateTx
+  def handle_cast(
+        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = human, _channel_id},
+         to_sign} = _message,
+        state
+      )
+      # when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or
+      when type in ["ChannelCreateTx"] or
+             round_initiator == :self do
+    Logger.info("Backened sign request #{inspect({method, human})}")
+    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+    fun = &SocketConnector.send_signed_message(&1, method, signed)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+  end
+
+  # this is :sign_reveal
+  def handle_cast(
+        {{:sign_approve, _round, _round_initiator, method,
+          [%{decoded_calldata: {"reveal", _params}}, %{"amount" => amount}], %{"type" => _type} = _human,
+          _channel_id}, to_sign} = _message,
         state
       ) do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash}}
+  end
+
+  # :ChannelCloseMutualTx
+  def handle_cast(
+        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = _human, _channel_id},
+         to_sign} = _message,
+        %__MODULE__{expected_state: expected_state} = state
+      )
+      when type in ["ChannelCloseMutualTx"] or
+             round_initiator == :self do
+    case expected_state do
+      :sign_provide_hash ->
+        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+        fun = &SocketConnector.send_signed_message(&1, method, signed)
+        SessionHolder.run_action(state.pid_session_holder, fun)
+
+      _ ->
+        Logger.error("Other end missusing protocol")
+
+        # if timer elapsed, try and force progress, the same goes for if it's been quiet to long....
+    end
+
+    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+  end
+
+  def handle_cast(
+        {{:sign_approve, _round, _round_initiator, _method, _updates, human, _channel_id}, _to_sign} = message,
+        state
+      ) do
+    Logger.error("Backened sign request something FISHY ongoing #{inspect({message, human})}")
     {:noreply, state}
+  end
+
+  def handle_cast({:on_chain, "can_slash"}, state) do
+    fun = &SocketConnector.slash(&1)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+  end
+
+  def handle_cast({:on_chain, "solo_closing"}, state) do
+    fun = &SocketConnector.settle(&1)
+    SessionHolder.run_action(state.pid_session_holder, fun)
   end
 
   # {:channels_info, "died", "ch_pcLtoFWASVUzSqQkWJ8rbZnA34TxetnAGqw2mv4RVuywAhtT9"}
@@ -100,7 +328,12 @@ defmodule BackendSession do
   # channel_id will be known as nil by BackendServiceManager
   def handle_cast({:channels_info, method, channel_id}, state)
       when method in ["funding_signed", "funding_created"] do
-    BackendServiceManager.set_channel_id(state.pid_backend_manager, state.identifier, {channel_id, state.port})
+    BackendServiceManager.set_channel_id(
+      state.pid_backend_manager,
+      state.identifier,
+      {channel_id, state.port}
+    )
+
     {:noreply, state}
   end
 

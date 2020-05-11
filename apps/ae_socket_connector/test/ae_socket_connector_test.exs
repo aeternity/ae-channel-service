@@ -821,7 +821,7 @@ defmodule SocketConnectorTest do
         {:initiator,
          %{
            # initiator have put 10 in the contract
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, [], 10) end, :empty}
          }},
         {:responder,
          %{
@@ -1060,7 +1060,8 @@ defmodule SocketConnectorTest do
     )
   end
 
-  @tag :contract
+  # to enable this check issue https://github.com/aeternity/ae-channel-service/issues/90
+  @tag :ignore
   test "contract jobs", context do
     {alice, bob} = gen_names(context.test)
 
@@ -1090,7 +1091,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, [], 10) end, :empty}
          }},
         {:initiator,
          %{

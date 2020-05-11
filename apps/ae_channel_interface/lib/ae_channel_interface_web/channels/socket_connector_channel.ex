@@ -55,6 +55,8 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   def handle_in(action, payload, socket) do
     socketholder_pid = socket.assigns.pid_session_holder
 
+    Logger.error("Called action #{inspect({action, payload})}")
+
     case action do
       "leave" ->
         SessionHolder.leave(socketholder_pid)
@@ -82,8 +84,63 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
         fun = &SocketConnector.query_funds(&1, &2)
         amount = SessionHolder.run_action_sync(socketholder_pid, fun)
         GenServer.cast(self(), amount)
-        # fun = &SocketConnector.query_funds(&1)
-        # SessionHolder.run_action(socketholder_pid, fun)
+
+      # fun = &SocketConnector.query_funds(&1)
+      # SessionHolder.run_action(socketholder_pid, fun)
+      "provide_hash_call_contract" ->
+        responder_contract =
+          {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+           %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+        hash = "#0F7AD4B9B19BD3352A59DA985362351CF2A81449A2C03D7D8A07DE62732473F2"
+        # UGLY non generic to work with specific hashcode.
+        fun =
+          &SocketConnector.call_contract(
+            &1,
+            responder_contract,
+            to_charlist('provide_hash'),
+            [to_charlist(hash)],
+            payload["contract_amount"]
+          )
+
+        SessionHolder.run_action(socketholder_pid, fun)
+
+      "reveal_call_contract" ->
+        some_salt = ContractHelper.add_quotes("some_salt")
+        coin = ContractHelper.add_quotes("heads")
+
+        responder_contract =
+          {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+           %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+        fun =
+          &SocketConnector.call_contract(
+            &1,
+            responder_contract,
+            'reveal',
+            [to_charlist(some_salt), to_charlist(coin)]
+          )
+
+        SessionHolder.run_action(socketholder_pid, fun)
+
+      "query_contract" ->
+        responder_contract =
+          {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
+           %{abi_version: 3, vm_version: 5, backend: :fate}}
+
+        get_contract_result =
+          &SocketConnector.get_contract_reponse(
+            &1,
+            responder_contract,
+            to_charlist(payload["contract_method"]),
+            &2
+          )
+
+        result = SessionHolder.run_action_sync(socketholder_pid, get_contract_result)
+        GenServer.cast(self(), result)
+
+      other ->
+        Logger.error("No clause matching #{inspect(other)}")
     end
 
     {:noreply, socket}
@@ -102,10 +159,10 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast(
-        {{:sign_approve, _round, _round_initiator, method, channel_id}, to_sign} = message,
+        {{:sign_approve, _round, _round_initiator, method, _updates, human, channel_id}, to_sign} = message,
         socket
       ) do
-    Logger.info("Sign request #{inspect(message)}")
+    Logger.info("Client sign request #{inspect({method, human})}")
 
     push(socket, "sign_approve", %{
       message: inspect(message),
@@ -127,7 +184,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   end
 
   def handle_cast(message, socket) do
-    push(socket, "log_event", %{message: inspect(message), name: "bot"})
+    push(socket, "log_event", %{message: inspect(message), name: "wild_bot"})
     {:noreply, socket}
   end
 end
