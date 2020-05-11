@@ -87,6 +87,8 @@ defmodule BackendSession do
     {_role, _channel_config, _reestablish, initiator_keypair} = state.params
     {initiator_pub, _priv} = initiator_keypair.()
 
+    Application.get_env(:ae_backend_service, :game)[:force_progress_height]
+
     fun =
       &SocketConnector.new_contract(
         &1,
@@ -95,7 +97,7 @@ defmodule BackendSession do
           to_charlist(initiator_pub),
           to_charlist(responder_pub),
           # reaction time
-          '15'
+          to_charlist(Application.get_env(:ae_backend_service, :game)[:force_progress_height])
         ]
       )
 
@@ -223,13 +225,25 @@ defmodule BackendSession do
     end
   end
 
+  @coin_sides ["heads", "tails"]
   # this is :perform_casino_pick
   def handle_cast(
         {:channels_update, _round, round_initiator, "channels.update"} = _message,
         %__MODULE__{expected_state: :perform_casino_pick} = state
       )
       when round_initiator in [:other] do
-    pick = ContractHelper.add_quotes("heads")
+    coin_side =
+      case Application.get_env(:ae_backend_service, :game)[:toss_mode] do
+        manual when manual in @coin_sides ->
+          Logger.info("Picking side manually: #{inspect(manual)}")
+          manual
+
+        _ ->
+          Logger.info("Picking side randomly")
+          Enum.random(@coin_sides)
+      end
+
+    pick = ContractHelper.add_quotes(coin_side)
 
     fun1 =
       &SocketConnector.call_contract(
@@ -254,11 +268,18 @@ defmodule BackendSession do
       # when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or
       when type in ["ChannelCreateTx"] or
              round_initiator == :self do
-    Logger.info("Backened sign request #{inspect({method, human})}")
-    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-    fun = &SocketConnector.send_signed_message(&1, method, signed)
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+    case Application.get_env(:ae_backend_service, :game)[:game_mode] do
+      "malicious" ->
+        # give the client a chanse to showof force progress
+        {:noreply, state}
+
+      _ ->
+        Logger.info("Backened sign request #{inspect({method, human})}")
+        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+        fun = &SocketConnector.send_signed_message(&1, method, signed)
+        SessionHolder.run_action(state.pid_session_holder, fun)
+        {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+    end
   end
 
   # this is :sign_reveal
