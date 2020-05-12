@@ -21,12 +21,14 @@ defmodule BackendSession do
             channel_params: nil,
             game: %{},
             responder_contract: nil,
+            fp_timer: nil,
             expected_state: nil
 
+  @mine_rate 180_000
   # Client
 
   def start_link({params, {_pid_manager, _identifier} = manager_data}) do
-    GenServer.start_link(__MODULE__, {params, manager_data})
+    GenServer.start_link(__MODULE__, {params, manager_data}, name: __MODULE__)
   end
 
   defp log_callback({type, message}) do
@@ -107,6 +109,9 @@ defmodule BackendSession do
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun)
+    # IO.inspect "TIMER TIME!!!(WE DEPLOYED OUR CONTRACT!!)"
+    # timer = Process.send_after(__MODULE__, :force_progress, @blocks_reaction_time * @mine_rate)
+    # , fp_timer: timer}}
     {:noreply, %__MODULE__{state | expected_state: :sign_provide_hash}}
   end
 
@@ -215,20 +220,27 @@ defmodule BackendSession do
     {channel_reserve, ""} = Integer.parse(state.channel_params[:channel_reserve])
     fund_check = for %{"balance" => balance} = entry <- funds, balance - channel_reserve >= amount, do: entry
 
+    {blocks_reaction_time, ""} =
+      Integer.parse(Application.get_env(:ae_backend_service, :game)[:force_progress_height])
+
+    timer = Process.send_after(__MODULE__, :force_progress, blocks_reaction_time * @mine_rate)
+
     case Enum.count(fund_check) == 2 do
       true ->
         signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
         fun = &SocketConnector.send_signed_message(&1, method, signed)
         SessionHolder.run_action(state.pid_session_holder, fun)
 
-        {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :perform_casino_pick}}
+        {:noreply,
+         %__MODULE__{state | game: %{amount: amount}, expected_state: :perform_casino_pick, fp_timer: timer}}
 
       false ->
         # not enough funds to play, TODO, message is not provided to other end?
         fun = &SocketConnector.abort(&1, method, 555, "not enough funds")
         SessionHolder.run_action(state.pid_session_holder, fun)
 
-        {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash}}
+        {:noreply,
+         %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash, fp_timer: timer}}
     end
   end
 
@@ -290,16 +302,18 @@ defmodule BackendSession do
   end
 
   # this is :sign_reveal
+  # fp timer if received, should be then stopped
   def handle_cast(
         {{:sign_approve, _round, _round_initiator, method,
           [%{decoded_calldata: {"reveal", _params}}, %{"amount" => amount}], %{"type" => _type} = _human,
           _channel_id}, to_sign} = _message,
-        state
+        %{fp_timer: timer} = state
       ) do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash}}
+    {:ok, :cancel} = :timer.cancel(timer)
+    {:noreply, %__MODULE__{state | game: %{amount: amount}, fp_timer: nil, expected_state: :sign_provide_hash}}
   end
 
   # :ChannelCloseMutualTx
@@ -343,6 +357,14 @@ defmodule BackendSession do
     SessionHolder.run_action(state.pid_session_holder, fun)
   end
 
+  def handle_cast({:on_chain, "consumed_forced_progress"} = msg, state) do
+    IO.inspect(msg, limit: :infinity)
+    # fun = &SocketConnector.shutdown(&1)
+    # SessionHolder.run_action(state.pid_session_holder, fun)
+    Logger.warn("Successful force progress, initiated from a ???, contract state is now reset")
+    {:noreply, state}
+  end
+
   # {:channels_info, "died", "ch_pcLtoFWASVUzSqQkWJ8rbZnA34TxetnAGqw2mv4RVuywAhtT9"}
 
   def handle_cast({:channels_info, "died", channel_id}, state) do
@@ -384,6 +406,14 @@ defmodule BackendSession do
 
   def handle_info(:resume_init, state) do
     GenServer.cast(self(), {:resume_init, state.params})
+    {:noreply, state}
+  end
+
+  # TODO there also should be invalid force_progress handling, but for now, no signs of invalid fp found so far...
+  def handle_info(:force_progress, state) do
+    IO.inspect("FORCE PROGRESSING PROCESS !!!!!!!!!!!!!!!!!!!!!!!")
+    fun = &SocketConnector.force_progress(&1, state.responder_contract, 'casino_dispute_no_reveal', [])
+    SessionHolder.run_action(state.pid_session_holder, fun)
     {:noreply, state}
   end
 end
