@@ -55,7 +55,7 @@ defmodule AeChannelInterfaceWeb.SocketConnectorChannel do
   def handle_in(action, payload, socket) do
     socketholder_pid = socket.assigns.pid_session_holder
 
-    Logger.error("Called action #{inspect({action, payload})}")
+    Logger.info("Called action #{inspect({action, payload})}")
 
     case action do
       "leave" ->
