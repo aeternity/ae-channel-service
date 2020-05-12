@@ -105,11 +105,11 @@ defmodule SessionHolderHelper do
 
   def custom_connection_setting(role, _host_url) do
     same = %{
-      channel_reserve: "2",
+      channel_reserve: "1000000000",
       lock_period: "10",
       port: "1500",
       protocol: "json-rpc",
-      push_amount: "1",
+      push_amount: "0",
       minimum_depth: 0,
       role: role
     }
