@@ -18,6 +18,7 @@ defmodule BackendSession do
             identifier: nil,
             params: nil,
             port: nil,
+            channel_config: nil,
             game: %{},
             responder_contract: nil,
             expected_state: nil
@@ -61,11 +62,14 @@ defmodule BackendSession do
       {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
        %{abi_version: 3, vm_version: 5, backend: :fate}}
 
+    Logger.error("Channel_config is #{inspect(channel_config)}")
+
     {:noreply,
      %__MODULE__{
        state
        | pid_session_holder: pid,
          port: port,
+         channel_config: channel_config,
          responder_contract: responder_contract
      }}
   end
@@ -206,6 +210,7 @@ defmodule BackendSession do
     # check whether there is coverage enough in the channel, if not abort.
     fun = &SocketConnector.query_funds(&1, &2)
     funds = SessionHolder.run_action_sync(state.pid_session_holder, fun)
+    # TODO this check need to take channel_reserve into account.
     fund_check = for %{"balance" => balance} = entry <- funds, balance >= amount, do: entry
 
     case Enum.count(fund_check) == 2 do
@@ -259,18 +264,31 @@ defmodule BackendSession do
     {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
   end
 
-  # :sign_casino_pick (self) also ChannelCreateTx
+  # ChannelCreateTx
   def handle_cast(
-        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = human, _channel_id},
+        {{:sign_approve, _round, _round_initiator, method, _updates, %{"type" => type} = human, _channel_id},
+         to_sign} = _message,
+        state
+      )
+      when type in ["ChannelCreateTx"] do
+    Logger.info("Backened sign request #{inspect({method, human})}")
+    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+    fun = &SocketConnector.send_signed_message(&1, method, signed)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+  end
+
+  # :sign_casino_pick (self)
+  def handle_cast(
+        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => _type} = human, _channel_id},
          to_sign} = _message,
         state
       )
       # when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or
-      when type in ["ChannelCreateTx"] or
-             round_initiator == :self do
+      when round_initiator == :self do
     case Application.get_env(:ae_backend_service, :game)[:game_mode] do
       "malicious" ->
-        # give the client a chanse to showof force progress
+        # give the client a chance to show of force progress
         {:noreply, state}
 
       _ ->
