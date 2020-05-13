@@ -94,8 +94,6 @@ defmodule BackendSession do
     {_role, _channel_config, _reestablish, initiator_keypair} = state.params
     {initiator_pub, _priv} = initiator_keypair.()
 
-    Application.get_env(:ae_backend_service, :game)[:force_progress_height]
-
     fun =
       &SocketConnector.new_contract(
         &1,
@@ -264,44 +262,31 @@ defmodule BackendSession do
         state.game.amount
       )
 
-    SessionHolder.run_action(state.pid_session_holder, fun1)
-    {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
-  end
-
-  # ChannelCreateTx
-  def handle_cast(
-        {{:sign_approve, _round, _round_initiator, method, _updates, %{"type" => type} = human, _channel_id},
-         to_sign} = _message,
-        state
-      )
-      when type in ["ChannelCreateTx"] do
-    Logger.info("Backened sign request #{inspect({method, human})}")
-    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-    fun = &SocketConnector.send_signed_message(&1, method, signed)
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
-  end
-
-  # :sign_casino_pick (self)
-  def handle_cast(
-        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => _type} = human, _channel_id},
-         to_sign} = _message,
-        state
-      )
-      # when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or
-      when round_initiator == :self do
     case Application.get_env(:ae_backend_service, :game)[:game_mode] do
       "malicious" ->
         # give the client a chance to show of force progress
         {:noreply, state}
 
       _ ->
-        Logger.info("Backened sign request #{inspect({method, human})}")
-        signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
-        fun = &SocketConnector.send_signed_message(&1, method, signed)
-        SessionHolder.run_action(state.pid_session_holder, fun)
-        {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
+        SessionHolder.run_action(state.pid_session_holder, fun1)
+        {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
     end
+  end
+
+  # :sign_casino_pick (self) also ChannelCreateTx
+  def handle_cast(
+        {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = human, _channel_id},
+         to_sign} = _message,
+        state
+      )
+      # when type in ["ChannelOffchainTx", "ChannelCreateTx", "ChannelCloseMutualTx"] or
+      when type in ["ChannelCreateTx"] or
+             round_initiator == :self do
+    Logger.info("Backened sign request #{inspect({method, human})}")
+    signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
+    fun = &SocketConnector.send_signed_message(&1, method, signed)
+    SessionHolder.run_action(state.pid_session_holder, fun)
+    {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
   end
 
   # this is :sign_reveal
