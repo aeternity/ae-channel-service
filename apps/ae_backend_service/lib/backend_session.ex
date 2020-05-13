@@ -24,7 +24,8 @@ defmodule BackendSession do
             fp_timer: nil,
             expected_state: nil
 
-  @mine_rate 180_000
+  # TODO: this should be configurable, also actual mine rate is unpredictable...
+  @mine_rate 1000
   # Client
 
   def start_link({params, {_pid_manager, _identifier} = manager_data}) do
@@ -109,9 +110,6 @@ defmodule BackendSession do
       )
 
     SessionHolder.run_action(state.pid_session_holder, fun)
-    # IO.inspect "TIMER TIME!!!(WE DEPLOYED OUR CONTRACT!!)"
-    # timer = Process.send_after(__MODULE__, :force_progress, @blocks_reaction_time * @mine_rate)
-    # , fp_timer: timer}}
     {:noreply, %__MODULE__{state | expected_state: :sign_provide_hash}}
   end
 
@@ -232,7 +230,12 @@ defmodule BackendSession do
         SessionHolder.run_action(state.pid_session_holder, fun)
 
         {:noreply,
-         %__MODULE__{state | game: %{amount: amount}, expected_state: :perform_casino_pick, fp_timer: timer}}
+         %__MODULE__{
+           state
+           | game: %{amount: amount},
+             expected_state: :perform_casino_pick,
+             fp_timer: make_timer(@blocks_reaction_time, @mine_rate)
+         }}
 
       false ->
         # not enough funds to play, TODO, message is not provided to other end?
@@ -240,7 +243,12 @@ defmodule BackendSession do
         SessionHolder.run_action(state.pid_session_holder, fun)
 
         {:noreply,
-         %__MODULE__{state | game: %{amount: amount}, expected_state: :sign_provide_hash, fp_timer: timer}}
+         %__MODULE__{
+           state
+           | game: %{amount: amount},
+             expected_state: :sign_provide_hash,
+             fp_timer: make_timer(@blocks_reaction_time, @mine_rate)
+         }}
     end
   end
 
@@ -248,7 +256,7 @@ defmodule BackendSession do
   # this is :perform_casino_pick
   def handle_cast(
         {:channels_update, _round, round_initiator, "channels.update"} = _message,
-        %__MODULE__{expected_state: :perform_casino_pick} = state
+        %__MODULE__{expected_state: :perform_casino_pick, fp_timer: fp_timer} = state
       )
       when round_initiator in [:other] do
     coin_side =
@@ -280,8 +288,19 @@ defmodule BackendSession do
         {:noreply, state}
 
       _ ->
+        # renew timer, by cancelling old one and making a new one, in order to keep up with everytime updated height in the contract
+        {:ok, _time_left} = cancel_timer(fp_timer)
         SessionHolder.run_action(state.pid_session_holder, fun1)
-        {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
+
+        {blocks_reaction_time, ""} =
+          Integer.parse(Application.get_env(:ae_backend_service, :game)[:force_progress_height])
+
+        {:noreply,
+         %__MODULE__{
+           state
+           | expected_state: :sign_casino_pick,
+             fp_timer: make_timer(blocks_reaction_time, @mine_rate)
+         }}
     end
   end
 
@@ -302,17 +321,17 @@ defmodule BackendSession do
   end
 
   # this is :sign_reveal
-  # fp timer if received, should be then stopped
+  # fp timer should be then stopped, as the winner is then known
   def handle_cast(
         {{:sign_approve, _round, _round_initiator, method,
           [%{decoded_calldata: {"reveal", _params}}, %{"amount" => amount}], %{"type" => _type} = _human,
           _channel_id}, to_sign} = _message,
-        %{fp_timer: timer} = state
+        %{fp_timer: fp_timer} = state
       ) do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:ok, :cancel} = :timer.cancel(timer)
+    {:ok, _time_left} = cancel_timer(fp_timer)
     {:noreply, %__MODULE__{state | game: %{amount: amount}, fp_timer: nil, expected_state: :sign_provide_hash}}
   end
 
@@ -320,7 +339,7 @@ defmodule BackendSession do
   def handle_cast(
         {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = _human, _channel_id},
          to_sign} = _message,
-        %__MODULE__{expected_state: expected_state} = state
+        %__MODULE__{expected_state: expected_state, fp_timer: fp_timer} = state
       )
       when type in ["ChannelCloseMutualTx"] or
              round_initiator == :self do
@@ -332,8 +351,11 @@ defmodule BackendSession do
 
       _ ->
         Logger.error("Other end missusing protocol")
-
         # if timer elapsed, try and force progress, the same goes for if it's been quiet to long....
+        case cancel_timer(fp_timer) do
+          {:ok, time_left} -> Process.send_after(__MODULE__, :force_progress, time_left)
+          {:error, _} -> send(__MODULE__, :force_progress)
+        end
     end
 
     {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
@@ -358,10 +380,7 @@ defmodule BackendSession do
   end
 
   def handle_cast({:on_chain, "consumed_forced_progress"} = msg, state) do
-    IO.inspect(msg, limit: :infinity)
-    # fun = &SocketConnector.shutdown(&1)
-    # SessionHolder.run_action(state.pid_session_holder, fun)
-    Logger.warn("Successful force progress, initiated from a ???, contract state is now reset")
+    Logger.warn("Force progress transaction succeeded, contract state is now reset")
     {:noreply, state}
   end
 
@@ -411,9 +430,42 @@ defmodule BackendSession do
 
   # TODO there also should be invalid force_progress handling, but for now, no signs of invalid fp found so far...
   def handle_info(:force_progress, state) do
-    IO.inspect("FORCE PROGRESSING PROCESS !!!!!!!!!!!!!!!!!!!!!!!")
-    fun = &SocketConnector.force_progress(&1, state.responder_contract, 'casino_dispute_no_reveal', [])
-    SessionHolder.run_action(state.pid_session_holder, fun)
-    {:noreply, state}
+    fp_call_function = 'casino_dispute_no_reveal'
+    dry_run = &SocketConnector.call_contract_dry(&1, state.responder_contract, fp_call_function, [], &2)
+
+    Logger.warn(
+      "Force progress time! Checking for force progress availability... Client waited too long, or didnt follow the happy flow - dry-running dispute function..."
+    )
+
+    case SessionHolder.run_action_sync(state.pid_session_holder, dry_run) do
+      # retry, as the call failed, timer should be reset again
+      {:error, _} ->
+        Logger.error(
+          "Dry run call of #{inspect(fp_call_function)} failed... Retrying force-progressing in #{
+            inspect(@blocks_reaction_time * @mine_rate)
+          } ms"
+        )
+
+        fp_timer = make_timer(@blocks_reaction_time, @mine_rate)
+        {:noreply, %{state | fp_timer: fp_timer}}
+
+      # call is available and valid, gladly doing force progress
+      {:ok, _} ->
+        Logger.warn("Dry run call succeed, force progressing is available, backend force progress initiated...")
+        fun = &SocketConnector.force_progress(&1, state.responder_contract, fp_call_function, [])
+        SessionHolder.run_action(state.pid_session_holder, fun)
+        {:noreply, state}
+    end
+  end
+
+  defp make_timer(blocks_reaction_time, mine_rate) do
+    Process.send_after(__MODULE__, :force_progress, blocks_reaction_time * mine_rate)
+  end
+
+  defp cancel_timer(ref) do
+    case Process.cancel_timer(ref) do
+      false -> {:error, :timer_error}
+      time_left when is_integer(time_left) -> {:ok, time_left}
+    end
   end
 end
