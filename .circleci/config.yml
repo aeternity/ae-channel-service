@@ -7,7 +7,7 @@ jobs:
     working_directory: ~/app
     parameters:
       otp_version:
-        default: 1:20.3.8.24-1
+        default: 1:21.3.8.14-1
         type: string
       elixir_version:
         default: 1.9.4-1
@@ -16,11 +16,9 @@ jobs:
       - checkout
       - run: wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb && sudo dpkg -i erlang-solutions_2.0_all.deb
       - run: sudo apt-get -qq -y update && sudo apt-get install -y build-essential && sudo apt-get -qq -y install curl
-      # The Erlang/OTP version should correspond to the version used by the
-      # aeternity node itself. See https://github.com/aeternity/docker-builder/blob/master/Dockerfile#L18
-      - run: sudo apt-get -qq -y --allow-downgrades install erlang=<< parameters.otp_version >>
-      # The Elixir version should correspond to the version used in mix.exs
-      - run: sudo apt-get -qq -y --allow-downgrades install elixir=<< parameters.elixir_version >>
+      # The Erlang/OTP version must be supported by the Aeternity node itself.
+      # The Elixir version should correspond to the version used in mix.exs.
+      - run: sudo apt-get -qq -y --allow-downgrades install esl-erlang=<< parameters.otp_version >> elixir=<< parameters.elixir_version >>
       - run: curl -O https://download.libsodium.org/libsodium/releases/libsodium-1.0.17.tar.gz
       - run: tar -xf libsodium-1.0.17.tar.gz && cd libsodium-1.0.17/ && ./configure  && make && sudo make install && sudo ldconfig
       - run: mix local.hex --force
