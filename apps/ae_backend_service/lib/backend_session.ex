@@ -219,7 +219,7 @@ defmodule BackendSession do
         {{:sign_approve, _round, _round_initiator, method,
           [%{decoded_calldata: {"provide_hash", _params}}, %{"amount" => amount}], %{"type" => _type} = _human,
           _channel_id}, to_sign} = _message,
-        state
+        %__MODULE__{fp_timer: fp_timer} = state
       ) do
     # check whether there is coverage enough in the channel, if not abort.
     fun = &SocketConnector.query_funds(&1, &2)
@@ -227,8 +227,6 @@ defmodule BackendSession do
 
     {channel_reserve, ""} = Integer.parse(state.channel_params[:channel_reserve])
     fund_check = for %{"balance" => balance} = entry <- funds, balance - channel_reserve >= amount, do: entry
-
-    timer = Process.send_after(__MODULE__, :force_progress, blocks_reaction_time() * mine_rate())
 
     case Enum.count(fund_check) == 2 do
       true ->
@@ -241,7 +239,7 @@ defmodule BackendSession do
            state
            | game: %{amount: amount},
              expected_state: :perform_casino_pick,
-             fp_timer: make_timer(blocks_reaction_time(), mine_rate())
+             fp_timer: postpone_timer(fp_timer)
          }}
 
       false ->
@@ -254,7 +252,7 @@ defmodule BackendSession do
            state
            | game: %{amount: amount},
              expected_state: :sign_provide_hash,
-             fp_timer: make_timer(blocks_reaction_time(), mine_rate())
+             fp_timer: postpone_timer(fp_timer)
          }}
     end
   end
@@ -295,15 +293,13 @@ defmodule BackendSession do
         {:noreply, state}
 
       _ ->
-        # renew timer, by cancelling old one and making a new one, in order to keep up with everytime updated height in the contract
-        {:ok, _time_left} = cancel_timer(fp_timer)
         SessionHolder.run_action(state.pid_session_holder, fun1)
 
         {:noreply,
          %__MODULE__{
            state
            | expected_state: :sign_casino_pick,
-             fp_timer: make_timer(blocks_reaction_time(), mine_rate())
+             fp_timer: postpone_timer(fp_timer)
          }}
     end
   end
@@ -343,7 +339,7 @@ defmodule BackendSession do
   def handle_cast(
         {{:sign_approve, _round, round_initiator, method, _updates, %{"type" => type} = _human, _channel_id},
          to_sign} = _message,
-        %__MODULE__{expected_state: expected_state, fp_timer: fp_timer} = state
+        %__MODULE__{expected_state: expected_state} = state
       )
       when type in ["ChannelCloseMutualTx"] or
              round_initiator == :self do
@@ -355,7 +351,7 @@ defmodule BackendSession do
 
       _ ->
         Logger.error("Other end missusing protocol")
-        # don't do anything once timer, try and force progress timer should kick in.
+        # don't do anything a timer is set, once it fires it will try and force progress.
     end
 
     {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
@@ -380,7 +376,7 @@ defmodule BackendSession do
   end
 
   def handle_cast({:on_chain, "consumed_forced_progress"} = msg, state) do
-    Logger.warn("Force progress transaction succeeded, contract state is now reset")
+    Logger.warn("Force progress transaction succeeded, contract state is now reset #{inspect(msg)}")
     {:noreply, state}
   end
 
@@ -429,7 +425,7 @@ defmodule BackendSession do
   end
 
   # TODO there also should be invalid force_progress handling, but for now, no signs of invalid fp found so far...
-  def handle_info(:force_progress, state) do
+  def handle_info(:force_progress, %__MODULE__{fp_timer: fp_timer} = state) do
     fp_call_function = 'casino_dispute_no_reveal'
     dry_run = &SocketConnector.call_contract_dry(&1, state.responder_contract, fp_call_function, [], &2)
 
@@ -446,8 +442,7 @@ defmodule BackendSession do
           } ms"
         )
 
-        fp_timer = make_timer(blocks_reaction_time(), mine_rate())
-        {:noreply, %{state | fp_timer: fp_timer}}
+        {:noreply, %{state | fp_timer: postpone_timer(fp_timer)}}
 
       # call is available and valid, gladly doing force progress
       {:ok, _} ->
@@ -458,8 +453,13 @@ defmodule BackendSession do
     end
   end
 
-  defp make_timer(blocks_reaction_time, mine_rate) do
-    Process.send_after(self(), :force_progress, blocks_reaction_time * mine_rate)
+  def postpone_timer(timer) when is_nil(timer) do
+    Process.send_after(self(), :force_progress, blocks_reaction_time() * mine_rate())
+  end
+
+  def postpone_timer(timer) do
+    {:ok, _time_left} = cancel_timer(timer)
+    Process.send_after(self(), :force_progress, blocks_reaction_time() * mine_rate())
   end
 
   defp cancel_timer(ref) do
