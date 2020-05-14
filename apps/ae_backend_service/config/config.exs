@@ -8,6 +8,12 @@ use Mix.Config
 # if you want to provide default values for your application for
 # third-party users, it should be done in your "mix.exs" file.
 
+config :ae_backend_service, :game,
+  toss_mode: System.get_env("TOSS_MODE") || "random",
+  game_mode: System.get_env("GAME_MODE") || "fair",
+  force_progress_height: System.get_env("FORCE_PROGRESS_HEIGHT") || "15",
+  mine_rate: System.get_env("MINE_RATE") || "180000"
+
 # You can configure your application as:
 #
 #     config :ae_backend_service, key: :value
