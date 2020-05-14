@@ -1059,16 +1059,16 @@ defmodule SocketConnectorTest do
       scenario
     )
   end
-  # TODO some new issues came up with the integration, disabling it for now 
+
+  # TODO some new issues came up with the integration, disabling it for now
   @tag :force_progress
-  @tag :ignore
   test "force progress job", context do
     {alice, bob} = gen_names(context.test)
 
     scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
       initiator_contract =
-        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe_old.aes",
-         %{abi_version: 1, vm_version: 3, backend: :aevm}}
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes",
+         %{abi_version: 3, vm_version: 5, backend: :fate}}
 
       [
         {:initiator,
@@ -1089,7 +1089,7 @@ defmodule SocketConnectorTest do
          }},
         {:initiator,
          %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, 10) end, :empty}
+           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, [], 10) end, :empty}
          }},
         {:initiator,
          %{
@@ -1101,7 +1101,7 @@ defmodule SocketConnectorTest do
                 SocketConnector.force_progress(
                   pid,
                   initiator_contract,
-                  'make_move',
+                  'move',
                   ['11', '1']
                 )
               end, :empty}
