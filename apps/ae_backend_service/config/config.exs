@@ -11,7 +11,8 @@ use Mix.Config
 config :ae_backend_service, :game,
   toss_mode: System.get_env("TOSS_MODE") || "random",
   game_mode: System.get_env("GAME_MODE") || "fair",
-  force_progress_height: System.get_env("FORCE_PROGRESS_HEIGHT") || "15"
+  force_progress_height: System.get_env("FORCE_PROGRESS_HEIGHT") || "15",
+  mine_rate: System.get_env("MINE_RATE") || "180000"
 
 # You can configure your application as:
 #
