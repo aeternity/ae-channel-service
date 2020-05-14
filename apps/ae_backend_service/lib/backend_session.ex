@@ -331,7 +331,7 @@ defmodule BackendSession do
     signed = SessionHolder.sign_message(state.pid_session_holder, to_sign)
     fun = &SocketConnector.send_signed_message(&1, method, signed)
     SessionHolder.run_action(state.pid_session_holder, fun)
-    {:ok, _time_left} = cancel_timer(fp_timer)
+    Process.cancel_timer(fp_timer)
     {:noreply, %__MODULE__{state | game: %{amount: amount}, fp_timer: nil, expected_state: :sign_provide_hash}}
   end
 
@@ -458,14 +458,7 @@ defmodule BackendSession do
   end
 
   def postpone_timer(timer) do
-    {:ok, _time_left} = cancel_timer(timer)
+    Process.cancel_timer(timer)
     Process.send_after(self(), :force_progress, blocks_reaction_time() * mine_rate())
-  end
-
-  defp cancel_timer(ref) do
-    case Process.cancel_timer(ref) do
-      false -> {:error, :timer_error}
-      time_left when is_integer(time_left) -> {:ok, time_left}
-    end
   end
 end
