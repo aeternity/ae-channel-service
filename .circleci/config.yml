@@ -7,10 +7,10 @@ jobs:
     working_directory: ~/app
     parameters:
       otp_version:
-        default: 20.3.8.24-1
+        default: 1:20.3.8.24-1
         type: string
       elixir_version:
-        default: 1.9.4-1
+        default: 1:1.9.4-1
         type: string
     steps:
       - checkout
