@@ -1060,61 +1060,102 @@ defmodule SocketConnectorTest do
     )
   end
 
-  # TODO some new issues came up with the integration, disabling it for now
   @tag :force_progress
   test "force progress job", context do
     {alice, bob} = gen_names(context.test)
 
-    scenario = fn {initiator, intiator_account}, {responder, responder_account}, runner_pid ->
+    scenario = fn {initiator, initiator_account}, {responder, responder_account}, runner_pid ->
       initiator_contract =
-        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/TicTacToe.aes",
+        {TestAccounts.initiatorPubkeyEncoded(), "../../contracts/coin_toss.aes",
          %{abi_version: 3, vm_version: 5, backend: :fate}}
 
+      blocks_reaction_time = 0
+
       [
+        {
+          :initiator,
+          # casino deploys a contract
+          %{
+            message: {:channels_update, 1, :self, "channels.update"},
+            next:
+              {:async,
+               fn pid ->
+                 SocketConnector.new_contract(
+                   pid,
+                   initiator_contract,
+                   [
+                     to_charlist(responder_account),
+                     to_charlist(initiator_account),
+                     to_charlist(blocks_reaction_time)
+                   ]
+                 )
+               end, :empty},
+            fuzzy: 10
+          }
+        },
+        {
+          :responder,
+          # responder picks its side
+          %{
+            message: {:channels_update, 2, :other, "channels.update"},
+            next:
+              {:async,
+               fn pid ->
+                 SocketConnector.call_contract(
+                   pid,
+                   initiator_contract,
+                   'provide_hash',
+                   [to_charlist("#0F7AD4B9B19BD3352A59DA985362351CF2A81449A2C03D7D8A07DE62732473F2")]
+                 )
+               end, :empty},
+            fuzzy: 15
+          }
+        },
         {:initiator,
          %{
-           message: {:channels_update, 1, :self, "channels.update"},
-           next: {:async, fn pid -> SocketConnector.initiate_transfer(pid, 2) end, :empty},
-           fuzzy: 10
-         }},
-        {:initiator,
-         %{
-           message: {:channels_update, 2, :self, "channels.update"},
-           fuzzy: 3,
-           next:
-             ClientRunnerHelper.assert_funds_job(
-               {intiator_account, 6_999_999_999_997},
-               {responder_account, 4_000_000_000_003}
-             )
-         }},
-        {:initiator,
-         %{
-           next: {:async, fn pid -> SocketConnector.new_contract(pid, initiator_contract, [], 10) end, :empty}
-         }},
-        {:initiator,
-         %{
-           fuzzy: 10,
-           message: {:channels_update, 3, :self, "channels.update"},
+           # initiator makes a prediction, after seeing that responder made his own
+           message: {:channels_update, 3, :other, "channels.update"},
            next:
              {:async,
               fn pid ->
-                SocketConnector.force_progress(
+                SocketConnector.call_contract(
                   pid,
                   initiator_contract,
-                  'move',
-                  ['11', '1']
+                  'casino_pick',
+                  [to_charlist(ContractHelper.add_quotes("heads"))]
                 )
-              end, :empty}
+              end, :empty},
+           fuzzy: 10
          }},
+        {
+          :initiator,
+          # initiator just went crazy and all of a sudden, started force-progressing...
+          %{
+            next:
+              {:async,
+               fn pid ->
+                 SocketConnector.force_progress(
+                   pid,
+                   initiator_contract,
+                   'casino_dispute_no_reveal',
+                   []
+                 )
+               end, :empty}
+          }
+        },
+        {:initiator,
+         %{message: {:sign_approve, 5, "channels.sign.force_progress_tx"}, sign: {:default}, fuzzy: 10}},
         {:initiator,
          %{
-           # "consumed_forced_progress", comming as on_chain means, that FP was executed successfully
+           # "consumed_forced_progress", comming as on_chain means, that FP was executed on chain successfully
+           # "method" => "channels.on_chain_tx"
            message: {:on_chain, "consumed_forced_progress"},
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, initiator),
            fuzzy: 20
          }},
         {:responder,
          %{
+           # responder receives that force progress is rolled out
            message: {:on_chain, "consumed_forced_progress"},
            next: ClientRunnerHelper.sequence_finish_job(runner_pid, responder),
            fuzzy: 20
