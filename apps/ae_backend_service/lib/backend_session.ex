@@ -18,6 +18,11 @@ defmodule BackendSession do
     blocks_reaction_time
   end
 
+  def mine_rate() do
+    {mine_rate, ""} = Integer.parse(Application.get_env(:ae_backend_service, :game)[:mine_rate])
+    mine_rate
+  end
+
   # @states [:sign_provide_hash, :perform_casino_pick, :sign_casino_pick, :sign_reveal]
 
   defstruct pid_session_holder: nil,
@@ -31,8 +36,6 @@ defmodule BackendSession do
             fp_timer: nil,
             expected_state: nil
 
-  # TODO: this should be configurable, also actual mine rate is unpredictable...
-  @mine_rate 180_000
   # Client
 
   def start_link({params, {_pid_manager, _identifier} = manager_data}) do
@@ -225,7 +228,7 @@ defmodule BackendSession do
     {channel_reserve, ""} = Integer.parse(state.channel_params[:channel_reserve])
     fund_check = for %{"balance" => balance} = entry <- funds, balance - channel_reserve >= amount, do: entry
 
-    timer = Process.send_after(__MODULE__, :force_progress, blocks_reaction_time() * @mine_rate)
+    timer = Process.send_after(__MODULE__, :force_progress, blocks_reaction_time() * mine_rate())
 
     case Enum.count(fund_check) == 2 do
       true ->
@@ -238,7 +241,7 @@ defmodule BackendSession do
            state
            | game: %{amount: amount},
              expected_state: :perform_casino_pick,
-             fp_timer: make_timer(blocks_reaction_time(), @mine_rate)
+             fp_timer: make_timer(blocks_reaction_time(), mine_rate())
          }}
 
       false ->
@@ -251,7 +254,7 @@ defmodule BackendSession do
            state
            | game: %{amount: amount},
              expected_state: :sign_provide_hash,
-             fp_timer: make_timer(blocks_reaction_time(), @mine_rate)
+             fp_timer: make_timer(blocks_reaction_time(), mine_rate())
          }}
     end
   end
@@ -300,7 +303,7 @@ defmodule BackendSession do
          %__MODULE__{
            state
            | expected_state: :sign_casino_pick,
-             fp_timer: make_timer(blocks_reaction_time(), @mine_rate)
+             fp_timer: make_timer(blocks_reaction_time(), mine_rate())
          }}
     end
   end
@@ -352,11 +355,7 @@ defmodule BackendSession do
 
       _ ->
         Logger.error("Other end missusing protocol")
-        # if timer elapsed, try and force progress, the same goes for if it's been quiet to long....
-        case cancel_timer(fp_timer) do
-          {:ok, time_left} -> Process.send_after(self(), :force_progress, time_left)
-          {:error, _} -> send(__MODULE__, :force_progress)
-        end
+        # don't do anything once timer, try and force progress timer should kick in.
     end
 
     {:noreply, %__MODULE__{state | expected_state: :sign_reveal}}
@@ -443,11 +442,11 @@ defmodule BackendSession do
       {:error, _} ->
         Logger.error(
           "Dry run call of #{inspect(fp_call_function)} failed... Retrying force-progressing in #{
-            inspect(blocks_reaction_time() * @mine_rate)
+            inspect(blocks_reaction_time() * mine_rate())
           } ms"
         )
 
-        fp_timer = make_timer(blocks_reaction_time(), @mine_rate)
+        fp_timer = make_timer(blocks_reaction_time(), mine_rate())
         {:noreply, %{state | fp_timer: fp_timer}}
 
       # call is available and valid, gladly doing force progress
