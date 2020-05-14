@@ -263,6 +263,11 @@ defmodule SocketConnector do
     WebSockex.cast(pid, {:call_contract_dry, contract, fun, args, from_pid})
   end
 
+  @spec force_progress(pid, {binary, String.t(), map()}, binary(), binary(), integer, integer, integer) :: :ok
+  def force_progress(pid, contract, fun, args, amount \\ 0, gas_price \\ 1_000_000, gas \\ 1_000_000) do
+    WebSockex.cast(pid, {:force_progress, contract, fun, args, amount, gas_price, gas})
+  end
+
   @spec get_contract_reponse(pid, {binary(), String.t(), map()}, binary(), pid) :: :ok
   def get_contract_reponse(pid, contract, fun, from \\ nil) do
     WebSockex.cast(pid, {:get_contract_reponse, contract, fun, from})
@@ -608,6 +613,34 @@ defmodule SocketConnector do
      }}
   end
 
+  def handle_cast(
+        {:force_progress, {_pub_key, contract_file, config} = contract, fun, args, amount, gas_price, gas},
+        state
+      ) do
+    {:ok, call_data} =
+      :aeso_compiler.create_calldata(to_charlist(File.read!(contract_file)), fun, args, [
+        {:backend, config.backend}
+      ])
+
+    contract_list = calculate_contract_address(contract, state.round_and_updates)
+
+    [{_max_round, contract_pubkey} | _t] =
+      Enum.sort(contract_list, fn {round_1, _b}, {round_2, _b2} -> round_1 > round_2 end)
+
+    encoded_calldata = :aeser_api_encoder.encode(:contract_bytearray, call_data)
+    contract_call_in_flight = {encoded_calldata, contract_pubkey, fun, args, contract}
+
+    request = force_progress_req(contract_pubkey, config.abi_version, encoded_calldata, amount, gas_price, gas)
+    Logger.info("=> force progress #{inspect(request)}", state.color)
+
+    {:reply, {:text, Poison.encode!(request)},
+     %__MODULE__{
+       state
+       | pending_id: Map.get(request, :id, nil),
+         contract_call_in_flight: contract_call_in_flight
+     }}
+  end
+
   # TODO we know what fun was called. Allow this to get older results?
   def handle_cast({:get_contract_reponse, contract, _fun, from_pid}, state) do
     contract_list = calculate_contract_address(contract, state.round_and_updates)
@@ -830,6 +863,19 @@ defmodule SocketConnector do
     })
   end
 
+  def force_progress_req(address, abi_version, call_data, amount, gas_price, gas) do
+    build_request("channels.force_progress", %{
+      abi_version: abi_version,
+      amount: amount,
+      call_data: call_data,
+      contract_id: address,
+      # TODO: should be configurable, and should be >= gas price set in aeternity config
+      # currently, the gas price is mirroring config files, but it is very variable one
+      gas_price: gas_price,
+      gas: gas
+    })
+  end
+
   def make_sync(from, %SyncCall{request: request, response: response}) do
     {request, response}
 
@@ -1000,7 +1046,8 @@ defmodule SocketConnector do
              "channels.sign.slash_tx",
              "channels.sign.settle_sign",
              "channels.sign.shutdown_sign",
-             "channels.sign.shutdown_sign_ack"
+             "channels.sign.shutdown_sign_ack",
+             "channels.force_progress_sign"
            ] do
     Validator.notify_sign_transaction(to_sign, method, state.channel_id, state)
     {:ok, state}
@@ -1044,7 +1091,8 @@ defmodule SocketConnector do
     "channels.sign.update",
     "channels.sign.initiator_sign",
     "channels.sign.deposit_tx",
-    "channels.sign.withdraw_tx"
+    "channels.sign.withdraw_tx",
+    "channels.sign.force_progress_tx"
   ]
   @other [
     "channels.sign.update_ack",
