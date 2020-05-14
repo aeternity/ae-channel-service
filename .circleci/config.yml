@@ -18,7 +18,7 @@ jobs:
       - run: sudo apt-get -qq -y update && sudo apt-get install -y build-essential && sudo apt-get -qq -y install curl
       # The Erlang/OTP version should correspond to the version used by the
       # aeternity node itself. See https://github.com/aeternity/docker-builder/blob/master/Dockerfile#L18
-      - run: sudo apt-get -qq -y --allow-downgrades install esl-erlang=<< parameters.otp_version >>
+      - run: sudo apt-get -qq -y --allow-downgrades install erlang=<< parameters.otp_version >>
       # The Elixir version should correspond to the version used in mix.exs
       - run: sudo apt-get -qq -y --allow-downgrades install elixir=<< parameters.elixir_version >>
       - run: curl -O https://download.libsodium.org/libsodium/releases/libsodium-1.0.17.tar.gz
