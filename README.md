@@ -44,6 +44,12 @@ Point your browser to [http://localhost:4000/](http://localhost:4000/). Each tab
 AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
 ```
 
+More detailed when needed
+```bash
+TOSS_MODE="random|tails|heads" GAME_MODE="fair|malicious" FORCE_PROGRESS_HEIGHT="15|any_positive_integer" AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
+```
+> defaults are listed as first available option
+
 Point your browser to [http://localhost:4000/](http://localhost:4000/). Each tab can represent a peer. _Initiator_ or _responder_. "Backend helper" starts a channel governed by the [ae_backend_service](apps/ae_backend_service/lib/backend_session.ex) and does not affect the tab.
 > testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recomended worksround is to host your own node.
 

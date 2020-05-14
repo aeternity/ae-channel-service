@@ -18,6 +18,7 @@ defmodule BackendSession do
             identifier: nil,
             params: nil,
             port: nil,
+            channel_params: nil,
             game: %{},
             responder_contract: nil,
             expected_state: nil
@@ -61,11 +62,17 @@ defmodule BackendSession do
       {TestAccounts.responderPubkeyEncoded(), "contracts/coin_toss.aes",
        %{abi_version: 3, vm_version: 5, backend: :fate}}
 
+    {initiator_id, _initiator_priv_key} = initiator_keypair.()
+    {responder_id, _repsonder_priv_key} = keypair_responder()
+
+    channel_params = channel_config.(initiator_id, responder_id).custom_param_fun.(:responder, "irrelevant")
+
     {:noreply,
      %__MODULE__{
        state
        | pid_session_holder: pid,
          port: port,
+         channel_params: channel_params,
          responder_contract: responder_contract
      }}
   end
@@ -95,7 +102,7 @@ defmodule BackendSession do
           to_charlist(initiator_pub),
           to_charlist(responder_pub),
           # reaction time
-          '15'
+          to_charlist(Application.get_env(:ae_backend_service, :game)[:force_progress_height])
         ]
       )
 
@@ -204,7 +211,9 @@ defmodule BackendSession do
     # check whether there is coverage enough in the channel, if not abort.
     fun = &SocketConnector.query_funds(&1, &2)
     funds = SessionHolder.run_action_sync(state.pid_session_holder, fun)
-    fund_check = for %{"balance" => balance} = entry <- funds, balance >= amount, do: entry
+
+    {channel_reserve, ""} = Integer.parse(state.channel_params[:channel_reserve])
+    fund_check = for %{"balance" => balance} = entry <- funds, balance - channel_reserve >= amount, do: entry
 
     case Enum.count(fund_check) == 2 do
       true ->
@@ -223,13 +232,25 @@ defmodule BackendSession do
     end
   end
 
+  @coin_sides ["heads", "tails"]
   # this is :perform_casino_pick
   def handle_cast(
         {:channels_update, _round, round_initiator, "channels.update"} = _message,
         %__MODULE__{expected_state: :perform_casino_pick} = state
       )
       when round_initiator in [:other] do
-    pick = ContractHelper.add_quotes("heads")
+    coin_side =
+      case Application.get_env(:ae_backend_service, :game)[:toss_mode] do
+        manual when manual in @coin_sides ->
+          Logger.info("Picking side manually: #{inspect(manual)}")
+          manual
+
+        _ ->
+          Logger.info("Picking side randomly")
+          Enum.random(@coin_sides)
+      end
+
+    pick = ContractHelper.add_quotes(coin_side)
 
     fun1 =
       &SocketConnector.call_contract(
@@ -241,8 +262,15 @@ defmodule BackendSession do
         state.game.amount
       )
 
-    SessionHolder.run_action(state.pid_session_holder, fun1)
-    {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
+    case Application.get_env(:ae_backend_service, :game)[:game_mode] do
+      "malicious" ->
+        # give the client a chance to show of force progress
+        {:noreply, state}
+
+      _ ->
+        SessionHolder.run_action(state.pid_session_holder, fun1)
+        {:noreply, %__MODULE__{state | expected_state: :sign_casino_pick}}
+    end
   end
 
   # :sign_casino_pick (self) also ChannelCreateTx

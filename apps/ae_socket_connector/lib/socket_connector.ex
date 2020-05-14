@@ -1006,19 +1006,6 @@ defmodule SocketConnector do
     {:ok, state}
   end
 
-  @self [
-    "channels.sign.update",
-    "channels.sign.initiator_sign",
-    "channels.sign.deposit_tx",
-    "channels.sign.withdraw_tx"
-  ]
-  @other [
-    "channels.sign.update_ack",
-    "channels.sign.responder_sign",
-    "channels.sign.deposit_ack",
-    "channels.sign.withdraw_ack"
-  ]
-
   # @spec decode_calldata(any, any) :: :empty | :ok | {:error, any}
   def decode_calldata(updates, state) do
     entries =
@@ -1052,6 +1039,19 @@ defmodule SocketConnector do
         end
     end
   end
+
+  @self [
+    "channels.sign.update",
+    "channels.sign.initiator_sign",
+    "channels.sign.deposit_tx",
+    "channels.sign.withdraw_tx"
+  ]
+  @other [
+    "channels.sign.update_ack",
+    "channels.sign.responder_sign",
+    "channels.sign.deposit_ack",
+    "channels.sign.withdraw_ack"
+  ]
 
   def process_message(
         %{
