@@ -9,9 +9,9 @@ implements the FSM protocol and manages the websocket to the FSM (node connectio
 This application will automatically persist channel_id and related data allowing reestablish. 
 > Default location is `./data`. remove folder to start from a clean slate. Location is configurabe as shown i example [here](https://github.com/aeternity/ae-channel-service/blob/4c40727b28b9ce5dec2231a2fa9ed46dd8618ccd/apps/ae_socket_connector/lib/session_holder_helper.ex#L185).
 * ae_channel_interface<br />
-an interactive web interface which visualizes channel messages with the intention to ease onboarding.
+an interactive web interface which visualizes channel messages with the intention to ease onboarding. Read more [here](apps/ae_channel_interface/README.md).
 * ae_backend_service<br />
-sample backend service which could orchestrate a number of channels.
+sample backend service which can orchestrate a number of channels. Current implementation showcases a `coin toss` backend service. Read more on `ae_backend_service` [here](apps/ae_backend_service/README.md).
 
 >ae_socket_connector benefits by being able to call erlang functions used by the aeternity node.
 
