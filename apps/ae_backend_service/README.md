@@ -12,7 +12,7 @@ The game logic itself is implemented [here](/apps/ae_backend_service/lib/backend
 
 Short description, steps marked with (*) require co-signing, that is; signature by both participants 
 ```
-1. channels is opened (*)
+1. channel is opened (*)
 2. backend provides contract (*)
 3. player provides a stake N tokens and a hash `compute_hash` based on guess which is heads|tails, and the secret key (salt) (*)
 4. backend makes a coin_side guess with `casino_pick` and also provides N tokens to be able to participate (*)
