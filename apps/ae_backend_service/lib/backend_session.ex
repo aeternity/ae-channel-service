@@ -1,11 +1,4 @@
 defmodule BackendSession do
-  @moduledoc """
-  BackendSession keeps the contexts that define your domain
-  and business logic.
-
-  Contexts are also responsible for managing your data, regardless
-  if it comes from the database, an external API or others.
-  """
   use GenServer
   require Logger
 
@@ -122,97 +115,6 @@ defmodule BackendSession do
     SessionHolder.run_action(state.pid_session_holder, fun)
     {:noreply, %__MODULE__{state | expected_state: :sign_provide_hash}}
   end
-
-  # def handle_cast(
-  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
-  #       %__MODULE__{expected_state: expected_state} = state
-  #     )
-  #     when round_initiator in [:self] and expected_state == :provide_hash do
-  #   {responder_pub, _priv} = keypair_responder()
-  #   {_role, _channel_config, _reestablish, initiator_keypair} = state.params
-  #   {initiator_pub, _priv} = initiator_keypair.()
-
-  #   Logger.info("providing hash")
-
-  #   some_salt = ContractHelper.add_quotes("some_salt")
-  #   coin = ContractHelper.add_quotes("heads")
-
-  #   fun =
-  #     &SocketConnector.call_contract_dry(
-  #       &1,
-  #       state.responder_contract,
-  #       'compute_hash',
-  #       [to_charlist(some_salt), to_charlist(coin)],
-  #       &2
-  #     )
-
-  #   {:ok, {:bytes, [], hash}} = SessionHolder.run_action_sync(state.pid_session_holder, fun)
-
-  #   fun1 =
-  #     &SocketConnector.call_contract(
-  #       &1,
-  #       state.responder_contract,
-  #       'provide_hash',
-  #       [to_charlist(ContractHelper.to_sophia_bytes(hash))],
-  #       # this is what we put at stake.
-  #       10
-  #     )
-
-  #   SessionHolder.run_action(state.pid_session_holder, fun1)
-  #   {:noreply, %__MODULE__{state | expected_state: :player_pick, game: %{hash: hash, coin: coin, salt: some_salt}}}
-  # end
-
-  # def handle_cast(
-  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
-  #       %__MODULE__{expected_state: expected_state} = state
-  #     )
-  #     when round_initiator in [:self] and expected_state == :player_pick do
-  #   Logger.info("Waiting for player to make a guess")
-  #   {:noreply, %__MODULE__{state | expected_state: :reveal}}
-  # end
-
-  # def handle_cast(
-  #       {:channels_update, _round, round_initiator, "channels.update"} = _message,
-  #       %__MODULE__{game: game, expected_state: expected_state} = state
-  #     )
-  #     when round_initiator in [:other] and expected_state == :reveal do
-  #   Logger.info("Other player made a guess, settling funds")
-
-  #   fun =
-  #     &SocketConnector.call_contract(
-  #       &1,
-  #       state.responder_contract,
-  #       'reveal',
-  #       [to_charlist(game.salt), to_charlist(game.coin)]
-  #     )
-
-  #   SessionHolder.run_action(state.pid_session_holder, fun)
-  #   {:noreply, %__MODULE__{state | expected_state: :provide_hash}}
-  # end
-
-  # def handle_cast({:channels_update, 5, round_initiator, "channels.update"} = _message, state)
-  #     when round_initiator in [:self] do
-  #   Logger.info("Game end, backend emptying contract")
-
-  #   fun =
-  #     &SocketConnector.call_contract(
-  #       &1,
-  #       state.responder_contract,
-  #       'drain',
-  #       []
-  #     )
-
-  #   SessionHolder.run_action(state.pid_session_holder, fun)
-
-  #   {:noreply, state}
-  # end
-
-  # def handle_cast({:channels_update, 5, _round_initiator, "channels.update"} = _message, state) do
-  #   Logger.info("Shutdown game has reached end after one one toss, check account balances")
-  #   fun = &SocketConnector.shutdown(&1)
-  #   SessionHolder.run_action(state.pid_session_holder, fun)
-  #   {:noreply, state}
-  # end
 
   # this is :sign_provide_hash
   def handle_cast(
