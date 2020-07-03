@@ -12,7 +12,9 @@ chain:
       "2": 1
       "3": 2
       "4": 3
-
+http:
+    external:
+        port: 3013
 mining:
     # Start mining automatically.
     autostart: true

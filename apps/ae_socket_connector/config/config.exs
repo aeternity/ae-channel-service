@@ -6,7 +6,8 @@ config :logger,
   ]
 
 config :ae_socket_connector, :node,
-  ae_url: System.get_env("AE_NODE_URL") || "ws://localhost:3014/channel",
+  ae_url_ws: System.get_env("AE_NODE_URL_WS") || "ws://localhost:3014/channel",
+  ae_url_http: System.get_env("AE_NODE_URL_HTTP") || "http://localhost:3013/",
   network_id: System.get_env("AE_NODE_NETWORK_ID") || "my_test",
   deps_path: "aeternity/lib"
 
