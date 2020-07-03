@@ -1,7 +1,6 @@
 defmodule SessionHolderHelper do
-  def ae_url() do
-    Application.get_env(:ae_socket_connector, :node)[:ae_url]
-  end
+  def ae_url_ws(), do: Application.get_env(:ae_socket_connector, :node)[:ae_url_ws]
+  def ae_url_http(), do: Application.get_env(:ae_socket_connector, :node)[:ae_url_http]
 
   def network_id() do
     Application.get_env(:ae_socket_connector, :node)[:network_id]
@@ -194,7 +193,7 @@ defmodule SessionHolderHelper do
         role: role
       },
       log_config: generate_log_config(role, pub_key, "data"),
-      ae_url: ae_url(),
+      ae_url: ae_url_ws(),
       network_id: network_id(),
       priv_key: priv_key,
       connection_callbacks: connection_callback_handler,

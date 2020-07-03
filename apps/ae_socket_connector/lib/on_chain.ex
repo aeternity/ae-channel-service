@@ -35,4 +35,9 @@ defmodule ChannelService.OnChain do
     %{"tx_hash" => tx_hash} = Poison.decode!(HTTPotion.post(url, body: body, headers: header).body)
     Logger.debug("track transaction curl http://localhost:3013/v2/transactions/" <> tx_hash)
   end
+
+  def get_channel_info(<<"ch_", _rest::binary>> = channel_id, node_url) do
+    url = build_url(node_url, "/v2/channels/#{channel_id}")
+    Poison.decode!(HTTPotion.get(url).body)
+  end
 end

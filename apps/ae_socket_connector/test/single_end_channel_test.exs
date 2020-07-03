@@ -52,8 +52,8 @@ defmodule SingleEndChannelTest do
       })
 
     ClientRunner.start_peers(
-      SocketConnectorHelper.ae_url(),
-      SockerConnectorHelper.network_id(),
+      SessionHolderHelper.ae_url_ws(),
+      SessionHolderHelper.network_id(),
       %{
         initiator: %{
           name: alice,

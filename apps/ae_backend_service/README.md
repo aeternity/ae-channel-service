@@ -31,5 +31,5 @@ In order to test specific scenarios the backend behaviour can be configured with
 ```bash
 TOSS_MODE="random|tails|heads" GAME_MODE="fair|malicious" FORCE_PROGRESS_HEIGHT="15|any_positive_integer" 
 MINE_RATE="180000|any_positive_integer"
-AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
+AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_URL_HTTP="http://testnet.aeternity.io" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
 ```

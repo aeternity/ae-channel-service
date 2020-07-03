@@ -41,12 +41,13 @@ Point your browser to [http://localhost:4000/](http://localhost:4000/). Each tab
 ## Run sample interactive web client (testnet)
 
 ```bash
-AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
+AE_NODE_URL_WS="wss://testnet.aeternity.io:443/channel" AE_NODE_URL_HTTP="testnet.aeternity.io" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
 ```
 
 More detailed when needed
 ```bash
-TOSS_MODE="random|tails|heads" GAME_MODE="fair|malicious" FORCE_PROGRESS_HEIGHT="15|any_positive_integer" AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
+TOSS_MODE="random|tails|heads" GAME_MODE="fair|malicious" FORCE_PROGRESS_HEIGHT="15|any_positive_integer" AE_NODE_URL_WS="wss://testnet.aeternity.io:443/channel"  AE_NODE_URL_HTTP="http://localhost:3013/"
+AE_NODE_NETWORK_ID="ae_uat" iex -S mix phx.server
 ```
 > defaults are listed as first available option
 
@@ -65,7 +66,7 @@ mix test
 
 or for testnet
 ```bash
-AE_NODE_URL="wss://testnet.aeternity.io:443/channel" AE_NODE_NETWORK_ID="ae_uat" mix test
+AE_NODE_URL_WS="wss://testnet.aeternity.io:443/channel" AE_NODE_URL_HTTP="http://testnet.aeternity.io" AE_NODE_NETWORK_ID="ae_uat" mix test
 ```
 
 Scenarios executed can be found [here](apps/ae_socket_connector/test/ae_socket_connector_test.exs)

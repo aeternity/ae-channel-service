@@ -1,16 +1,50 @@
-<table class="table">
+<html>
+<head>
+<style>
+table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-collapse: collapse;
+}
+</style>
+</head>
+<table >
   <thead>
     <tr>
-      <th scope="col">ID </th>
-      <th scope="col">Channel id</th>
+      <th scope="col">Channel ID</th>
+      <th scope="col">Amount</th>
+      <th scope="col">Reserve</th>
+      <th scope="col">Delegate IDs</th>
+      <th scope="col">Initiator amount</th>
+      <th scope="col">Initiator ID</th>
+      <th scope="col">Lock period</th>
+      <th scope="col">Locked until</th>
+      <th scope="col">Responder amount</th>
+      <th scope="col">Responder ID</th>
+      <th scope="col">Round</th>
+      <th scope="col">Solo round</th>
+      <th scope="col">State hash</th>
     </tr>
   </thead>
   <tbody>
- <%= for {id,channel_id} <- @active_channels do %>
+ <%= for channel <- @conn.assigns[:channels] do %>
    <tr>
-     <th scope="row"><%= id %></th>
-     <td><%= channel_id %></td>
+     <th scope="row"><%= channel["id"] %></th>
+     <td><%= channel["channel_amount"] %></td>
+     <td><%= channel["channel_reserve"] %></td>
+     <td><%= channel["delegate_ids"] %> </td>
+     <td><%= channel["initiator_amount"] %></td>
+     <td><%= channel["initiator_id"] %></td>
+     <td><%= channel["lock_period"] %></td>
+     <td><%= channel["locked_until"] %></td>
+     <td><%= channel["responder_amount"] %></td>
+     <td><%= channel["responder_id"] %></td>
+     <td><%= channel["round"] %></td>
+     <td><%= channel["solo_round"] %></td>
+     <td><%= channel["state_hash"] %></td>
    </tr>
  <% end %>
   </tbody>
  </table>
+ </html>

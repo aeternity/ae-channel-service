@@ -101,7 +101,7 @@ defmodule ReuseChannelTest do
     clean_log_config_file(log_config_responder)
 
     ClientRunner.start_peers(
-      SocketConnectorHelper.ae_url(),
+      SocketConnectorHelper.ae_url_ws(),
       SockerConnectorHelper.network_id(),
       %{
         initiator: %{
@@ -154,7 +154,7 @@ defmodule ReuseChannelTest do
     end
 
     ClientRunner.start_peers(
-      SocketConnectorHelper.ae_url(),
+      SocketConnectorHelper.ae_url_ws(),
       SockerConnectorHelper.network_id(),
       %{
         initiator: %{
