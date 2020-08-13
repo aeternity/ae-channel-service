@@ -1,13 +1,13 @@
 # ae-channel-service
 
-This is a reference client implementaion using the aeternity state channels. State channels allows secure transaction at very low fees.
+This is a reference client implementation using the aeternity state channels. State channels allows secure transaction at very low fees.
 Extensive documentation on aeternity state channels can be found [here](https://github.com/aeternity/protocol/blob/master/node/api/channels_api_usage.md).
 
 The project consists of the following applications
 * ae_socket_connector<br />
 implements the FSM protocol and manages the websocket to the FSM (node connection).
 This application will automatically persist channel_id and related data allowing reestablish. 
-> Default location is `./data`. remove folder to start from a clean slate. Location is configurabe as shown i example [here](https://github.com/aeternity/ae-channel-service/blob/4c40727b28b9ce5dec2231a2fa9ed46dd8618ccd/apps/ae_socket_connector/lib/session_holder_helper.ex#L185).
+> Default location is `./data`. remove folder to start from a clean slate. Location is configurable as shown in example [here](https://github.com/aeternity/ae-channel-service/blob/4c40727b28b9ce5dec2231a2fa9ed46dd8618ccd/apps/ae_socket_connector/lib/session_holder_helper.ex#L185).
 * ae_channel_interface<br />
 an interactive web interface which visualizes channel messages with the intention to ease onboarding. Read more [here](apps/ae_channel_interface/README.md).
 * ae_backend_service<br />
@@ -51,7 +51,7 @@ TOSS_MODE="random|tails|heads" GAME_MODE="fair|malicious" FORCE_PROGRESS_HEIGHT=
 > defaults are listed as first available option
 
 Point your browser to [http://localhost:4000/](http://localhost:4000/). Each tab can represent a peer. _Initiator_ or _responder_. "Backend helper" starts a channel governed by the [ae_backend_service](apps/ae_backend_service/lib/backend_session.ex) and does not affect the tab.
-> testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recomended worksround is to host your own node.
+> testnet is currently load balanced, you need to be persistent (try again) to get your channel up and running. Current recommended workaround is to host your own node.
 
 ## Get going with the interactive web client 
 Get started [here](apps/ae_channel_interface/README.md)
@@ -106,4 +106,4 @@ Defaults can be found in your node config [here](https://github.com/aeternity/ae
 more documentation on node configuration can be found [here](https://github.com/aeternity/aeternity/blob/master/docs/configuration.md).
 
 # Related references
-* Refence to node api can be found [here](https://api-docs.aeternity.io/).
+* Reference to node api can be found [here](https://api-docs.aeternity.io/).
