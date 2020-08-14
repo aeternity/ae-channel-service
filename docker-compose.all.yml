@@ -1,0 +1,22 @@
+version: '3'
+services:
+  aenode:
+    image: aeternity/aeternity:${NODE_REF:-latest}
+    ports:
+      - "3013:3013"
+      - "3014:3014"
+      - "3015:3015"
+      - "3113:3113"
+    volumes:
+      - "./test/accounts_test.json:/home/aeternity/node/data/aecore/.genesis/accounts_test.json"
+      - "${NODE_CONFIGURATION:-./test/aeternity_node_fast_test_config.yml}:/home/aeternity/node/aeternity.yaml"
+  aechannelservice:
+    build:
+      context: .
+    ports:
+      - "4000:4000"
+    environment:
+      - AE_NODE_NETWORK_ID=ae_channel_service_test
+      - AE_NODE_URL=ws://aenode:3014/channel
+    depends_on:
+      - "aenode"
